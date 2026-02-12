@@ -1,0 +1,14 @@
+# Docker volumes
+/docker/postgres-data/
+/docker/redis-data/
+
+# IDE files
+.idea/
+*.iml
+.DS_Store
+
+# Maven build
+target/
+mvnw
+mvnw.cmd
+.mvn/

@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: vpn_postgres-dev
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=vpn_db
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U vpn_user -d vpn_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vpn-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: vpn_redis-dev
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass admin
+    volumes:
+      - ./redis-data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "vpn_redis_password", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - vpn-network
+    restart: unless-stopped
+
+networks:
+  vpn-network:
+    driver: bridge

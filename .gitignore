@@ -1,14 +1,23 @@
-# Docker volumes
-/docker/postgres-data/
-/docker/redis-data/
+backend/**/target/
+backend/**/*.class
+backend/**/.idea/
+backend/**/*.iml
 
-# IDE files
-.idea/
-*.iml
-.DS_Store
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/.idea/
+mobile/android/local.properties
 
-# Maven build
-target/
-mvnw
-mvnw.cmd
-.mvn/
+mobile/ios/Pods/
+mobile/ios/*.xcworkspace
+mobile/ios/DerivedData/
+mobile/ios/.DS_Store
+
+telegram/bot/__pycache__/
+telegram/bot/venv/
+telegram/mini-app/node_modules/
+telegram/mini-app/dist/
+
+.env
+*.log

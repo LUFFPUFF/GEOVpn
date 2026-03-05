@@ -3,6 +3,10 @@
   <component name="Encoding">
     <file url="file://$PROJECT_DIR$/backend/api-gateway/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/backend/api-gateway/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/backend/billing-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/backend/billing-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/backend/blocked-domains-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/backend/blocked-domains-service/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/backend/common/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/backend/common/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/backend/server-management-service/src/main/java" charset="UTF-8" />

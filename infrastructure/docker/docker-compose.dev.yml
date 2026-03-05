@@ -3,36 +3,81 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: vpn-postgres-dev
+    container_name: vpn-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: telegram_vpn
-      POSTGRES_USER: vpn_user
-      POSTGRES_PASSWORD: vpn_password
-      TZ: Europe/Moscow
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data-dev:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vpn_user -d telegram_vpn"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - vpn-network
 
   redis:
     image: redis:7-alpine
-    container_name: vpn-redis-dev
+    container_name: vpn-redis
+    restart: unless-stopped
+    command: redis-server --requirepass redis_password --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
     volumes:
-      - redis-data-dev:/data
-    command: redis-server --appendonly yes
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 3s
       retries: 5
+    networks:
+      - vpn-network
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: vpn-redis-commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:redis_password
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - vpn-network
+
+#  pgadmin:
+#    image: dpage/pgadmin4:latest
+#    container_name: vpn-pgadmin
+#    restart: unless-stopped
+#    environment:
+#      PGADMIN_DEFAULT_EMAIL: admin@vpn.local
+#      PGADMIN_DEFAULT_PASSWORD: admin
+#      PGADMIN_CONFIG_SERVER_MODE: 'False'
+#    ports:
+#      - "5050:80"
+#    volumes:
+#      - pgadmin-data:/var/lib/pgadmin
+#    depends_on:
+#      - postgres
+#    networks:
+#      - vpn-network
+
+networks:
+  vpn-network:
+    driver: bridge
 
 volumes:
-  postgres-data-dev:
-  redis-data-dev:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  pgadmin-data:
+    driver: local

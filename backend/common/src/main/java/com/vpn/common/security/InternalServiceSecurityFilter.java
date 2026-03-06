@@ -1,4 +1,4 @@
-package com.vpn.gateway.security;
+package com.vpn.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vpn.common.constant.ErrorCode;
@@ -70,7 +70,7 @@ public class InternalServiceSecurityFilter extends OncePerRequestFilter{
             return;
         }
 
-        log.debug("✅ Internal security check passed for: {}", requestUri);
+        log.debug("Internal security check passed for: {}", requestUri);
         filterChain.doFilter(request, response);
     }
 

@@ -61,7 +61,7 @@ public class User {
     }
 
     public boolean hasSufficientBalance(int amount) {
-        return this.balance >= amount;
+        return this.balance < amount;
     }
 
     public void addBalance(int amount) {
@@ -69,7 +69,7 @@ public class User {
     }
 
     public void deductBalance(int amount) {
-        if (!hasSufficientBalance(amount)) {
+        if (hasSufficientBalance(amount)) {
             throw new IllegalStateException("Insufficient balance");
         }
         this.balance -= amount;

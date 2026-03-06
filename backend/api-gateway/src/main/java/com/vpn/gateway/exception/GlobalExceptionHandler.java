@@ -116,9 +116,6 @@ public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
         return writeErrorResponse(exchange, status, errorCode, message, traceId);
     }
 
-    /**
-     * Записать ответ с ошибкой
-     */
     private Mono<Void> writeErrorResponse(
             ServerWebExchange exchange,
             HttpStatus status,

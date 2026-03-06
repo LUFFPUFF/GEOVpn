@@ -204,6 +204,13 @@
     </dependencyManagement>
 
     <build>
+        <extensions>
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+            </extension>
+        </extensions>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -234,6 +241,7 @@
                     <configuration>
                         <source>${java.version}</source>
                         <target>${java.version}</target>
+                        <parameters>true</parameters>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>org.projectlombok</groupId>
@@ -260,10 +268,12 @@
                     <artifactId>protobuf-maven-plugin</artifactId>
                     <version>0.6.1</version>
                     <configuration>
+                        <!--suppress UnresolvedMavenProperty -->
                         <protocArtifact>
                             com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
                         </protocArtifact>
                         <pluginId>grpc-java</pluginId>
+                        <!--suppress UnresolvedMavenProperty -->
                         <pluginArtifact>
                             io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
                         </pluginArtifact>

@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: 8082
   compression:
     enabled: true
   error:
@@ -53,6 +53,13 @@ spring:
     type: redis
     redis:
       time-to-live: 600000
+
+service:
+  security:
+    internal-secret: "Internal_Secret_Vpn_App_2024_!@#"
+    admins:
+      - 123456789
+      - 987654321
 
 logging:
   level:

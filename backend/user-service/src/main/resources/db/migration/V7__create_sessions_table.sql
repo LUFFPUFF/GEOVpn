@@ -18,9 +18,9 @@ CREATE TABLE sessions (
                           CONSTRAINT valid_expiry CHECK (expires_at > created_at)
 );
 
-CREATE INDEX idx_sessions_user ON sessions(user_id) WHERE is_active = true;
-CREATE INDEX idx_sessions_token ON sessions(session_token) WHERE is_active = true;
-CREATE INDEX idx_sessions_expiry ON sessions(expires_at) WHERE is_active = true;
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+CREATE INDEX idx_sessions_token ON sessions(session_token);
+CREATE INDEX idx_sessions_expiry ON sessions(expires_at);
 
 CREATE OR REPLACE FUNCTION cleanup_expired_sessions()
 RETURNS void AS $$

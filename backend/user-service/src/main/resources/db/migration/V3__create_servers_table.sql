@@ -26,14 +26,9 @@ CREATE TABLE servers (
                          CONSTRAINT valid_port CHECK (port BETWEEN 1 AND 65535)
 );
 
-CREATE INDEX idx_servers_active ON servers(is_active) WHERE is_active = true;
+CREATE INDEX idx_servers_active ON servers(is_active);
 CREATE INDEX idx_servers_location ON servers(country_code, location);
-CREATE INDEX idx_servers_health ON servers(health_score DESC) WHERE is_active = true;
-
-CREATE TRIGGER update_servers_updated_at
-    BEFORE UPDATE ON servers
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+CREATE INDEX idx_servers_health ON servers(health_score DESC);
 
 INSERT INTO servers (name, location, country_code, ip_address, port, reality_public_key, reality_short_id, max_connections)
 VALUES

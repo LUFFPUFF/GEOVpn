@@ -31,8 +31,8 @@ CREATE TABLE transactions (
 );
 
 CREATE INDEX idx_transactions_user ON transactions(user_id, created_at DESC);
-CREATE INDEX idx_transactions_status ON transactions(status) WHERE status = 'PENDING';
-CREATE INDEX idx_transactions_external ON transactions(external_transaction_id) WHERE external_transaction_id IS NOT NULL;
+CREATE INDEX idx_transactions_status ON transactions(status);
+CREATE INDEX idx_transactions_external ON transactions(external_transaction_id);
 
 CREATE VIEW user_transaction_stats AS
 SELECT

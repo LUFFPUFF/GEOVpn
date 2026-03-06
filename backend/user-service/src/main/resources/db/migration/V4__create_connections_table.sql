@@ -25,7 +25,7 @@ CREATE TABLE connections (
 CREATE INDEX idx_connections_user ON connections(user_id, connected_at DESC);
 CREATE INDEX idx_connections_device ON connections(device_id);
 CREATE INDEX idx_connections_server ON connections(server_id);
-CREATE INDEX idx_connections_active ON connections(user_id) WHERE disconnected_at IS NULL;
+CREATE INDEX idx_connections_active ON connections(user_id);
 
 CREATE VIEW active_connections AS
 SELECT

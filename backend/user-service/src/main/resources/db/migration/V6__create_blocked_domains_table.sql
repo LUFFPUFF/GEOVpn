@@ -15,8 +15,8 @@ CREATE TABLE blocked_domains (
                                  CONSTRAINT valid_domain CHECK (LENGTH(domain) > 0)
 );
 
-CREATE INDEX idx_blocked_domains_active ON blocked_domains(domain) WHERE is_blocked = true;
-CREATE INDEX idx_blocked_domains_category ON blocked_domains(category) WHERE category IS NOT NULL;
+CREATE INDEX idx_blocked_domains_active ON blocked_domains(domain);
+CREATE INDEX idx_blocked_domains_category ON blocked_domains(category);
 CREATE INDEX idx_blocked_domains_source ON blocked_domains(source);
 
 CREATE INDEX idx_blocked_domains_search ON blocked_domains USING gin(to_tsvector('english', domain));

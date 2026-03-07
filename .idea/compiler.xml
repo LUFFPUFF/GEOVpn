@@ -14,8 +14,8 @@
         <module name="common" />
         <module name="api-gateway" />
         <module name="blocked-domains-service" />
-        <module name="vpn-config-service" />
         <module name="user-service" />
+        <module name="vpn-config-service" />
         <module name="billing-service" />
       </profile>
     </annotationProcessing>

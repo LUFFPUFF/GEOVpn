@@ -1,0 +1,29 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: server-management-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/telegram_vpn
+    username: admin
+    password: admin
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  quartz:
+    job-store-type: memory
+
+
+service:
+  security:
+    internal-secret: "Internal_Secret_Vpn_App_2024_!@#"
+    internal-check-enabled: true
+    admins:
+      - 999999
+
+vpn:
+  monitoring:
+    health-check-interval-ms: 30000
+    timeout-ms: 5000
+    xray-grpc-port: 10085

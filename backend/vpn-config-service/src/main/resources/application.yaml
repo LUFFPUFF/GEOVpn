@@ -99,16 +99,59 @@ vpn:
 
     selection:
       weights:
-        latency: 0.30
-        load: 0.20
-        geography: 0.25
-        health: 0.15
-        protocol: 0.10
+        latency: 0.30      # 30% - Скорость отклика
+        load: 0.20         # 20% - Загрузка сервера
+        geography: 0.25    # 25% - Географическая близость
+        health: 0.15       # 15% - Состояние сервера
+        protocol: 0.10     # 10% - Поддержка протокола
+
+        # Географические бонусы по странам
+      geography-bonus:
+        default:
+          LV: 25  # Latvia - ближайшая
+          FI: 20  # Finland - очень близко
+          NL: 15  # Netherlands - хорошее соединение
+          DE: 12  # Germany
+          PL: 10  # Poland
+          EE: 18  # Estonia
+          SE: 17  # Sweden
+
+        # Для европейских пользователей
+        EU:
+          NL: 25  # Netherlands - центр Европы
+          DE: 23  # Germany
+          FR: 20  # France
+          UK: 18  # United Kingdom
+          PL: 15  # Poland
+
+        # Для азиатских пользователей
+        ASIA:
+          SG: 25  # Singapore
+          JP: 23  # Japan
+          HK: 20  # Hong Kong
+          KR: 18  # South Korea
+
+
+    latency:
+      multiplier: 0.5
+      max-acceptable-ms: 200
+      excellent-threshold: 20
+      good-threshold: 50
+
+
+    load:
+      critical-threshold: 90.0
+      warning-threshold: 70.0
+      optimal-threshold: 50.0
 
 service:
   security:
     internal-secret: ${INTERNAL_SECRET:Internal_Secret_Vpn_App_2024_!@#}
     internal-check-enabled: true
+
+mock:
+  server-management:
+    enabled: ${MOCK_ENABLED:true}
 
 management:
   endpoints:

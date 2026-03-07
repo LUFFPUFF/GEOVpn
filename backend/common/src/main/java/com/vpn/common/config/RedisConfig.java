@@ -3,6 +3,7 @@ package com.vpn.common.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
@@ -32,14 +33,17 @@ public class RedisConfig {
 
     private final ObjectMapper objectMapper;
 
-    private static final String HOST_NAME = "localhost";
-    private static final Integer PORT = 6379;
+    @Value("${spring.data.redis.host:localhost}")
+    private String redisHost;
+
+    @Value("${spring.data.redis.port:6379}")
+    private int redisPort;
 
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
-        config.setHostName(HOST_NAME);
-        config.setPort(PORT);
+        config.setHostName(redisHost);
+        config.setPort(redisPort);
 
         LettuceConnectionFactory factory = new LettuceConnectionFactory(config);
         factory.setShareNativeConnection(false);

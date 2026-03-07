@@ -1,8 +1,10 @@
 package com.vpn.gateway.security;
 
 import jakarta.annotation.PostConstruct;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 
@@ -13,10 +15,11 @@ import java.util.List;
  * Если endpoint в списке openEndpoints - аутентификация не требуется
  */
 @Slf4j
+@Data
 @Component
+@ConfigurationProperties(prefix = "service.security")
 public class RouteValidator {
 
-    @Value("${service.security.open-endpoints}")
     private List<String> openEndpoints;
 
     @PostConstruct

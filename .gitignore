@@ -19,5 +19,7 @@ telegram/bot/venv/
 telegram/mini-app/node_modules/
 telegram/mini-app/dist/
 
+local-dev.yaml
+
 .env
 *.log

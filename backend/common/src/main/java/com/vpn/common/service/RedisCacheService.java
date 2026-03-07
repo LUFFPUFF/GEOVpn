@@ -80,8 +80,7 @@ public class RedisCacheService {
      */
     public boolean exists(String key) {
         try {
-            Boolean exists = redisTemplate.hasKey(key);
-            return exists != null && exists;
+            return redisTemplate.hasKey(key);
         } catch (Exception e) {
             log.error("Failed to check key existence: {}", key, e);
             return false;

@@ -1,11 +1,13 @@
 server:
-  port: 8080
+  port: ${GATEWAY_PORT}
   error:
     include-message: always
 
 spring:
   application:
     name: api-gateway
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
 
   cloud:
     gateway:
@@ -43,84 +45,59 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowed-origins:
-              - "${CORS_ALLOWED_ORIGINS:http://localhost:3000}"
-            allowed-methods:
-              - GET
-              - POST
-              - PUT
-              - DELETE
-              - PATCH
-              - OPTIONS
+            allowed-origins: ${ALLOWED_ORIGINS}
+            allowed-methods: "*"
             allowed-headers: "*"
-            exposed-headers:
-              - X-Trace-Id
-              - X-User-Id
             allow-credentials: true
             max-age: 3600
 
       routes:
-        - id: user-service
-          uri: ${USER_SERVICE_URL:http://localhost:8081}
+        - id: ${ID_ROUTES_USER_SERVICE}
+          uri: ${USER_SERVICE_URL}
           predicates:
-            - Path=/api/v1/users/**,/api/v1/devices/**
-          filters:
-            - StripPrefix=2
+            - Path=${PATH_USER_SERVICE}
+          filters: [StripPrefix=2]
 
-        - id: vpn-config-service
-          uri: ${VPN_CONFIG_SERVICE_URL:http://localhost:8082}
+        - id: ${ID_ROUTES_VPN_CONFIG_SERVICE}
+          uri: ${VPN_CONFIG_SERVICE_URL}
           predicates:
-            - Path=/api/v1/configs/**
-          filters:
-            - StripPrefix=2
+            - Path=${PATH_VPN_CONFIG_SERVICE}
+          filters: [StripPrefix=2]
 
-        - id: server-management-service
-          uri: ${SERVER_MANAGEMENT_SERVICE_URL:http://localhost:8083}
+        - id: ${ID_ROUTES_SERVER_MGM_SERVICE}
+          uri: ${SERVER_MGM_SERVICE_URL}
           predicates:
-            - Path=/api/v1/servers/**
-          filters:
-            - StripPrefix=2
+            - Path=${PATH_SERVER_MGM_SERVICE}
+          filters: [StripPrefix=2]
 
-        - id: billing-service
-          uri: ${BILLING_SERVICE_URL:http://localhost:8084}
+        - id: ${ID_ROUTES_BILLING_SERVICE}
+          uri: ${BILLING_SERVICE_URL}
           predicates:
-            - Path=/api/v1/billing/**,/api/v1/transactions/**
-          filters:
-            - StripPrefix=2
+            - Path=${PATH_BILLING_SERVICE}
+          filters: [StripPrefix=2]
 
-        - id: blocked-domains-service
-          uri: ${BLOCKED_DOMAINS_SERVICE_URL:http://localhost:8085}
+        - id: ${ID_ROUTES_BLOCKED_DOMAIN_SERVICE}
+          uri: ${BLOCKED_DOMAINS_SERVICE_URL}
           predicates:
-            - Path=/api/v1/blocked-domains/**
-          filters:
-            - StripPrefix=2
+            - Path=${PATH_BLOCKED_DOMAIN_SERVICE}
+          filters: [StripPrefix=2]
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD:}
       timeout: 2000ms
 
 service:
   jwt:
-    secret: ${JWT_SECRET:89ahwkjIOwZbP3dC4GwzDo7m5RzPUsYifSftbBu5fervCPjlWuP9gUddZkI1bvGYIQDwqu2r12D90Iu/HlY9JQ==}
-    expiration: ${JWT_EXPIRATION:86400000}
-    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION}
 
   security:
-    open-endpoints:
-      - /api/v1/auth/login
-      - /api/v1/auth/register
-      - /api/v1/auth/telegram
-      - /api/v1/auth/refresh
-      - /api/v1/webhooks/yoomoney
-      - /api/v1/webhooks/cryptopay
-      - /actuator/health
-      - /actuator/info
-      - /fallback
-
-    internal-secret: ${INTERNAL_SECRET:Internal_Secret_Vpn_App_2024_!@#}
+    open-endpoints: ${SECURITY_OPEN_ENDPOINTS}
+    internal-secret: ${INTERNAL_SECRET}
 
 resilience4j:
   circuitbreaker:
@@ -141,7 +118,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus,gateway
+        include: ${MONITORING_ENDPOINTS}
   endpoint:
     health:
       show-details: always

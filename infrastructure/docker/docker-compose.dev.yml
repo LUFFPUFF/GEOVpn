@@ -3,81 +3,280 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: vpn-postgres
+    container_name: vpn-postgres-dev
     restart: unless-stopped
     environment:
-      POSTGRES_DB: telegram_vpn
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
-      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres_data_dev:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - vpn-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vpn_user -d telegram_vpn"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - vpn-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
-    container_name: vpn-redis
+    container_name: vpn-redis-dev
     restart: unless-stopped
-    command: redis-server --requirepass redis_password --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     ports:
       - "6379:6379"
     volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+      - redis_data_dev:/data
     networks:
       - vpn-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: vpn-pgadmin-dev
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@vpn.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data_dev:/var/lib/pgadmin
+    networks:
+      - vpn-network
+    depends_on:
+      - postgres
 
   redis-commander:
     image: rediscommander/redis-commander:latest
-    container_name: vpn-redis-commander
+    container_name: vpn-redis-commander-dev
     restart: unless-stopped
     environment:
-      REDIS_HOSTS: local:redis:6379:0:redis_password
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
     ports:
       - "8081:8081"
-    depends_on:
-      - redis
     networks:
       - vpn-network
+    depends_on:
+      - redis
 
-#  pgadmin:
-#    image: dpage/pgadmin4:latest
-#    container_name: vpn-pgadmin
-#    restart: unless-stopped
-#    environment:
-#      PGADMIN_DEFAULT_EMAIL: admin@vpn.local
-#      PGADMIN_DEFAULT_PASSWORD: admin
-#      PGADMIN_CONFIG_SERVER_MODE: 'False'
-#    ports:
-#      - "5050:80"
-#    volumes:
-#      - pgadmin-data:/var/lib/pgadmin
-#    depends_on:
-#      - postgres
-#    networks:
-#      - vpn-network
+  user-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.template
+      args:
+        SERVICE_NAME: user-service
+        SERVER_PORT: ${USER_SERVICE_PORT}
+    container_name: vpn-user-service-dev
+    restart: unless-stopped
+    ports:
+      - "${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      SERVICE_SECURITY_INTERNAL_SECRET: ${INTERNAL_SECRET}
+
+      SERVER_PORT: ${USER_SERVICE_PORT}
+
+      LOGGING_LEVEL_ROOT: ${LOG_LEVEL}
+      LOGGING_LEVEL_COM_VPN: DEBUG
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vpn-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${USER_SERVICE_PORT}/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  vpn-config-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.template
+      args:
+        SERVICE_NAME: vpn-config-service
+        SERVER_PORT: ${VPN_CONFIG_SERVICE_PORT}
+    container_name: vpn-config-service-dev
+    restart: unless-stopped
+    ports:
+      - "${VPN_CONFIG_SERVICE_PORT}:${VPN_CONFIG_SERVICE_PORT}"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SERVICE_SECURITY_INTERNAL_SECRET: ${INTERNAL_SECRET}
+      SERVER_PORT: ${VPN_CONFIG_SERVICE_PORT}
+
+      FEIGN_CLIENT_CONFIG_SERVER_MANAGEMENT_SERVICE_URL: ${SERVER_MANAGEMENT_SERVICE_URL}
+
+      MOCK_SERVER_MANAGEMENT_ENABLED: ${MOCK_SERVER_MANAGEMENT}
+      
+      LOGGING_LEVEL_ROOT: ${LOG_LEVEL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      server-management-service:
+        condition: service_healthy
+    networks:
+      - vpn-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${VPN_CONFIG_SERVICE_PORT}/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  server-management-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.template
+      args:
+        SERVICE_NAME: server-management-service
+        SERVER_PORT: ${SERVER_MANAGEMENT_SERVICE_PORT}
+    container_name: vpn-server-mgmt-dev
+    restart: unless-stopped
+    ports:
+      - "${SERVER_MANAGEMENT_SERVICE_PORT}:${SERVER_MANAGEMENT_SERVICE_PORT}"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SERVICE_SECURITY_INTERNAL_SECRET: ${INTERNAL_SECRET}
+      SERVER_PORT: ${SERVER_MANAGEMENT_SERVICE_PORT}
+      LOGGING_LEVEL_ROOT: ${LOG_LEVEL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - vpn-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${SERVER_MANAGEMENT_SERVICE_PORT}/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  api-gateway:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.template
+      args:
+        SERVICE_NAME: api-gateway
+        SERVER_PORT: ${API_GATEWAY_PORT}
+    container_name: vpn-api-gateway-dev
+    restart: unless-stopped
+    ports:
+      - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      SERVICE_JWT_SECRET: ${JWT_SECRET}
+      SERVICE_JWT_EXPIRATION: ${JWT_EXPIRATION}
+      SERVICE_JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION}
+
+      SERVICE_SECURITY_INTERNAL_SECRET: ${INTERNAL_SECRET}
+
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+
+      USER_SERVICE_URL: ${USER_SERVICE_URL}
+      VPN_CONFIG_SERVICE_URL: ${VPN_CONFIG_SERVICE_URL}
+      SERVER_MANAGEMENT_SERVICE_URL: ${SERVER_MANAGEMENT_SERVICE_URL}
+      
+      SERVER_PORT: ${API_GATEWAY_PORT}
+      LOGGING_LEVEL_ROOT: ${LOG_LEVEL}
+    depends_on:
+      user-service:
+        condition: service_healthy
+      vpn-config-service:
+        condition: service_healthy
+      server-management-service:
+        condition: service_healthy
+    networks:
+      - vpn-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
 networks:
   vpn-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
-  postgres-data:
+  postgres_data_dev:
     driver: local
-  redis-data:
+  redis_data_dev:
     driver: local
-  pgadmin-data:
+  pgadmin_data_dev:
     driver: local

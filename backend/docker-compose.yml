@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: vpn-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: telegram_vpn
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vpn-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin -d telegram_vpn" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: vpn-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - vpn-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+
+  user-service:
+    build: ./user-service
+    container_name: vpn-user-service
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/telegram_vpn
+      - SPRING_DATASOURCE_USERNAME=admin
+      - SPRING_DATASOURCE_PASSWORD=admin
+      - SPRING_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_HOST=redis
+      - SERVICE_SECURITY_INTERNAL_SECRET=SecretForDockerEnv123!
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - vpn-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  server-management-service:
+    build: ./server-management-service
+    container_name: vpn-server-mgmt
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/telegram_vpn
+      - SPRING_DATASOURCE_USERNAME=admin
+      - SPRING_DATASOURCE_PASSWORD=admin
+      - SPRING_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_HOST=redis
+      - SERVICE_SECURITY_INTERNAL_SECRET=SecretForDockerEnv123!
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - vpn-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  vpn-config-service:
+    build: ./vpn-config-service
+    container_name: vpn-config-service
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      server-management-service:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/telegram_vpn
+      - SPRING_DATASOURCE_USERNAME=admin
+      - SPRING_DATASOURCE_PASSWORD=admin
+      - SPRING_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_HOST=redis
+      - SERVICE_SECURITY_INTERNAL_SECRET=SecretForDockerEnv123!
+      - FEIGN_CLIENT_CONFIG_SERVER_MANAGEMENT_SERVICE_URL=http://server-management-service:8083
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - vpn-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: vpn-api-gateway
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    depends_on:
+      user-service:
+        condition: service_healthy
+      vpn-config-service:
+        condition: service_healthy
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SERVICE_SECURITY_INTERNAL_SECRET=SecretForDockerEnv123!
+      - SPRING_CLOUD_GATEWAY_ROUTES[0].id=user-service
+      - SPRING_CLOUD_GATEWAY_ROUTES[0].uri=http://user-service:8082
+      - SPRING_CLOUD_GATEWAY_ROUTES[0].predicates[0]=Path=/api/v1/users/**
+      - SPRING_CLOUD_GATEWAY_ROUTES[0].predicates[1]=Path=/api/v1/devices/**
+      - SPRING_CLOUD_GATEWAY_ROUTES[1].id=vpn-config-service
+      - SPRING_CLOUD_GATEWAY_ROUTES[1].uri=http://vpn-config-service:8083
+      - SPRING_CLOUD_GATEWAY_ROUTES[1].predicates[0]=Path=/api/v1/configs/**
+      - SPRING_CLOUD_GATEWAY_ROUTES[2].id=server-management-service
+      - SPRING_CLOUD_GATEWAY_ROUTES[2].uri=http://server-management-service:8084
+      - SPRING_CLOUD_GATEWAY_ROUTES[2].predicates[0]=Path=/api/v1/servers/**
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - vpn-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  vpn-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -30,8 +30,9 @@ public enum ErrorCode {
 
     // VPN Config Errors (CFG)
     CONFIG_GENERATION_FAILED("CFG_001", "Failed to generate VPN configuration"),
-    NO_AVAILABLE_SERVERS("CFG_002", "No available servers found"),
-    INVALID_CONFIG_FORMAT("CFG_003", "Invalid configuration format"),
+    CONFIG_ALREADY_EXISTS("CFG_002", "Configuration already exists"),
+    CONFIG_NOT_FOUND("CFG_003", "Configuration not found"),
+    NO_AVAILABLE_SERVERS("SRV_001", "No available VPN servers"),
 
     // Server Errors (SRV)
     SERVER_NOT_FOUND("SRV_001", "Server not found"),

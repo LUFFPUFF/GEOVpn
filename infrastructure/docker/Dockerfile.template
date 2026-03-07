@@ -1,0 +1,42 @@
+# Multi-stage build для минимального размера образа
+
+FROM maven:3.9-eclipse-temurin-21-alpine AS build
+
+WORKDIR /app
+
+COPY pom.xml .
+COPY common/pom.xml common/
+COPY ${SERVICE_NAME}/pom.xml ${SERVICE_NAME}/
+
+RUN mvn dependency:go-offline -B
+
+COPY common/ common/
+COPY ${SERVICE_NAME}/ ${SERVICE_NAME}/
+
+RUN mvn clean package -pl ${SERVICE_NAME} -am -DskipTests
+
+FROM eclipse-temurin:21-jre-alpine
+
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+WORKDIR /app
+
+COPY --from=build /app/${SERVICE_NAME}/target/*.jar app.jar
+
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${SERVER_PORT}/actuator/health || exit 1
+
+ENV JAVA_OPTS="-XX:+UseContainerSupport \
+               -XX:MaxRAMPercentage=75.0 \
+               -XX:+UseG1GC \
+               -XX:+PrintCommandLineFlags \
+               -Djava.security.egd=file:/dev/./urandom"
+
+EXPOSE ${SERVER_PORT}
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

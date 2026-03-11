@@ -1,12 +1,12 @@
 package com.vpn.config.service;
 
 import com.vpn.config.domain.entity.VpnConfiguration;
-import com.vpn.config.domain.enums.ConfigStatus;
+import com.vpn.common.dto.enums.ConfigStatus;
 import com.vpn.common.dto.ServerDto;
 import com.vpn.config.dto.mapper.ConfigMapper;
-import com.vpn.config.dto.request.ConfigCreateRequest;
-import com.vpn.config.dto.response.ServerSelectionResult;
-import com.vpn.config.dto.response.VpnConfigResponse;
+import com.vpn.common.dto.request.ConfigCreateRequest;
+import com.vpn.common.dto.ServerSelectionResult;
+import com.vpn.common.dto.response.VpnConfigResponse;
 import com.vpn.config.exception.ConfigAlreadyExistsException;
 import com.vpn.config.exception.UnauthorizedConfigAccessException;
 import com.vpn.config.generator.QRCodeGenerator;
@@ -70,7 +70,7 @@ class VpnConfigServiceImplTest {
         when(uuidGenerator.generateDeterministicUuid(userId, deviceId)).thenReturn(mockUuid);
         when(realityGenerator.generatePublicKey()).thenReturn("pbk_123");
         when(realityGenerator.generateShortId()).thenReturn("sid_123");
-        when(vlessLinkBuilder.buildVlessLink(any(), any(), anyInt(), anyString(), anyString(), anyString()))
+        when(vlessLinkBuilder.buildVlessLink(any(), any(), any(), anyInt(), anyString(), anyString(), anyString()))
                 .thenReturn("vless://mock-link");
         when(qrCodeGenerator.generateQRCodeBase64(anyString())).thenReturn("base64_string");
         when(qrCodeGenerator.generateQRCodeDataUrl(anyString())).thenReturn("data:image/png...");

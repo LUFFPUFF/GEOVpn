@@ -2,9 +2,9 @@ package com.vpn.user.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vpn.user.domain.entity.Device;
-import com.vpn.user.domain.entity.DeviceType;
+import com.vpn.common.dto.enums.DeviceType;
 import com.vpn.user.domain.entity.User;
-import com.vpn.user.dto.request.DeviceCreateRequest;
+import com.vpn.common.dto.request.DeviceCreateRequest;
 import com.vpn.user.repository.DeviceRepository;
 import com.vpn.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;

@@ -1,5 +1,6 @@
 package com.vpn.config.client;
 
+import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ServerDto;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -29,7 +30,14 @@ public class ResilientServerManagementClient {
     @Retry(name = "serverManagement")
     public List<ServerDto> getActiveServers() {
         log.debug("Calling Server Management Service for active servers");
-        return serverManagementClient.getActiveServers();
+
+        ApiResponse<List<ServerDto>> response = serverManagementClient.getActiveServers();
+
+        if (response != null && response.getData() != null) {
+            return response.getData();
+        }
+
+        return Collections.emptyList();
     }
 
     /**
@@ -51,8 +59,8 @@ public class ResilientServerManagementClient {
     @CircuitBreaker(name = "serverManagement", fallbackMethod = "getServerByIdFallback")
     @Retry(name = "serverManagement")
     public ServerDto getServerById(Integer id) {
-        log.debug("Calling Server Management Service for server: {}", id);
-        return serverManagementClient.getServerById(id);
+        ApiResponse<ServerDto> response = serverManagementClient.getServerById(id);
+        return (response != null) ? response.getData() : null;
     }
 
     /**

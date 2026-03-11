@@ -1,7 +1,7 @@
 package com.vpn.config.repository;
 
 import com.vpn.config.domain.entity.VpnConfiguration;
-import com.vpn.config.domain.enums.ConfigStatus;
+import com.vpn.common.dto.enums.ConfigStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

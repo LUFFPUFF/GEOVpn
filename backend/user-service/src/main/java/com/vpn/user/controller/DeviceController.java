@@ -3,8 +3,9 @@ package com.vpn.user.controller;
 import com.vpn.common.constant.ErrorCode;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ErrorResponse;
-import com.vpn.user.dto.request.DeviceCreateRequest;
-import com.vpn.user.dto.response.DeviceResponse;
+import com.vpn.common.dto.request.DeviceCreateRequest;
+import com.vpn.common.dto.response.DeviceResponse;
+import com.vpn.common.security.annotations.RequireUser;
 import com.vpn.user.service.interf.DeviceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,7 @@ public class DeviceController {
      * Зарегистрировать новое устройство для текущего пользователя
      */
     @PostMapping
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<DeviceResponse>> registerDevice(
             @RequestHeader("X-User-Id") Long telegramId,
             @Valid @RequestBody DeviceCreateRequest request) {
@@ -44,7 +45,7 @@ public class DeviceController {
      * Получить список всех активных устройств текущего пользователя
      */
     @GetMapping
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<List<DeviceResponse>>> getMyDevices(
             @RequestHeader("X-User-Id") Long telegramId) {
 
@@ -57,7 +58,7 @@ public class DeviceController {
      * ВНИМАНИЕ: Нужно проверить, что девайс принадлежит этому пользователю!
      */
     @GetMapping("/{uuid}")
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<DeviceResponse>> getDevice(
             @RequestHeader("X-User-Id") Long telegramId,
             @PathVariable("uuid") UUID uuid) {
@@ -82,7 +83,7 @@ public class DeviceController {
      * Деактивировать устройство (Soft Delete)
      */
     @DeleteMapping("/{uuid}")
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<Void>> deactivateDevice(
             @RequestHeader("X-User-Id") Long telegramId,
             @PathVariable("uuid") UUID uuid) {

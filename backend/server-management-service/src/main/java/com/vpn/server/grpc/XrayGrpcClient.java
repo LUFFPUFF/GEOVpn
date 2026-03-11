@@ -1,6 +1,6 @@
 package com.vpn.server.grpc;
 
-import com.vpn.server.grpc.stats.*;
+import com.vpn.server.grpc.generated.*;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import lombok.Builder;
@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -94,18 +95,106 @@ public class XrayGrpcClient {
                     .build();
 
             StatsServiceGrpc.StatsServiceBlockingStub stub = StatsServiceGrpc.newBlockingStub(channel)
-                    .withDeadlineAfter(2, TimeUnit.SECONDS);
+                    .withDeadlineAfter(10, TimeUnit.SECONDS);
 
+            System.out.println("Отправка GetSysStats на " + ipAddress + ":" + grpcPort + "...");
             SysStatsResponse response = stub.getSysStats(SysStatsRequest.newBuilder().build());
-            return response.getUptime() > 0;
+
+            System.out.println("Ответ получен! Uptime: " + response.getUptime());
+            return true;
 
         } catch (Exception e) {
-            log.debug("Xray node {}:{} is DOWN", ipAddress, grpcPort);
+            System.err.println("ОШИБКА gRPC ПРИ ПРОВЕРКЕ: " + e.toString());
+            if (e.getCause() != null) {
+                System.err.println("ПРИЧИНА: " + e.getCause().toString());
+            }
             return false;
         } finally {
             if (channel != null && !channel.isShutdown()) {
                 channel.shutdown();
             }
+        }
+    }
+
+    /**
+     * Получить суммарный трафик пользователя (Uplink + Downlink) в байтах
+     */
+    public long getUserTraffic(String ipAddress, int grpcPort, String uuidOrEmail) {
+        ManagedChannel channel = null;
+        try {
+            channel = ManagedChannelBuilder.forAddress(ipAddress, grpcPort)
+                    .usePlaintext()
+                    .build();
+
+            StatsServiceGrpc.StatsServiceBlockingStub stub = StatsServiceGrpc.newBlockingStub(channel)
+                    .withDeadlineAfter(5, TimeUnit.SECONDS);
+
+            QueryStatsRequest request = QueryStatsRequest.newBuilder()
+                    .setPattern("user>>>" + uuidOrEmail)
+                    .setReset(false)
+                    .build();
+
+            QueryStatsResponse response = stub.queryStats(request);
+
+            return response.getStatList().stream()
+                    .mapToLong(Stat::getValue)
+                    .sum();
+
+        } catch (Exception e) {
+            log.error("Failed to get traffic for user {} at {}: {}", uuidOrEmail, ipAddress, e.getMessage());
+            return 0;
+        } finally {
+            if (channel != null) channel.shutdown();
+        }
+    }
+
+    public List<Stat> getAllStatistics(String ipAddress, int grpcPort) {
+        ManagedChannel channel = null;
+        try {
+            channel = ManagedChannelBuilder.forAddress(ipAddress, grpcPort)
+                    .usePlaintext()
+                    .build();
+
+            StatsServiceGrpc.StatsServiceBlockingStub stub = StatsServiceGrpc.newBlockingStub(channel)
+                    .withDeadlineAfter(10, TimeUnit.SECONDS);
+
+            QueryStatsResponse response = stub.queryStats(QueryStatsRequest.newBuilder()
+                    .setPattern("")
+                    .setReset(false)
+                    .build());
+
+            return response.getStatList();
+        } catch (Exception e) {
+            log.error("Failed to query stats from {}: {}", ipAddress, e.getMessage());
+            return List.of();
+        } finally {
+            if (channel != null) channel.shutdown();
+        }
+    }
+
+    public boolean removeUser(String ipAddress, int grpcPort, String inboundTag, String email) {
+        ManagedChannel channel = null;
+        try {
+            channel = ManagedChannelBuilder.forAddress(ipAddress, grpcPort)
+                    .usePlaintext()
+                    .build();
+
+            HandlerServiceGrpc.HandlerServiceBlockingStub stub = HandlerServiceGrpc.newBlockingStub(channel)
+                    .withDeadlineAfter(5, TimeUnit.SECONDS);
+
+            RemoveClientRequest request = RemoveClientRequest.newBuilder()
+                    .setInboundTag(inboundTag)
+                    .setEmail(email)
+                    .build();
+
+            stub.removeClient(request);
+            log.info("Successfully removed user {} from server {}", email, ipAddress);
+            return true;
+        } catch (Exception e) {
+            log.error("Failed to remove user {} from {}: {}", email, ipAddress, e.getMessage());
+            return false;
+        } finally {
+            if (channel != null) channel.shutdown();
         }
     }
 }

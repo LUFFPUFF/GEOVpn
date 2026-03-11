@@ -1,16 +1,18 @@
 package com.vpn.config.service;
 
+import com.vpn.common.dto.ConfigMetadataDto;
+import com.vpn.common.service.RedisCacheService;
 import com.vpn.config.domain.entity.VpnConfiguration;
-import com.vpn.config.domain.enums.ConfigStatus;
-import com.vpn.config.domain.enums.ProtocolType;
+import com.vpn.common.dto.enums.ConfigStatus;
+import com.vpn.common.dto.enums.ProtocolType;
 import com.vpn.config.domain.valueobject.ServerAddress;
 import com.vpn.common.dto.ServerDto;
 import com.vpn.config.dto.mapper.ConfigMapper;
-import com.vpn.config.dto.request.ConfigCreateRequest;
-import com.vpn.config.dto.request.ConfigRegenerateRequest;
-import com.vpn.config.dto.request.ServerSelectionRequest;
-import com.vpn.config.dto.response.ServerSelectionResult;
-import com.vpn.config.dto.response.VpnConfigResponse;
+import com.vpn.common.dto.request.ConfigCreateRequest;
+import com.vpn.common.dto.request.ConfigRegenerateRequest;
+import com.vpn.common.dto.request.ServerSelectionRequest;
+import com.vpn.common.dto.ServerSelectionResult;
+import com.vpn.common.dto.response.VpnConfigResponse;
 import com.vpn.config.exception.ConfigAlreadyExistsException;
 import com.vpn.config.exception.ConfigNotFoundException;
 import com.vpn.config.exception.UnauthorizedConfigAccessException;
@@ -29,6 +31,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -56,10 +59,10 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     private final VlessLinkBuilder vlessLinkBuilder;
     private final QRCodeGenerator qrCodeGenerator;
     private final ConfigMapper configMapper;
+    private final RedisCacheService redisCacheService;
 
     @Override
     @Transactional
-    @CachePut(value = "vpn-configs", key = "#request.deviceId")
     public VpnConfigResponse createConfig(ConfigCreateRequest request) {
         log.info("Creating VPN config for user: {}, device: {}",
                 request.getUserId(), request.getDeviceId());
@@ -99,6 +102,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
         String vlessLink = vlessLinkBuilder.buildVlessLink(
                 vlessUuid,
+                vlessUuid.toString(),
                 serverAddress,
                 selectedServer.getPort(),
                 selectedServer.getName(),
@@ -124,6 +128,14 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .build();
 
         VpnConfiguration savedConfig = configRepository.save(config);
+
+        ConfigMetadataDto meta = ConfigMetadataDto.builder()
+                .configId(savedConfig.getId())
+                .userId(savedConfig.getUserId())
+                .deviceId(savedConfig.getDeviceId())
+                .build();
+
+        redisCacheService.set("vpn:meta:" + vlessUuid, meta, Duration.ofDays(30));
 
         log.info("VPN config created: id={}, device={}, server={}, uuid={}",
                 savedConfig.getId(),

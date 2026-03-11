@@ -6,7 +6,7 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication(scanBasePackages = {"com.vpn.config", "com.vpn.common"})
-@EnableFeignClients
+@EnableFeignClients(basePackages = {"com.vpn.config", "com.vpn.common"})
 @EnableCaching
 public class VpnConfigServiceApplication {
 

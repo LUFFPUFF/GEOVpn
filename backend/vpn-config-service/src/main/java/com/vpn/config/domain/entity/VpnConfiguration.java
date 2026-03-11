@@ -1,7 +1,7 @@
 package com.vpn.config.domain.entity;
 
-import com.vpn.config.domain.enums.ConfigStatus;
-import com.vpn.config.domain.enums.ProtocolType;
+import com.vpn.common.dto.enums.ConfigStatus;
+import com.vpn.common.dto.enums.ProtocolType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

@@ -2,7 +2,7 @@ package com.vpn.config.dto.mapper;
 
 import com.vpn.config.domain.entity.VpnConfiguration;
 import com.vpn.common.dto.ServerDto;
-import com.vpn.config.dto.response.VpnConfigResponse;
+import com.vpn.common.dto.response.VpnConfigResponse;
 import org.springframework.stereotype.Component;
 
 @Component

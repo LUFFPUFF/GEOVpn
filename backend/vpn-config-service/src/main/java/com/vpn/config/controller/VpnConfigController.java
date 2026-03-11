@@ -3,10 +3,13 @@ package com.vpn.config.controller;
 import com.vpn.common.constant.ErrorCode;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ErrorResponse;
+import com.vpn.common.security.UserRole;
+import com.vpn.common.security.annotations.RequireAnyRole;
+import com.vpn.common.security.annotations.RequireUser;
 import com.vpn.common.util.StringUtils;
-import com.vpn.config.dto.request.ConfigCreateRequest;
-import com.vpn.config.dto.request.ConfigRegenerateRequest;
-import com.vpn.config.dto.response.VpnConfigResponse;
+import com.vpn.common.dto.request.ConfigCreateRequest;
+import com.vpn.common.dto.request.ConfigRegenerateRequest;
+import com.vpn.common.dto.response.VpnConfigResponse;
 import com.vpn.config.service.interf.VpnConfigService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +28,7 @@ public class VpnConfigController {
     private final VpnConfigService vpnConfigService;
 
     @PostMapping
-    @PreAuthorize("hasRole('USER')")
+    @RequireAnyRole({UserRole.USER, UserRole.SERVICE})
     public ResponseEntity<ApiResponse<VpnConfigResponse>> createConfig(
             @RequestHeader("X-User-Id") Long telegramId,
             @Valid @RequestBody ConfigCreateRequest request) {
@@ -38,7 +41,7 @@ public class VpnConfigController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<List<VpnConfigResponse>>> getMyConfigs(
             @RequestHeader("X-User-Id") Long telegramId) {
 
@@ -47,7 +50,7 @@ public class VpnConfigController {
     }
 
     @GetMapping("/{deviceId}")
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<VpnConfigResponse>> getConfigByDeviceId(
             @RequestHeader("X-User-Id") Long telegramId,
             @PathVariable("deviceId") Long deviceId) {
@@ -61,7 +64,7 @@ public class VpnConfigController {
     }
 
     @PutMapping("/{deviceId}/regenerate")
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<VpnConfigResponse>> regenerateConfig(
             @RequestHeader("X-User-Id") Long telegramId,
             @PathVariable("deviceId") Long deviceId,
@@ -76,7 +79,7 @@ public class VpnConfigController {
     }
 
     @DeleteMapping("/{deviceId}")
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<Void>> revokeConfig(
             @RequestHeader("X-User-Id") Long telegramId,
             @PathVariable("deviceId") Long deviceId) {

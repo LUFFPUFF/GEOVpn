@@ -1,5 +1,6 @@
 package com.vpn.common.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -17,6 +18,7 @@ import java.util.Set;
 public class RedisCacheService {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
 
     /**
      * Сохранить значение с TTL
@@ -36,14 +38,15 @@ public class RedisCacheService {
     public <T> T get(String key, Class<T> type) {
         try {
             Object value = redisTemplate.opsForValue().get(key);
+            if (value == null) return null;
+
             if (type.isInstance(value)) {
-                log.debug("Cache hit: {}", key);
                 return type.cast(value);
             }
-            log.debug("Cache miss: {}", key);
-            return null;
+
+            return objectMapper.convertValue(value, type);
         } catch (Exception e) {
-            log.error("Failed to get key: {}", key, e);
+            log.error("Failed to convert key: {}", key, e);
             return null;
         }
     }

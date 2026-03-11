@@ -1,7 +1,7 @@
 package com.vpn.user.service.interf;
 
-import com.vpn.user.dto.request.DeviceCreateRequest;
-import com.vpn.user.dto.response.DeviceResponse;
+import com.vpn.common.dto.request.DeviceCreateRequest;
+import com.vpn.common.dto.response.DeviceResponse;
 
 import java.util.List;
 import java.util.UUID;

@@ -36,7 +36,7 @@ class VpnGeneratorFlowTest {
         realityGenerator = new RealityConfigGenerator();
 
         VpnConfigProperties.VlessProperties vless = new VpnConfigProperties.VlessProperties();
-        vless.setDefaultSni("www.google.com");
+        vless.setDefaultSni("www.microsoft.com");
         vless.setDefaultFingerprint("chrome");
         vless.setNetworkType("tcp");
         vless.setFlow("xtls-rprx-vision");
@@ -61,13 +61,13 @@ class VpnGeneratorFlowTest {
         UUID deviceUuid = uuidGenerator.generateDeterministicUuid(12345L, 1L);
         printStep(1, "UUID Generation", deviceUuid.toString());
 
-        String publicKey = realityGenerator.generatePublicKey();
-        String shortId = realityGenerator.generateShortId();
+        String publicKey = "hCbGtUqtNFQOJcbg-t6OvBmd1ZZZy819ZHEOGTHOJFk";
+        String shortId = "c039559afc623939";
         printStep(2, "Reality Params", "PBK: " + publicKey + " | SID: " + shortId);
 
-        ServerAddress address = new ServerAddress("185.230.127.10");
+        ServerAddress address = new ServerAddress("193.104.33.209");
         String vlessLink = vlessLinkBuilder.buildVlessLink(
-                deviceUuid, address, 443, "GEO-VPN-Riga", publicKey, shortId);
+                deviceUuid, deviceUuid.toString(),  address, 443, "GeoVpn", publicKey, shortId);
         printStep(3, "VLESS URL", vlessLink);
 
         String qrBase64 = qrCodeGenerator.generateQRCodeBase64(vlessLink);

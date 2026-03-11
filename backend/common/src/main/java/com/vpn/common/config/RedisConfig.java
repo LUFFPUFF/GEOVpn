@@ -1,6 +1,8 @@
 package com.vpn.common.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -56,77 +58,69 @@ public class RedisConfig {
     }
 
     @Bean
-    public RedisTemplate<String, Object> redisTemplate(
-            RedisConnectionFactory connectionFactory) {
-
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        StringRedisSerializer stringSerializer = new StringRedisSerializer();
+        ObjectMapper redisObjectMapper = objectMapper.copy();
+        redisObjectMapper.activateDefaultTyping(
+                LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY
+        );
+
         GenericJackson2JsonRedisSerializer jsonSerializer =
-                new GenericJackson2JsonRedisSerializer(objectMapper);
+                new GenericJackson2JsonRedisSerializer(redisObjectMapper);
 
-        template.setKeySerializer(stringSerializer);
-        template.setHashKeySerializer(stringSerializer);
-
+        template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(jsonSerializer);
+        template.setHashKeySerializer(new StringRedisSerializer());
         template.setHashValueSerializer(jsonSerializer);
-
-        template.afterPropertiesSet();
-
-        log.info("RedisTemplate configured with JSON serialization");
 
         return template;
     }
 
     @Bean
     public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+        ObjectMapper redisObjectMapper = objectMapper.copy();
+        redisObjectMapper.activateDefaultTyping(
+                LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY
+        );
 
-        // Default cache configuration
+        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(redisObjectMapper);
+
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration
                 .defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(10))
-                .serializeKeysWith(
-                        RedisSerializationContext.SerializationPair
-                                .fromSerializer(new StringRedisSerializer())
-                )
-                .serializeValuesWith(
-                        RedisSerializationContext.SerializationPair
-                                .fromSerializer(new GenericJackson2JsonRedisSerializer(objectMapper))
-                )
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer))
                 .disableCachingNullValues();
-
-        Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
-
-        cacheConfigs.put("users",
-                defaultConfig.entryTtl(Duration.ofMinutes(30)));
-
-        cacheConfigs.put("devices",
-                defaultConfig.entryTtl(Duration.ofMinutes(15)));
-
-        cacheConfigs.put("servers",
-                defaultConfig.entryTtl(Duration.ofMinutes(1)));
-
-        cacheConfigs.put("server-health",
-                defaultConfig.entryTtl(Duration.ofSeconds(30)));
-
-        cacheConfigs.put("vpn-configs",
-                defaultConfig.entryTtl(Duration.ofMinutes(5)));
-
-        cacheConfigs.put("blocked-domains",
-                defaultConfig.entryTtl(Duration.ofHours(1)));
-
-        cacheConfigs.put("rate-limits",
-                defaultConfig.entryTtl(Duration.ofSeconds(60)));
-
-        log.info("CacheManager configured with {} custom cache configurations",
-                cacheConfigs.size());
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
-                .withInitialCacheConfigurations(cacheConfigs)
+                .withInitialCacheConfigurations(createCustomConfigs(defaultConfig))
                 .transactionAware()
                 .build();
+    }
+
+    private Map<String, RedisCacheConfiguration> createCustomConfigs(RedisCacheConfiguration defaultConfig) {
+        Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
+
+        cacheConfigs.put("users", defaultConfig.entryTtl(Duration.ofMinutes(30)));
+
+        cacheConfigs.put("devices", defaultConfig.entryTtl(Duration.ofMinutes(15)));
+
+        cacheConfigs.put("servers", defaultConfig.entryTtl(Duration.ofMinutes(1)));
+
+        cacheConfigs.put("server-health", defaultConfig.entryTtl(Duration.ofSeconds(30)));
+
+        cacheConfigs.put("vpn-configs", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+
+        cacheConfigs.put("blocked-domains", defaultConfig.entryTtl(Duration.ofHours(1)));
+
+        return cacheConfigs;
     }
 
 }

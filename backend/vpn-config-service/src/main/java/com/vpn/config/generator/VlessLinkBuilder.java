@@ -30,6 +30,7 @@ public class VlessLinkBuilder {
      */
     public String buildVlessLink(
             UUID uuid,
+            String email,
             ServerAddress serverAddress,
             Integer serverPort,
             String serverName,
@@ -41,6 +42,7 @@ public class VlessLinkBuilder {
 
         VlessLink vlessLink = VlessLink.builder()
                 .uuid(uuid)
+                .email(email)
                 .serverAddress(serverAddress.getValue())
                 .serverPort(serverPort)
                 .sni(configProperties.getVless().getDefaultSni())

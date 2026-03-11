@@ -1,0 +1,24 @@
+service:
+  security:
+    enabled: true
+
+    internal-secret: ${INTERNAL_SECRET:53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3}
+
+    admin-token: YRqDAzgXLn29n/LcBnYYu7tQzgYEEikl0X5TYHrrwyiWgo+lBtlaJSD5MGp2j3YLB9u/xZu3jgK+540nyvpESA==
+
+    admins: ${ADMIN_USER_IDS:858441917,970667053}
+
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+
+      allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+
+      allow-credentials: true
+
+      max-age: 3600
+
+logging:
+  level:
+    com.vpn.common.security: DEBUG
+    com.vpn.common.security.filter.SecurityFilter: TRACE
+    com.vpn.common.security.aspect.SecurityAspect: DEBUG

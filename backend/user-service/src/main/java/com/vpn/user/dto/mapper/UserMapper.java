@@ -1,8 +1,8 @@
 package com.vpn.user.dto.mapper;
 
 import com.vpn.user.domain.entity.User;
-import com.vpn.user.dto.request.UserRegistrationRequest;
-import com.vpn.user.dto.response.UserResponse;
+import com.vpn.common.dto.request.UserRegistrationRequest;
+import com.vpn.common.dto.response.UserResponse;
 import org.springframework.stereotype.Component;
 
 @Component

@@ -1,5 +1,6 @@
 package com.vpn.user.domain.entity;
 
+import com.vpn.common.dto.enums.DeviceType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

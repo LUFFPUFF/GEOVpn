@@ -2,10 +2,10 @@ package com.vpn.user.service;
 
 import com.vpn.common.constant.AppConstants;
 import com.vpn.user.domain.entity.Device;
-import com.vpn.user.domain.entity.DeviceType;
+import com.vpn.common.dto.enums.DeviceType;
 import com.vpn.user.dto.mapper.DeviceMapper;
-import com.vpn.user.dto.request.DeviceCreateRequest;
-import com.vpn.user.dto.response.DeviceResponse;
+import com.vpn.common.dto.request.DeviceCreateRequest;
+import com.vpn.common.dto.response.DeviceResponse;
 import com.vpn.user.exception.DeviceNotFoundException;
 import com.vpn.user.exception.MaxDevicesExceededException;
 import com.vpn.user.repository.DeviceRepository;

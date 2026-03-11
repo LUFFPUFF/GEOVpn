@@ -11,8 +11,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -27,15 +25,15 @@ public class ServerMonitoringService {
     private final XrayGrpcClient xrayGrpcClient;
     private final NetworkUtils networkUtils;
 
-    @Value("${vpn.monitoring.xray-grpc-port:10085}")
+    @Value("${vpn.monitoring.xray-grpc-port}")
     private int xrayGrpcPort;
 
-    @Value("${vpn.monitoring.timeout-ms:2000}")
+    @Value("${vpn.monitoring.timeout-ms}")
     private int timeoutMs;
 
     private final ExecutorService healthCheckExecutor = Executors.newFixedThreadPool(10);
 
-    @Scheduled(fixedDelayString = "${vpn.monitoring.health-check-interval-ms:30000}")
+    @Scheduled(fixedDelayString = "${vpn.monitoring.health-check-interval-ms}")
     @Transactional
     public void runHealthChecks() {
         log.info("Starting health checks for all active servers...");
@@ -51,9 +49,6 @@ public class ServerMonitoringService {
         log.info("Health checks completed. Checked {} servers.", activeServers.size());
     }
 
-    /**
-     * Проверка одного сервера
-     */
     @Transactional
     public void checkServer(Server server) {
         long start = System.currentTimeMillis();

@@ -2,9 +2,9 @@ package com.vpn.config.service.interf;
 
 
 
-import com.vpn.config.dto.request.ConfigCreateRequest;
-import com.vpn.config.dto.request.ConfigRegenerateRequest;
-import com.vpn.config.dto.response.VpnConfigResponse;
+import com.vpn.common.dto.request.ConfigCreateRequest;
+import com.vpn.common.dto.request.ConfigRegenerateRequest;
+import com.vpn.common.dto.response.VpnConfigResponse;
 
 import java.util.List;
 import java.util.UUID;

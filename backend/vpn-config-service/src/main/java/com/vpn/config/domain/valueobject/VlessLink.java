@@ -19,6 +19,7 @@ import java.util.UUID;
 public class VlessLink {
 
     private UUID uuid;
+    private String email;
     private String serverAddress;
     private Integer serverPort;
     private String sni;

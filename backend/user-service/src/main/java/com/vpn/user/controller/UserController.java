@@ -1,12 +1,16 @@
 package com.vpn.user.controller;
 
 import com.vpn.common.dto.ApiResponse;
-import com.vpn.user.dto.response.UserResponse;
-import com.vpn.user.dto.response.UserStatsResponse;
-import com.vpn.user.dto.response.UserUpdateRequest;
+import com.vpn.common.dto.request.UserRegistrationRequest;
+import com.vpn.common.dto.response.UserResponse;
+import com.vpn.common.dto.response.UserStatsResponse;
+import com.vpn.common.dto.request.UserUpdateRequest;
+import com.vpn.common.security.UserRole;
+import com.vpn.common.security.annotations.*;
 import com.vpn.user.service.interf.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -20,11 +24,28 @@ public class UserController {
 
     private final UserService userService;
 
+    @PostMapping("/register")
+    @Public
+    public ResponseEntity<ApiResponse<UserResponse>> register(
+            @Valid @RequestBody UserRegistrationRequest request) {
+
+        UserResponse response = userService.registerUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{telegramId}")
+    @RequireAnyRole({UserRole.ADMIN, UserRole.SERVICE})
+    public ResponseEntity<ApiResponse<UserResponse>> getUserByTelegramId(@PathVariable Long telegramId) {
+        UserResponse response = userService.getUserByTelegramId(telegramId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     /**
      * Получить профиль текущего пользователя
      */
     @GetMapping("/me")
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<UserResponse>> getMyProfile(
             @RequestHeader("X-User-Id") Long telegramId) {
 
@@ -36,7 +57,7 @@ public class UserController {
      * Обновить профиль (имя, юзернейм)
      */
     @PutMapping("/me")
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<UserResponse>> updateMyProfile(
             @RequestHeader("X-User-Id") Long telegramId,
             @Valid @RequestBody UserUpdateRequest request) {
@@ -49,7 +70,7 @@ public class UserController {
      * Получить подробную статистику пользователя (устройства, рефералы, баланс)
      */
     @GetMapping("/me/stats")
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<UserStatsResponse>> getMyStats(
             @RequestHeader("X-User-Id") Long telegramId) {
 
@@ -61,7 +82,7 @@ public class UserController {
      * Деактивировать аккаунт (Soft delete)
      */
     @DeleteMapping("/me")
-    @PreAuthorize("hasRole('USER')")
+    @RequireUser
     public ResponseEntity<ApiResponse<Void>> deactivateMyAccount(
             @RequestHeader("X-User-Id") Long telegramId) {
 
@@ -70,7 +91,7 @@ public class UserController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @RequireAdmin
     public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size) {
@@ -78,12 +99,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(users));
     }
 
-    @PostMapping("/{telegramId}/deduct")
-    @PreAuthorize("hasAnyRole('SERVICE', 'ADMIN')")
-    public ResponseEntity<ApiResponse<UserResponse>> deductBalanceForService(
-            @PathVariable("telegramId") Long telegramId,
-            @RequestParam("amount") Integer amount) {
-        UserResponse response = userService.deductBalance(telegramId, amount);
-        return ResponseEntity.ok(ApiResponse.success(response));
+    @PostMapping("/{telegramId}/deduct-balance")
+    @RequireService
+    public ResponseEntity<ApiResponse<Integer>> deductBalance(
+            @PathVariable Long telegramId,
+            @RequestParam Integer amount) {
+        var updatedUser = userService.deductBalance(telegramId, amount);
+        return ResponseEntity.ok(ApiResponse.success(updatedUser.getBalance()));
     }
 }

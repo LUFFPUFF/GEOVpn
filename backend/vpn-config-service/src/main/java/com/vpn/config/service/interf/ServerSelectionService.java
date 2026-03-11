@@ -1,8 +1,8 @@
 package com.vpn.config.service.interf;
 
 import com.vpn.common.dto.ServerDto;
-import com.vpn.config.dto.request.ServerSelectionRequest;
-import com.vpn.config.dto.response.ServerSelectionResult;
+import com.vpn.common.dto.request.ServerSelectionRequest;
+import com.vpn.common.dto.ServerSelectionResult;
 
 import java.util.List;
 

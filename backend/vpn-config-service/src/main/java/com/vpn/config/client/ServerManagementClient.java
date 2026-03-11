@@ -1,5 +1,6 @@
 package com.vpn.config.client;
 
+import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ServerDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +14,7 @@ import java.util.List;
 @FeignClient(
         name = "server-management-service",
         url = "${feign.client.config.server-management-service.url}",
-        configuration = FeignClientConfiguration.class
+        configuration = com.vpn.common.config.FeignClientConfiguration.class
 )
 public interface ServerManagementClient {
 
@@ -21,13 +22,13 @@ public interface ServerManagementClient {
      * Получить все активные серверы
      */
     @GetMapping("/api/v1/servers/active")
-    List<ServerDto> getActiveServers();
+    ApiResponse<List<ServerDto>> getActiveServers();
 
     /**
      * Получить информацию о конкретном сервере
      */
     @GetMapping("/api/v1/servers/{id}")
-    ServerDto getServerById(@PathVariable("id") Integer id);
+    ApiResponse<ServerDto> getServerById(@PathVariable("id") Integer id);
 
     /**
      * Получить health метрики сервера

@@ -1,9 +1,9 @@
 package com.vpn.user.service.interf;
 
-import com.vpn.user.dto.request.UserRegistrationRequest;
-import com.vpn.user.dto.response.UserResponse;
-import com.vpn.user.dto.response.UserStatsResponse;
-import com.vpn.user.dto.response.UserUpdateRequest;
+import com.vpn.common.dto.request.UserRegistrationRequest;
+import com.vpn.common.dto.response.UserResponse;
+import com.vpn.common.dto.response.UserStatsResponse;
+import com.vpn.common.dto.request.UserUpdateRequest;
 
 import java.util.List;
 

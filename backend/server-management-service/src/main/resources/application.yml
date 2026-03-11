@@ -26,12 +26,24 @@ service:
     internal-secret: ${INTERNAL_SECRET}
     internal-check-enabled: ${INTERNAL_CHECK_ENABLED}
     admins: ${ADMIN_USER_IDS}
+    admin-token: YRqDAzgXLn29n/LcBnYYu7tQzgYEEikl0X5TYHrrwyiWgo+lBtlaJSD5MGp2j3YLB9u/xZu3jgK+540nyvpESA==
 
 vpn:
   monitoring:
     health-check-interval-ms: ${VPN_HEALTH_CHECK_MS}
     timeout-ms: ${VPN_TIMEOUT_MS}
     xray-grpc-port: ${XRAY_GRPC_PORT}
+
+  billing:
+    collect-interval-ms: 300000 # Интервал сбора трафика (5 минут)
+    price-per-gb: 600
+    low-traffic-alert-mb: 500
+
+feign:
+  client:
+    config:
+      user-service:
+        url: http://localhost:8082
 
 
 management:

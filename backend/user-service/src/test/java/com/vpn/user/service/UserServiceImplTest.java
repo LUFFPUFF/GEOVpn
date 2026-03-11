@@ -2,8 +2,8 @@ package com.vpn.user.service;
 
 import com.vpn.user.domain.entity.User;
 import com.vpn.user.dto.mapper.UserMapper;
-import com.vpn.user.dto.request.UserRegistrationRequest;
-import com.vpn.user.dto.response.UserResponse;
+import com.vpn.common.dto.request.UserRegistrationRequest;
+import com.vpn.common.dto.response.UserResponse;
 import com.vpn.user.exception.DuplicateUserException;
 import com.vpn.user.exception.InsufficientBalanceException;
 import com.vpn.user.exception.UserNotFoundException;

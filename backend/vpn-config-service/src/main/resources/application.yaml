@@ -13,14 +13,14 @@ spring:
     password: ${PRODUCTION_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: ${HIKARI_MAX_POOL}
+      maximum-pool-size: 10
       minimum-idle: 2
       pool-name: VpnConfigHikariCP
 
   jpa:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO}
-    show-sql: ${SHOW_SQL}
+    show-sql: true
     open-in-view: false
     properties:
       hibernate:
@@ -32,10 +32,10 @@ spring:
         order_updates: true
 
   flyway:
-    enabled: ${FLYWAY_ENABLED}
+    enabled: true
     baseline-on-migrate: true
-    locations: ${CLASS_PATH_MIGRATION}
-    validate-on-migrate: ${VALIDATE_MIGRATE}
+    locations: classpath:db/migration
+    validate-on-migrate: true
 
 
   data:
@@ -43,7 +43,7 @@ spring:
       host: ${PRODUCTION_REDIS_HOST}
       port: ${PRODUCTION_REDIS_PORT:}
       password: ${PRODUCTION_REDIS_PASSWORD}
-      timeout: ${TIMEOUT_REDIS}
+      timeout: 2000ms
 
 
   cache:
@@ -86,7 +86,7 @@ resilience4j:
 vpn:
   config:
     vless:
-      default-sni: ${VLESS_SNI}
+      default-sni: www.google.com
       default-fingerprint: chrome
       flow: xtls-rprx-vision
       network-type: tcp
@@ -145,7 +145,8 @@ vpn:
 service:
   security:
     internal-secret: ${INTERNAL_SECRET}
-    internal-check-enabled: true
+    admin-token: YRqDAzgXLn29n/LcBnYYu7tQzgYEEikl0X5TYHrrwyiWgo+lBtlaJSD5MGp2j3YLB9u/xZu3jgK+540nyvpESA==
+    admins: ${ADMIN_USER_IDS}
 
 mock:
   server-management:

@@ -1,0 +1,64 @@
+---
+- name: Deploy Xray VPN Node
+  hosts: vpn_nodes
+  become: yes
+  vars:
+    xray_version: "1.8.16"
+    grpc_port: 10085
+    backend_ip: "46.164.219.73"
+
+  tasks:
+    - name: Update apt cache and upgrade packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Install required packages
+      apt:
+        name: [curl, wget, unzip, jq, ufw]
+        state: present
+
+    - name: Check if Xray is installed
+      stat:
+        path: /usr/local/bin/xray
+      register: xray_bin
+
+    - name: Install Xray core
+      shell: |
+        cd /tmp
+        wget -q https://github.com/XTLS/Xray-core/releases/download/v{{ xray_version }}/Xray-linux-64.zip
+        unzip -o xray.zip
+        mv xray /usr/local/bin/xray
+        chmod +x /usr/local/bin/xray
+      when: not xray_bin.stat.exists
+
+    - name: Create directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      with_items:
+        - /usr/local/etc/xray
+        - /var/log/xray
+        - /usr/local/share/xray
+
+    - name: Generate Reality Keys
+      shell: /usr/local/bin/xray x25519
+      register: xray_keys
+      changed_when: false
+
+    - name: Setup UFW Firewall
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: tcp
+        from_ip: "{{ item.from | default('any') }}"
+      with_items:
+        - { port: '22' }
+        - { port: '443' }
+        - { port: "{{ grpc_port }}", from: "{{ backend_ip }}" }
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny

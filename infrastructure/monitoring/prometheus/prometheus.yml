@@ -1,0 +1,74 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'telegram-vpn-prod'
+    environment: 'production'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+rule_files:
+# - "alerts/*.yml"
+
+scrape_configs:
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: '/metrics'
+
+  - job_name: 'api-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['api-gateway:8080']
+        labels:
+          service: 'api-gateway'
+          tier: 'gateway'
+    scrape_interval: 10s
+
+  - job_name: 'user-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['user-service:8082']
+        labels:
+          service: 'user-service'
+          tier: 'backend'
+    scrape_interval: 15s
+
+  - job_name: 'vpn-config-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['vpn-config-service:8083']
+        labels:
+          service: 'vpn-config-service'
+          tier: 'backend'
+    scrape_interval: 15s
+
+  - job_name: 'server-management-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['server-management-service:8084']
+        labels:
+          service: 'server-management-service'
+          tier: 'backend'
+    scrape_interval: 30s
+
+  - job_name: 'billing-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['billing-service:8085']
+        labels:
+          service: 'billing-service'
+          tier: 'backend'
+    scrape_interval: 15s
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+         service: 'cadvisor'
+        tier: 'infrastructure'

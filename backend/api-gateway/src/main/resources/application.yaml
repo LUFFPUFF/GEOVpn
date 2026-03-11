@@ -1,0 +1,144 @@
+server:
+  port: ${GATEWAY_PORT}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: api-gateway
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  cloud:
+    gateway:
+      default-filters:
+        - AuthenticationFilter
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 10
+            redis-rate-limiter.burstCapacity: 20
+            redis-rate-limiter.requestedTokens: 1
+            key-resolver: "#{@userKeyResolver}"
+        - name: Retry
+          args:
+            retries: 3
+            statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
+            methods: GET,POST
+            backoff:
+              firstBackoff: 50ms
+              maxBackoff: 500ms
+              factor: 2
+              basedOnPreviousValue: false
+        - name: CircuitBreaker
+          args:
+            name: defaultCircuitBreaker
+            fallbackUri: forward:/fallback
+
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 10s
+        pool:
+          type: ELASTIC
+          max-idle-time: 15s
+          max-life-time: 60s
+
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origins: ${ALLOWED_ORIGINS}
+            allowed-methods: "*"
+            allowed-headers: "*"
+            allow-credentials: true
+            max-age: 3600
+
+      routes:
+        - id: ${ID_ROUTES_USER_SERVICE}
+          uri: ${USER_SERVICE_URL}
+          predicates:
+            - Path=${PATH_USER_SERVICE}
+          filters: [StripPrefix=2]
+
+        - id: ${ID_ROUTES_VPN_CONFIG_SERVICE}
+          uri: ${VPN_CONFIG_SERVICE_URL}
+          predicates:
+            - Path=${PATH_VPN_CONFIG_SERVICE}
+          filters: [StripPrefix=2]
+
+        - id: ${ID_ROUTES_SERVER_MGM_SERVICE}
+          uri: ${SERVER_MGM_SERVICE_URL}
+          predicates:
+            - Path=${PATH_SERVER_MGM_SERVICE}
+          filters: [StripPrefix=2]
+
+        - id: ${ID_ROUTES_BILLING_SERVICE}
+          uri: ${BILLING_SERVICE_URL}
+          predicates:
+            - Path=${PATH_BILLING_SERVICE}
+          filters: [StripPrefix=2]
+
+        - id: ${ID_ROUTES_BLOCKED_DOMAIN_SERVICE}
+          uri: ${BLOCKED_DOMAINS_SERVICE_URL}
+          predicates:
+            - Path=${PATH_BLOCKED_DOMAIN_SERVICE}
+          filters: [StripPrefix=2]
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+
+service:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION}
+
+  security:
+    open-endpoints: ${SECURITY_OPEN_ENDPOINTS}
+    internal-secret: ${INTERNAL_SECRET}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      defaultCircuitBreaker:
+        sliding-window-size: 10
+        permitted-number-of-calls-in-half-open-state: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        register-health-indicator: true
+
+  timelimiter:
+    instances:
+      defaultCircuitBreaker:
+        timeout-duration: 10s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MONITORING_ENDPOINTS}
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    gateway:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.vpn.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+    reactor.netty: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

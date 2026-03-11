@@ -1,0 +1,7 @@
+1. www.microsoft.com    - Windows Update (огромный трафик)
+2. www.apple.com        - iOS updates, App Store
+3. www.icloud.com       - Apple сервисы
+4. addons.mozilla.org   - Firefox updates (хорошо работает)
+5. www.logitech.com     - Обновления устройств
+6. www.cloudflare.com   - CDN, защищенный трафик
+7. aws.amazon.com       - AWS сервисы

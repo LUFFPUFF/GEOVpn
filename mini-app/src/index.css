@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ГЛАВНЫЙ ФОН НА ВСЁ ПРИЛОЖЕНИЕ */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  /* Укажи здесь точное имя файла, которое у тебя в папке assets */
+  background-image: url('./assets/bg-pattern.gif') !important;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-color: #000; /* Резервный черный */
+}
+
+/* Эстетичные карточки GEOVpn */
+.vpn-card {
+  background: rgba(15, 15, 15, 0.75) !important;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+}
+
+.btn-premium {
+  background-color: #ffffff;
+  color: #000000;
+  border-radius: 16px;
+  font-weight: 700;
+}
+
+::-webkit-scrollbar { display: none; }

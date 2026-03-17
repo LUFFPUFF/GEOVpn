@@ -1,0 +1,18 @@
+cat > /mnt/user-data/outputs/xray-geodata-update.timer <<'EOF'
+[Unit]
+Description=Weekly Xray GeoIP/GeoSite update
+Requires=xray-geodata-update.service
+
+[Timer]
+# Запускать каждое воскресенье в 03:00
+OnCalendar=Sun *-*-* 03:00:00
+
+# Если система была выключена - запустить при следующей загрузке
+Persistent=true
+
+# Случайная задержка до 1 часа (чтобы не грузить GitHub одновременно)
+RandomizedDelaySec=3600
+
+[Install]
+WantedBy=timers.target
+EOF

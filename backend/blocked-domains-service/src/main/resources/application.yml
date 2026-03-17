@@ -1,0 +1,67 @@
+server:
+  port: 8085
+  compression:
+    enabled: true
+  error:
+    include-message: always
+    include-binding-errors: always
+
+spring:
+  application:
+    name: blocked-domain-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/telegram_vpn
+    username: admin
+    password: admin
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: BlockedDomainServiceHikariCP
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: "IWpw9JisuLnGUabcktuxcH5hK6jFRXju"
+      timeout: 2000ms
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000
+
+service:
+  vpn:
+    rkn:
+      api-url: "https://raw.githubusercontent.com/zapret-info/z-i/master/domains.txt"
+      fallback-url: https://raw.githubusercontent.com/zapret-info/z-i/master/domains.txt
+      cron-schedule: "0 0 3 * * *"
+      batch-size: 1000
+
+  security:
+    enabled: true
+
+    internal-secret: ${INTERNAL_SECRET:53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3}
+
+    admin-token: YRqDAzgXLn29n/LcBnYYu7tQzgYEEikl0X5TYHrrwyiWgo+lBtlaJSD5MGp2j3YLB9u/xZu3jgK+540nyvpESA==
+
+    admins: ${ADMIN_USER_IDS:858441917,970667053}

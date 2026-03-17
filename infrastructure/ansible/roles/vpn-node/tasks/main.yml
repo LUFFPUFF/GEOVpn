@@ -1,0 +1,23 @@
+- name: Копирование скриптов установки
+  copy:
+    src: "{{ item }}"
+    dest: /opt/vpn-scripts/
+    mode: '0755'
+  with_items:
+    - install-xray-node.sh
+    - install-shadowsocks.sh
+    - update-geodata.sh
+
+- name: Запуск установки Xray-node
+  shell: bash /opt/vpn-scripts/install-xray-node.sh
+  register: xray_result
+
+- name: Запуск установки Shadowsocks
+  shell: bash /opt/vpn-scripts/install-shadowsocks.sh
+  register: ss_result
+
+- name: Вывод результатов в консоль
+  debug:
+    msg:
+      - "Xray setup: {{ xray_result.stdout_lines | last }}"
+      - "Shadowsocks setup: {{ ss_result.stdout_lines | last }}"

@@ -120,6 +120,8 @@ public class RedisConfig {
 
         cacheConfigs.put("blocked-domains", defaultConfig.entryTtl(Duration.ofHours(1)));
 
+        cacheConfigs.put("blocked-domains-flat", defaultConfig.entryTtl(Duration.ofHours(12)));
+
         return cacheConfigs;
     }
 

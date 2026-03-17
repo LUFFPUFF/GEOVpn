@@ -1,0 +1,6 @@
+---
+- name: Setup VPN Nodes
+  hosts: vpn_nodes
+  become: yes
+  roles:
+    - vpn-node

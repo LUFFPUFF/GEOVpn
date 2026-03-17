@@ -1,0 +1,6 @@
+service:
+  vpn:
+    rkn:
+      api-url: "https://raw.githubusercontent.com/zapret-info/z-i/master/domains.txt"
+      cron-schedule: "0 0 3 * * *"
+      batch-size: 1000

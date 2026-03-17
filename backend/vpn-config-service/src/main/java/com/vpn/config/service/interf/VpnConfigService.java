@@ -7,6 +7,7 @@ import com.vpn.common.dto.request.ConfigRegenerateRequest;
 import com.vpn.common.dto.response.VpnConfigResponse;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -37,6 +38,10 @@ public interface VpnConfigService {
      * @return конфигурация
      */
     VpnConfigResponse getConfigByVlessUuid(UUID vlessUuid);
+
+    Map<String, Object> getShadowsocksConfig(Long deviceId);
+
+    String getShadowsocksLink(Long deviceId);
 
     /**
      * Перегенерировать конфигурацию (новый UUID, новый сервер)

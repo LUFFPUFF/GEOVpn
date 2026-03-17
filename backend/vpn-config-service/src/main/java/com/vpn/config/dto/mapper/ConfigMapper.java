@@ -14,18 +14,29 @@ public class ConfigMapper {
                 .deviceId(config.getDeviceId())
                 .userId(config.getUserId())
                 .serverId(config.getServerId())
-                .serverName(server != null ? server.getName() : "Unknown")
-                .serverLocation(server != null ? server.getLocation() : "Unknown")
-                .serverCountryCode(server != null ? server.getCountryCode() : "Unknown")
-                .vlessUuid(config.getVlessUuid())
+                .server(mapToServerInfo(server))
                 .vlessLink(config.getVlessLink())
-                .qrCodeBase64(config.getQrCodeBase64())
-                .qrCodeDataUrl(qrDataUrl)
-                .protocol(config.getProtocol())
-                .status(config.getStatus())
-                .createdAt(config.getCreatedAt())
-                .lastUsedAt(config.getLastUsedAt())
-                .revokedAt(config.getRevokedAt())
+                .qrCode(qrDataUrl)
+                .status(config.getStatus().name())
+                .fullConfigUrl("/api/v1/configs/" + config.getId() + "/json")
+                .build();
+    }
+
+    private VpnConfigResponse.ServerInfo mapToServerInfo(ServerDto server) {
+        if (server == null) {
+            return VpnConfigResponse.ServerInfo.builder().name("Unknown").build();
+        }
+        return VpnConfigResponse.ServerInfo.builder()
+                .id(server.getId())
+                .name(server.getName())
+                .location(server.getLocation())
+                .countryCode(server.getCountryCode())
+                .ipAddress(server.getIpAddress())
+                .port(server.getPort())
+                .currentConnections(server.getCurrentConnections())
+                .maxConnections(server.getMaxConnections())
+                .avgLatencyMs(server.getAvgLatencyMs())
+                .healthScore(server.getHealthScore())
                 .build();
     }
 

@@ -2,9 +2,9 @@ package com.vpn.config.service;
 
 import com.vpn.common.dto.ConfigMetadataDto;
 import com.vpn.common.service.RedisCacheService;
+import com.vpn.config.client.XUIServerApiClient;
 import com.vpn.config.domain.entity.VpnConfiguration;
 import com.vpn.common.dto.enums.ConfigStatus;
-import com.vpn.common.dto.enums.ProtocolType;
 import com.vpn.config.domain.valueobject.ServerAddress;
 import com.vpn.common.dto.ServerDto;
 import com.vpn.config.dto.mapper.ConfigMapper;
@@ -13,20 +13,15 @@ import com.vpn.common.dto.request.ConfigRegenerateRequest;
 import com.vpn.common.dto.request.ServerSelectionRequest;
 import com.vpn.common.dto.ServerSelectionResult;
 import com.vpn.common.dto.response.VpnConfigResponse;
-import com.vpn.config.exception.ConfigAlreadyExistsException;
 import com.vpn.config.exception.ConfigNotFoundException;
-import com.vpn.config.exception.UnauthorizedConfigAccessException;
-import com.vpn.config.generator.QRCodeGenerator;
-import com.vpn.config.generator.RealityConfigGenerator;
-import com.vpn.config.generator.UuidGenerator;
-import com.vpn.config.generator.VlessLinkBuilder;
+import com.vpn.config.generator.*;
 import com.vpn.config.generator.hysteria2.Hysteria2ConfigGenerator;
-import com.vpn.config.generator.shadowsocks.ShadowsocksConfigGenerator;
 import com.vpn.config.repository.VpnConfigurationRepository;
 import com.vpn.config.service.interf.ServerSelectionService;
 import com.vpn.config.service.interf.VpnConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -34,10 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -58,199 +50,96 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
     private final VpnConfigurationRepository configRepository;
     private final ServerSelectionService serverSelectionService;
-    private final ShadowsocksConfigGenerator shadowsocksConfigGenerator;
     private final Hysteria2ConfigGenerator hysteria2ConfigGenerator;
+    private final DeviceLimitService deviceLimitService;
+    private final XUIServerApiClient xuiClient;
+    private final SubscriptionBuilder subscriptionBuilder;
+    private final SubscriptionService subscriptionService;
     private final UuidGenerator uuidGenerator;
-    private final RealityConfigGenerator realityGenerator;
     private final VlessLinkBuilder vlessLinkBuilder;
     private final QRCodeGenerator qrCodeGenerator;
     private final ConfigMapper configMapper;
     private final RedisCacheService redisCacheService;
 
+    @Value("${vpn.subscription.base-url:https://api.geovpn.com}")
+    private String subscriptionBaseUrl;
+
+    @Value("${vpn.relay.ru.ip:}")
+    private String ruRelayIp;
+
     @Override
     @Transactional
     public VpnConfigResponse createConfig(ConfigCreateRequest request) {
-        log.info("Creating VPN config for user: {}, device: {}",
-                request.getUserId(), request.getDeviceId());
+        log.info("Создание подписки для пользователя: {}, устройство: {}", request.getUserId(), request.getDeviceId());
 
-        if (configRepository.existsByDeviceIdAndStatus(request.getDeviceId(), ConfigStatus.ACTIVE)) {
-            log.warn("Active config already exists for device: {}", request.getDeviceId());
-            throw new ConfigAlreadyExistsException(request.getDeviceId());
-        }
+        deviceLimitService.checkDeviceLimit(request.getUserId());
+
+        UUID vlessUuid = uuidGenerator.generateDeterministicUuid(request.getUserId(), request.getDeviceId());
+
+        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
 
         ServerSelectionRequest selectionRequest = ServerSelectionRequest.builder()
                 .userId(request.getUserId())
-                .preferredCountry(request.getPreferredCountry())
                 .userLocation(request.getUserLocation() != null ? request.getUserLocation() : "RU")
-                .protocol(request.getProtocol())
                 .build();
-
         ServerSelectionResult serverResult = serverSelectionService.selectBestServer(selectionRequest);
-        ServerDto selectedServer = serverResult.getServer();
+        ServerDto primaryServer = serverResult.getServer();
 
-        log.info("Selected server: {} (score: {:.2f})",
-                selectedServer.getName(), serverResult.getTotalScore());
+        List<VpnConfigResponse.ServerConfig> allConfigs = buildAllServerConfigs(vlessUuid, allServers);
 
-        UUID vlessUuid = uuidGenerator.generateDeterministicUuid(
-                request.getUserId(),
-                request.getDeviceId()
-        );
-
-        String publicKey = selectedServer.getRealityPublicKey() != null
-                ? selectedServer.getRealityPublicKey()
-                : realityGenerator.generatePublicKey();
-
-        String shortId = selectedServer.getRealityShortId() != null
-                ? selectedServer.getRealityShortId()
-                : realityGenerator.generateShortId();
-
-        ServerAddress serverAddress = new ServerAddress(selectedServer.getIpAddress());
-
-        String vlessLink = vlessLinkBuilder.buildVlessLink(
-                vlessUuid,
-                vlessUuid.toString(),
-                serverAddress,
-                selectedServer.getPort(),
-                selectedServer.getName(),
-                publicKey,
-                shortId
-        );
-
-        log.debug("Generated VLESS link");
-
-        String qrCodeBase64 = qrCodeGenerator.generateQRCodeBase64(vlessLink);
-        String qrCodeDataUrl = qrCodeGenerator.generateQRCodeDataUrl(vlessLink);
+        String primaryLink = allConfigs.stream()
+                .filter(c -> c.getServerId().equals(primaryServer.getId()) && !c.getIsRelay())
+                .map(VpnConfigResponse.ServerConfig::getVlessLink)
+                .findFirst()
+                .orElse(allConfigs.getFirst().getVlessLink());
 
         VpnConfiguration config = VpnConfiguration.builder()
                 .deviceId(request.getDeviceId())
                 .userId(request.getUserId())
-                .serverId(selectedServer.getId())
+                .serverId(primaryServer.getId())
                 .vlessUuid(vlessUuid)
-                .vlessLink(vlessLink)
-                .qrCodeBase64(qrCodeBase64)
-                .protocol(ProtocolType.VLESS)
+                .vlessLink(primaryLink)
                 .status(ConfigStatus.ACTIVE)
                 .build();
+        config = configRepository.save(config);
 
-        VpnConfiguration savedConfig = configRepository.save(config);
+        String subscriptionBase64 = subscriptionService.generateSubscription(vlessUuid);
+        String subscriptionUrl = subscriptionBaseUrl + "/api/v1/subscription/" + vlessUuid;
+
+        String qrCodeDataUrl = qrCodeGenerator.generateQRCodeDataUrl(primaryLink);
 
         ConfigMetadataDto meta = ConfigMetadataDto.builder()
-                .configId(savedConfig.getId())
-                .userId(savedConfig.getUserId())
-                .deviceId(savedConfig.getDeviceId())
+                .configId(config.getId())
+                .userId(config.getUserId())
+                .deviceId(config.getDeviceId())
                 .build();
-
         redisCacheService.set("vpn:meta:" + vlessUuid, meta, Duration.ofDays(30));
 
-        log.info("VPN config created: id={}, device={}, server={}",
-                savedConfig.getId(),
-                savedConfig.getDeviceId(),
-                selectedServer.getName());
+        int limitIp = deviceLimitService.getMaxDevices(request.getUserId());
+        syncWithXui(vlessUuid, allServers, limitIp);
 
-        VpnConfigResponse response = configMapper.toResponse(savedConfig, selectedServer, qrCodeDataUrl);
-        response.setSelectionReason(serverResult.getSelectionReason());
-        response.setServerScore(serverResult.getTotalScore());
-
-        String fullConfigUrl = String.format(
-                "https://api.geovpn.com/api/v1/configs/%d/xray.json",
-                savedConfig.getDeviceId()
-        );
-        response.setFullConfigUrl(fullConfigUrl);
-
-        if (shadowsocksConfigGenerator.isShadowsocksConfigured()) {
-            log.info("📡 Генерация Shadowsocks конфига...");
-
-            String ssLink = shadowsocksConfigGenerator.buildShadowsocksLink(
-                    selectedServer,
-                    selectedServer.getName() + "-SS"
-            );
-            response.setShadowsocksLink(ssLink);
-
-            Map<String, Object> ssConfig = shadowsocksConfigGenerator.generateConfig(
-                    savedConfig,
-                    selectedServer
-            );
-            response.setShadowsocksConfig(ssConfig);
-
-            log.debug("Shadowsocks конфиг готов");
-        }
-
-        if (hysteria2ConfigGenerator.isHysteria2Configured()) {
-            log.info("Генерация Hysteria2 конфига...");
-
-            String hy2Link = hysteria2ConfigGenerator.buildHysteria2Link(
-                    selectedServer,
-                    selectedServer.getName() + "-Hysteria2(Anti-Block)"
-            );
-            response.setHysteria2Link(hy2Link);
-
-            Map<String, Object> hy2Config = hysteria2ConfigGenerator.generateConfig(
-                    savedConfig,
-                    selectedServer
-            );
-            response.setHysteria2Config(hy2Config);
-
-            log.debug("Hysteria2 конфиг готов");
-        }
-
-
-        List<String> availableProtocols = new ArrayList<>();
-        availableProtocols.add("VLESS");
-
-        if (shadowsocksConfigGenerator.isShadowsocksConfigured()) {
-            availableProtocols.add("Shadowsocks");
-        }
-
-        if (hysteria2ConfigGenerator.isHysteria2Configured()) {
-            availableProtocols.add("Hysteria2");
-        }
-
-        response.setAvailableProtocols(availableProtocols);
-
-        String recommendedProtocol = "VLESS";
-        if (request.getUserLocation() != null && request.getUserLocation().contains("RU")) {
-            if (hysteria2ConfigGenerator.isHysteria2Configured()) {
-                recommendedProtocol = "Hysteria2";
-            }
-        }
-        response.setRecommendedProtocol(recommendedProtocol);
-
-        return response;
+        return VpnConfigResponse.builder()
+                .id(config.getId())
+                .deviceId(request.getDeviceId())
+                .userId(request.getUserId())
+                .subscriptionUrl(subscriptionUrl)
+                .subscriptionBase64(subscriptionBase64)
+                .configs(allConfigs)
+                .qrCode(qrCodeDataUrl)
+                .status(ConfigStatus.ACTIVE.name())
+                .recommendedProtocol("VLESS")
+                .selectionReason(serverResult.getSelectionReason())
+                .serverScore(serverResult.getTotalScore())
+                .availableProtocols(List.of("VLESS"))
+                .build();
     }
 
-    public Map<String, Object> getHysteria2Config(Long deviceId) {
-        log.debug("Fetching Hysteria2 config for device: {}", deviceId);
-
-        VpnConfiguration config = configRepository
-                .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
-                .orElseThrow(() -> new ConfigNotFoundException(deviceId));
-
-        ServerDto server = serverSelectionService.getAllActiveServers()
-                .stream()
-                .filter(s -> s.getId().equals(config.getServerId()))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Server not found"));
-
-        return hysteria2ConfigGenerator.generateConfig(config, server);
-    }
-
-    public String getHysteria2Link(Long deviceId) {
-        log.debug("Fetching Hysteria2 link for device: {}", deviceId);
-
-        VpnConfiguration config = configRepository
-                .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
-                .orElseThrow(() -> new ConfigNotFoundException(deviceId));
-
-        ServerDto server = serverSelectionService.getAllActiveServers()
-                .stream()
-                .filter(s -> s.getId().equals(config.getServerId()))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Server not found"));
-
-        return hysteria2ConfigGenerator.buildHysteria2Link(
-                server,
-                server.getName() + "-Hysteria2"
-        );
+    /**
+     * Отдаёт base64 подписку по UUID пользователя.
+     */
+    @Override
+    public String getSubscription(UUID vlessUuid) {
+        return subscriptionService.generateSubscription(vlessUuid);
     }
 
     @Override
@@ -262,73 +151,64 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
                 .orElseThrow(() -> new ConfigNotFoundException(deviceId));
 
-        ServerDto server = serverSelectionService.getAllActiveServers()
-                .stream()
-                .filter(s -> s.getId().equals(config.getServerId()))
-                .findFirst()
-                .orElse(null);
+        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
+        List<VpnConfigResponse.ServerConfig> allConfigs =
+                buildAllServerConfigs(config.getVlessUuid(), allServers);
 
-        String qrDataUrl = qrCodeGenerator.generateQRCodeDataUrl(config.getVlessLink());
+        String subscriptionContent =
+                subscriptionBuilder.buildSubscription(allConfigs);
+        String subscriptionUrl = subscriptionBaseUrl
+                + "/api/v1/subscription/" + config.getVlessUuid();
 
-        return configMapper.toResponse(config, server, qrDataUrl);
+        String qrDataUrl = qrCodeGenerator
+                .generateQRCodeDataUrl(config.getVlessLink());
+
+        return VpnConfigResponse.builder()
+                .id(config.getId())
+                .deviceId(config.getDeviceId())
+                .userId(config.getUserId())
+                .configs(allConfigs)
+                .subscriptionUrl(subscriptionUrl)
+                .subscriptionBase64(subscriptionContent)
+                .qrCode(qrDataUrl)
+                .status(config.getStatus().name())
+                .recommendedProtocol("VLESS")
+                .availableProtocols(List.of("VLESS"))
+                .build();
     }
 
-    public Map<String, Object> getShadowsocksConfig(Long deviceId) {
-        log.debug("Fetching Shadowsocks config for device: {}", deviceId);
-
-        VpnConfiguration config = configRepository
-                .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
-                .orElseThrow(() -> new ConfigNotFoundException(deviceId));
-
-        ServerDto server = serverSelectionService.getAllActiveServers()
-                .stream()
-                .filter(s -> s.getId().equals(config.getServerId()))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Server not found"));
-
-        return shadowsocksConfigGenerator.generateConfig(config, server);
-    }
-
-    public String getShadowsocksLink(Long deviceId) {
-        log.debug("Fetching Shadowsocks link for device: {}", deviceId);
-
-        VpnConfiguration config = configRepository
-                .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
-                .orElseThrow(() -> new ConfigNotFoundException(deviceId));
-
-        ServerDto server = serverSelectionService.getAllActiveServers()
-                .stream()
-                .filter(s -> s.getId().equals(config.getServerId()))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Server not found"));
-
-        return shadowsocksConfigGenerator.buildShadowsocksLink(
-                server,
-                server.getName() + "-SS"
-        );
-    }
 
     @Override
-    public VpnConfigResponse getConfigByVlessUuid(UUID vlessUuid) {
-        log.debug("Fetching config by VLESS UUID: {}", vlessUuid);
+    @Transactional
+    @CacheEvict(value = "vpn-configs", key = "#deviceId")
+    public void revokeConfig(Long deviceId, Long userId) {
+        VpnConfiguration config = configRepository
+                .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
+                .orElseThrow(() -> new ConfigNotFoundException(deviceId));
 
-        VpnConfiguration config = configRepository.findByVlessUuid(vlessUuid)
-                .orElseThrow(() -> new ConfigNotFoundException("Config not found with UUID: " + vlessUuid));
+        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
+        allServers.forEach(server -> {
+            try {
+                xuiClient.removeClient(server.getId(), config.getVlessUuid().toString());
+            } catch (Exception e) {
+                log.warn("Failed to remove client from server {}: {}",
+                        server.getId(), e.getMessage());
+            }
+        });
 
-        ServerDto server = serverSelectionService.getAllActiveServers()
-                .stream()
-                .filter(s -> s.getId().equals(config.getServerId()))
-                .findFirst()
-                .orElse(null);
+        config.revoke();
+        configRepository.save(config);
 
-        return configMapper.toResponse(config, server);
+        redisCacheService.delete("vpn:meta:" + config.getVlessUuid());
+        log.info("Config revoked for device: {}", deviceId);
     }
 
     @Override
     @Transactional
     @CachePut(value = "vpn-configs", key = "#deviceId")
-    public VpnConfigResponse regenerateConfig(Long deviceId, ConfigRegenerateRequest request) {
-        log.info("Regenerating config for device: {}, reason: {}", deviceId, request.getReason());
+    public VpnConfigResponse regenerateConfig(
+            Long deviceId, ConfigRegenerateRequest request) {
+        log.info("Regenerating config for device: {}", deviceId);
 
         VpnConfiguration oldConfig = configRepository
                 .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
@@ -337,66 +217,48 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         oldConfig.revoke();
         configRepository.save(oldConfig);
 
-        log.info("Old config revoked: uuid={}", oldConfig.getVlessUuid());
-
         ConfigCreateRequest createRequest = ConfigCreateRequest.builder()
                 .userId(oldConfig.getUserId())
                 .deviceId(deviceId)
                 .preferredCountry(request.getPreferredCountry())
-                .userLocation("RU") // TODO: Получить из профиля пользователя
+                .userLocation("RU")
                 .build();
 
         return createConfig(createRequest);
     }
 
     @Override
-    @Transactional
-    @CacheEvict(value = "vpn-configs", key = "#deviceId")
-    public void revokeConfig(Long deviceId, Long userId) {
-        log.warn("Revoking config: device={}, user={}", deviceId, userId);
+    public VpnConfigResponse getConfigByVlessUuid(UUID vlessUuid) {
+        VpnConfiguration config = configRepository.findByVlessUuid(vlessUuid)
+                .orElseThrow(() -> new ConfigNotFoundException(
+                        "Config not found: " + vlessUuid));
 
-        VpnConfiguration config = configRepository
-                .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
-                .orElseThrow(() -> new ConfigNotFoundException(deviceId));
+        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
+        List<VpnConfigResponse.ServerConfig> allConfigs =
+                buildAllServerConfigs(vlessUuid, allServers);
 
-        if (!config.getUserId().equals(userId)) {
-            log.error("Unauthorized revoke attempt: device={}, userId={}, actualOwner={}",
-                    deviceId, userId, config.getUserId());
-            throw new UnauthorizedConfigAccessException(deviceId, userId);
-        }
-
-        config.revoke();
-        configRepository.save(config);
-
-        log.info("Config revoked: device={}, uuid={}", deviceId, config.getVlessUuid());
+        return VpnConfigResponse.builder()
+                .id(config.getId())
+                .configs(allConfigs)
+                .subscriptionUrl(subscriptionBaseUrl
+                        + "/api/v1/subscription/" + vlessUuid)
+                .status(config.getStatus().name())
+                .build();
     }
+
 
     @Override
     public List<VpnConfigResponse> getActiveConfigs(Long userId) {
-        log.debug("Fetching active configs for user: {}", userId);
-
-        List<VpnConfiguration> configs = configRepository
-                .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE);
-
-        List<ServerDto> servers = serverSelectionService.getAllActiveServers();
-
-        return configs.stream()
-                .map(config -> {
-                    ServerDto server = servers.stream()
-                            .filter(s -> s.getId().equals(config.getServerId()))
-                            .findFirst()
-                            .orElse(null);
-
-                    return configMapper.toResponse(config, server);
-                })
+        return configRepository
+                .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE)
+                .stream()
+                .map(config -> getConfigByDeviceId(config.getDeviceId()))
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     public void updateLastUsed(UUID vlessUuid) {
-        log.trace("Updating last used for UUID: {}", vlessUuid);
-
         configRepository.findByVlessUuid(vlessUuid)
                 .ifPresent(config -> {
                     config.updateLastUsed();
@@ -406,8 +268,110 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
     @Override
     public boolean isConfigOwnedByUser(Long deviceId, Long userId) {
-        return configRepository.findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
+        return configRepository
+                .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
                 .map(config -> config.getUserId().equals(userId))
                 .orElse(false);
     }
+
+
+    /**
+     * Генерирует конфиги для ВСЕХ серверов.
+     * Порядок: сначала RU relay/антиглушилки, потом EU серверы.
+     */
+    private List<VpnConfigResponse.ServerConfig> buildAllServerConfigs(UUID vlessUuid, List<ServerDto> servers) {
+        List<VpnConfigResponse.ServerConfig> result = new ArrayList<>();
+        int index = 1;
+
+        for (ServerDto server : servers) {
+            if (ruRelayIp != null && !ruRelayIp.isEmpty()) {
+                String relayName = "🔘 Антиглушилка #" + server.getId() + " 4G/LTE 📶";
+                result.add(VpnConfigResponse.ServerConfig.builder()
+                        .serverId(server.getId())
+                        .serverName(relayName)
+                        .countryCode("RU")
+                        .countryEmoji("🇷🇺")
+                        .type("ANTIGLUSH")
+                        .vlessLink(buildLinkForServer(vlessUuid, server, relayName, true))
+                        .protocol("VLESS")
+                        .isRelay(true)
+                        .build());
+            }
+
+            String directName = getCountryEmoji(server.getCountryCode()) + " " + server.getName() + " | Direct 🚀";
+            result.add(VpnConfigResponse.ServerConfig.builder()
+                    .serverId(server.getId())
+                    .serverName(directName)
+                    .countryCode(server.getCountryCode())
+                    .countryEmoji(getCountryEmoji(server.getCountryCode()))
+                    .type("STANDARD")
+                    .vlessLink(buildLinkForServer(vlessUuid, server, directName, false))
+                    .protocol("VLESS")
+                    .isRelay(false)
+                    .avgLatencyMs(server.getAvgLatencyMs())
+                    .build());
+        }
+        return result;
+    }
+
+    private String buildLinkForServer(UUID vlessUuid, ServerDto server, String name, boolean isRelay) {
+        String address = isRelay ? ruRelayIp : server.getIpAddress();
+        String sni = isRelay ? "eh.vk.com" : (server.getRealitySni() != null ? server.getRealitySni() : "google.com");
+
+        return vlessLinkBuilder.buildVlessLink(
+                vlessUuid,
+                vlessUuid.toString(),
+                new ServerAddress(address),
+                server.getPort(),
+                name,
+                server.getRealityPublicKey(),
+                server.getRealityShortId()
+        );
+    }
+
+    private String getCountryEmoji(String code) {
+        if (code == null) return "🌐";
+        return switch (code.toUpperCase()) {
+            case "NL" -> "🇳🇱";
+            case "PL" -> "🇵🇱";
+            case "FI" -> "🇫🇮";
+            case "EE" -> "🇪🇪";
+            case "RU" -> "🇷🇺";
+            default -> "🌐";
+        };
+    }
+
+    /**
+     * Определяет тип сервера по его метаданным
+     */
+    private String detectServerType(ServerDto server) {
+        if (server.getName() == null) return "STANDARD";
+        String name = server.getName().toLowerCase();
+        if (name.contains("antiglush") || name.contains("антиглуш")
+                || name.contains("relay") || name.contains("lte")) {
+            return "ANTIGLUSH";
+        }
+        if (name.contains("white") || name.contains("белый")
+                || name.contains("whitelist")) {
+            return "WHITELIST";
+        }
+        return "STANDARD";
+    }
+
+    private void syncWithXui(UUID vlessUuid, List<ServerDto> servers, int limitIp) {
+        servers.forEach(server -> {
+            try {
+                xuiClient.addClient(
+                        server.getId(),
+                        vlessUuid.toString(),
+                        vlessUuid.toString(),
+                        limitIp
+                );
+            } catch (Exception e) {
+                log.error("Failed to sync with server {}: {}",
+                        server.getId(), e.getMessage());
+            }
+        });
+    }
+
 }

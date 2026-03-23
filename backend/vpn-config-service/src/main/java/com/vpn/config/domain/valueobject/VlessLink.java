@@ -35,15 +35,16 @@ public class VlessLink {
      */
     public String toVlessUrl() {
         return String.format(
-                "vless://%s@%s:%d?security=reality&sni=%s&fp=%s&pbk=%s&sid=%s&type=%s&flow=%s#%s",
+
+                "vless://%s@%s:%d?type=%s&encryption=none&security=reality&pbk=%s&fp=%s&sni=%s&sid=%s&spx=%%2F&flow=%s#%s",
                 uuid,
                 serverAddress,
                 serverPort,
-                sni,
-                fingerprint,
-                publicKey,
-                shortId,
                 networkType,
+                publicKey,
+                fingerprint,
+                sni,
+                shortId,
                 flow,
                 urlEncode(serverName)
         );

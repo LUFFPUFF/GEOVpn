@@ -18,6 +18,8 @@ public class ConfigCreateRequest {
     @NotNull(message = "User ID is required")
     private Long userId;
 
+    private String username;
+
     @NotNull(message = "Device ID is required")
     private Long deviceId;
 

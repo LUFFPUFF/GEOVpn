@@ -1,0 +1,111 @@
+package com.vpn.config.service;
+
+import com.vpn.config.domain.entity.DeviceLimit;
+import com.vpn.config.exception.DeviceLimitExceededException;
+import com.vpn.config.repository.DeviceLimitRepository;
+import com.vpn.config.repository.VpnConfigurationRepository;
+import com.vpn.common.dto.enums.ConfigStatus;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class DeviceLimitService {
+
+    private final DeviceLimitRepository deviceLimitRepository;
+    private final VpnConfigurationRepository configRepository;
+
+    private static final int DEFAULT_MAX_DEVICES = 1;
+
+    /**
+     * Проверяет не превышен ли лимит устройств.
+     * Вызывается перед созданием новой конфигурации.
+     *
+     * @throws DeviceLimitExceededException если лимит превышен
+     */
+    public void checkDeviceLimit(Long userId) {
+        int maxDevices = getMaxDevices(userId);
+        int activeDevices = countActiveDevices(userId);
+
+        log.debug("Device limit check: userId={}, active={}, max={}",
+                userId, activeDevices, maxDevices);
+
+        if (activeDevices >= maxDevices) {
+            log.warn("Device limit exceeded: userId={}, active={}, max={}",
+                    userId, activeDevices, maxDevices);
+            throw new DeviceLimitExceededException(userId, activeDevices, maxDevices);
+        }
+    }
+
+    /**
+     * Получить текущий лимит пользователя
+     */
+    public int getMaxDevices(Long userId) {
+        return deviceLimitRepository.findByUserId(userId)
+                .filter(DeviceLimit::isActive)
+                .map(DeviceLimit::getMaxDevices)
+                .orElse(DEFAULT_MAX_DEVICES);
+    }
+
+    /**
+     * Получить количество активных устройств
+     */
+    public int countActiveDevices(Long userId) {
+        return configRepository
+                .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE)
+                .size();
+    }
+
+    /**
+     * Установить лимит пользователю (при покупке плана)
+     */
+    @Transactional
+    public void setDeviceLimit(
+            Long userId, int maxDevices, String planName, LocalDateTime expiresAt) {
+
+        DeviceLimit limit = deviceLimitRepository.findByUserId(userId)
+                .orElse(DeviceLimit.builder()
+                        .userId(userId)
+                        .build());
+
+        limit.setMaxDevices(maxDevices);
+        limit.setPlanName(planName);
+        limit.setExpiresAt(expiresAt);
+
+        deviceLimitRepository.save(limit);
+
+        log.info("Device limit set: userId={}, max={}, plan={}, expires={}",
+                userId, maxDevices, planName, expiresAt);
+    }
+
+    /**
+     * Получить статус лимита для отображения пользователю
+     */
+    public DeviceLimitStatus getStatus(Long userId) {
+        int max = getMaxDevices(userId);
+        int active = countActiveDevices(userId);
+
+        return DeviceLimitStatus.builder()
+                .userId(userId)
+                .maxDevices(max)
+                .activeDevices(active)
+                .remainingSlots(Math.max(0, max - active))
+                .limitReached(active >= max)
+                .build();
+    }
+
+    @lombok.Builder
+    @lombok.Data
+    public static class DeviceLimitStatus {
+        private Long userId;
+        private int maxDevices;
+        private int activeDevices;
+        private int remainingSlots;
+        private boolean limitReached;
+    }
+}

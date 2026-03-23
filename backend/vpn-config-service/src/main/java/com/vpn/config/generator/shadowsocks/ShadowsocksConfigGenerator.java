@@ -2,6 +2,7 @@ package com.vpn.config.generator.shadowsocks;
 
 import com.vpn.common.dto.ServerDto;
 import com.vpn.config.domain.entity.VpnConfiguration;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,20 +26,15 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ShadowsocksConfigGenerator {
 
-    @Value("${vpn.config.shadowsocks.port:8388}")
+    @Value("${vpn.config.shadowsocks.port}")
     private Integer shadowsocksPort;
 
-    @Value("${vpn.config.shadowsocks.password:}")
+    @Getter
+    @Value("${vpn.config.shadowsocks.password}")
     private String shadowsocksPassword;
 
-    @Value("${vpn.config.shadowsocks.method:chacha20-ietf-poly1305}")
+    @Value("${vpn.config.shadowsocks.method}")
     private String shadowsocksMethod;
-
-    @Value("${vpn.config.shadowsocks.plugin:obfs-local}")
-    private String shadowsocksPlugin;
-
-    @Value("${vpn.config.shadowsocks.plugin-opts:obfs=http;obfs-host=www.bing.com}")
-    private String shadowsocksPluginOpts;
 
     /**
      * Генерирует Shadowsocks конфигурацию для устройства
@@ -56,12 +52,6 @@ public class ShadowsocksConfigGenerator {
         config.put("server_port", shadowsocksPort);
         config.put("password", shadowsocksPassword);
         config.put("method", shadowsocksMethod);
-
-        if (shadowsocksPlugin != null && !shadowsocksPlugin.isEmpty()) {
-            config.put("plugin", shadowsocksPlugin);
-            config.put("plugin_opts", shadowsocksPluginOpts);
-        }
-
         config.put("local_address", "127.0.0.1");
         config.put("local_port", 1080);
         config.put("timeout", 300);
@@ -93,13 +83,10 @@ public class ShadowsocksConfigGenerator {
      * @return SS ссылка
      */
     public String buildShadowsocksLink(ServerDto server, String name) {
-        log.debug("Построение SS ссылки для server: {}", server.getName());
-
         String userInfo = shadowsocksMethod + ":" + shadowsocksPassword;
 
-        String encodedUserInfo = Base64.getUrlEncoder()
-                .withoutPadding()
-                .encodeToString(userInfo.getBytes());
+        String encodedUserInfo = Base64.getEncoder()
+                .encodeToString(userInfo.getBytes(StandardCharsets.UTF_8));
 
         StringBuilder ssUri = new StringBuilder();
         ssUri.append("ss://")
@@ -109,37 +96,10 @@ public class ShadowsocksConfigGenerator {
                 .append(":")
                 .append(shadowsocksPort);
 
-        if (shadowsocksPlugin != null && !shadowsocksPlugin.isEmpty()) {
-            ssUri.append("/?plugin=")
-                    .append(encodePluginString());
-        }
-
         if (name != null && !name.isEmpty()) {
             ssUri.append("#").append(urlEncode(name));
-        } else {
-            ssUri.append("#").append(urlEncode(server.getName() + "-SS"));
         }
-
-        String link = ssUri.toString();
-
-        log.debug("SS ссылка сгенерирована: {}",
-                link.length() > 60 ? link.substring(0, 60) + "..." : link);
-
-        return link;
-    }
-
-    private String encodePluginString() {
-        if (shadowsocksPlugin == null || shadowsocksPlugin.isEmpty()) {
-            return "";
-        }
-
-        String pluginStr = shadowsocksPlugin;
-
-        if (shadowsocksPluginOpts != null && !shadowsocksPluginOpts.isEmpty()) {
-            pluginStr += ";" + shadowsocksPluginOpts;
-        }
-
-        return urlEncode(pluginStr);
+        return ssUri.toString();
     }
 
     private String urlEncode(String value) {
@@ -160,7 +120,7 @@ public class ShadowsocksConfigGenerator {
         info.put("configured", isShadowsocksConfigured());
         info.put("port", shadowsocksPort);
         info.put("method", shadowsocksMethod);
-        info.put("plugin", shadowsocksPlugin);
         return info;
     }
+
 }

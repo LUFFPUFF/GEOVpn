@@ -1,6 +1,7 @@
 package com.vpn.config.config;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -66,7 +67,9 @@ public class VpnConfigProperties {
     @Data
     public static class VlessProperties {
         @NotEmpty
-        private String defaultSni = "www.google.com";
+        private String defaultSni = "mega.nz";
+
+        private String relaySni = "eh.vk.com";
 
         @NotEmpty
         private String defaultFingerprint = "chrome";
@@ -76,6 +79,12 @@ public class VpnConfigProperties {
 
         @NotEmpty
         private String networkType = "tcp";
+
+        @NotEmpty
+        private String relayServerAddress;
+
+        @NotNull
+        private Integer relayServerPort = 443;
     }
 
     @Data

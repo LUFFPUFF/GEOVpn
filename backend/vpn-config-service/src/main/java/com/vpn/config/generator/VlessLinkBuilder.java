@@ -67,6 +67,35 @@ public class VlessLinkBuilder {
 
     }
 
+    public String buildRelayVlessLink(
+            UUID uuid,
+            String email,
+            String relayServerAddress,
+            Integer relayServerPort,
+            String relayPublicKey,
+            String relayShortId,
+            String serverName
+    ) {
+        VlessLink vlessLink = VlessLink.builder()
+                .uuid(uuid)
+                .email(email)
+                .serverAddress(relayServerAddress)
+                .serverPort(relayServerPort)
+                .sni(configProperties.getVless().getRelaySni())
+                .fingerprint(configProperties.getVless().getDefaultFingerprint())
+                .publicKey(relayPublicKey)
+                .shortId(relayShortId)
+                .networkType(configProperties.getVless().getNetworkType())
+                .flow(configProperties.getVless().getFlow())
+                .serverName(serverName + " [RU-Антиглуш]")
+                .build();
+
+        log.info("Built RELAY VLESS link for server: {}, uuid: {}",
+                serverName, uuid.toString().substring(0, 8) + "...");
+
+        return vlessLink.toVlessUrl();
+    }
+
     /**
      * Построить с custom SNI и fingerprint
      */

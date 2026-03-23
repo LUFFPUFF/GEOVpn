@@ -13,13 +13,17 @@ import com.vpn.common.dto.response.VpnConfigResponse;
 import com.vpn.config.service.interf.VpnConfigService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/configs")
 @RequiredArgsConstructor
@@ -27,7 +31,10 @@ public class VpnConfigController {
 
     private final VpnConfigService vpnConfigService;
 
-    @PostMapping
+    /**
+     * Создать новую VPN подписку (набор серверов) для устройства.
+     */
+    @PostMapping("/configs")
     @RequireAnyRole({UserRole.USER, UserRole.SERVICE})
     public ResponseEntity<ApiResponse<VpnConfigResponse>> createConfig(
             @RequestHeader("X-User-Id") Long telegramId,
@@ -40,7 +47,22 @@ public class VpnConfigController {
                 .body(ApiResponse.success(response));
     }
 
-    @GetMapping
+    /**
+     * Эндпоинт для внешних приложений (V2Box, Happ).
+     * Отдает список серверов в формате Base64.
+     * Доступен без заголовка X-User-Id по UUID ссылки.
+     */
+    @GetMapping(value = "/subscription/{uuid}", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> getSubscription(@PathVariable("uuid") UUID vlessUuid) {
+        log.info("Subscription requested for UUID: {}", vlessUuid);
+        String base64Content = vpnConfigService.getSubscription(vlessUuid);
+        return ResponseEntity.ok(base64Content);
+    }
+
+    /**
+     * Получить все активные подписки пользователя.
+     */
+    @GetMapping("/configs")
     @RequireUser
     public ResponseEntity<ApiResponse<List<VpnConfigResponse>>> getMyConfigs(
             @RequestHeader("X-User-Id") Long telegramId) {
@@ -49,7 +71,10 @@ public class VpnConfigController {
         return ResponseEntity.ok(ApiResponse.success(configs));
     }
 
-    @GetMapping("/{deviceId}")
+    /**
+     * Детальная информация о подписке по ID устройства.
+     */
+    @GetMapping("/configs/{deviceId}")
     @RequireUser
     public ResponseEntity<ApiResponse<VpnConfigResponse>> getConfigByDeviceId(
             @RequestHeader("X-User-Id") Long telegramId,
@@ -63,7 +88,10 @@ public class VpnConfigController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @PutMapping("/{deviceId}/regenerate")
+    /**
+     * Перевыпуск подписки (смена UUID).
+     */
+    @PutMapping("/configs/{deviceId}/regenerate")
     @RequireUser
     public ResponseEntity<ApiResponse<VpnConfigResponse>> regenerateConfig(
             @RequestHeader("X-User-Id") Long telegramId,
@@ -78,7 +106,10 @@ public class VpnConfigController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @DeleteMapping("/{deviceId}")
+    /**
+     * Удаление подписки (отзыв доступа на серверах).
+     */
+    @DeleteMapping("/configs/{deviceId}")
     @RequireUser
     public ResponseEntity<ApiResponse<Void>> revokeConfig(
             @RequestHeader("X-User-Id") Long telegramId,

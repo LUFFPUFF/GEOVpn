@@ -11,76 +11,61 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Главный сервис для управления VPN конфигурациями
+ * Главный сервис для управления VPN конфигурациями и подписками.
+ * Поддерживает мульти-серверную архитектуру и каскадные реле (RU-Relay).
  */
 public interface VpnConfigService {
 
     /**
-     * Создать новую VPN конфигурацию для устройства
+     * Создать новую VPN подписку для устройства.
+     * Генерирует UUID, выбирает оптимальный сервер и синхронизирует данные со всеми XUI панелями.
      *
-     * @param request параметры создания
-     * @return созданная конфигурация с VLESS ссылкой и QR кодом
+     * @param request параметры создания (userId, deviceId и т.д.)
+     * @return VpnConfigResponse со списком всех доступных серверов и ссылкой на подписку
      */
     VpnConfigResponse createConfig(ConfigCreateRequest request);
 
     /**
-     * Получить конфигурацию по device ID
+     * Получить контент подписки в формате Base64.
+     * Используется внешними приложениями (Happ, V2Box, v2rayNG) для загрузки списка серверов.
      *
-     * @param deviceId ID устройства
-     * @return конфигурация
+     * @param vlessUuid UUID пользователя
+     * @return Строка в формате Base64, содержащая список VLESS/Hysteria2 ссылок
+     */
+    String getSubscription(UUID vlessUuid);
+
+    /**
+     * Получить полную информацию о конфигурации по ID устройства.
      */
     VpnConfigResponse getConfigByDeviceId(Long deviceId);
 
     /**
-     * Получить конфигурацию по VLESS UUID
-     *
-     * @param vlessUuid UUID из VLESS ссылки
-     * @return конфигурация
+     * Получить информацию о конфигурации по UUID.
      */
     VpnConfigResponse getConfigByVlessUuid(UUID vlessUuid);
 
-    Map<String, Object> getShadowsocksConfig(Long deviceId);
-
-    String getShadowsocksLink(Long deviceId);
-
     /**
-     * Перегенерировать конфигурацию (новый UUID, новый сервер)
-     *
-     * @param deviceId ID устройства
-     * @param request параметры регенерации
-     * @return новая конфигурация
+     * Перегенерировать подписку (выпуск нового UUID и отзыв старого).
      */
     VpnConfigResponse regenerateConfig(Long deviceId, ConfigRegenerateRequest request);
 
     /**
-     * Отозвать конфигурацию (revoke)
-     *
-     * @param deviceId ID устройства
-     * @param userId ID пользователя (для проверки владельца)
+     * Отозвать подписку (удалить пользователя со всех серверов и пометить как REVOKED).
      */
     void revokeConfig(Long deviceId, Long userId);
 
     /**
-     * Получить все активные конфигурации пользователя
-     *
-     * @param userId ID пользователя
-     * @return список конфигураций
+     * Получить все активные подписки пользователя (для разных устройств).
      */
     List<VpnConfigResponse> getActiveConfigs(Long userId);
 
     /**
-     * Обновить время последнего использования конфигурации
-     *
-     * @param vlessUuid UUID конфигурации
+     * Обновить время последнего использования.
      */
     void updateLastUsed(UUID vlessUuid);
 
     /**
-     * Проверить принадлежность конфигурации пользователю
-     *
-     * @param deviceId ID устройства
-     * @param userId ID пользователя
-     * @return true если принадлежит
+     * Проверить, принадлежит ли UUID/Конфигурация данному пользователю.
      */
     boolean isConfigOwnedByUser(Long deviceId, Long userId);
 }

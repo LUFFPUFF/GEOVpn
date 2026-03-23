@@ -6,13 +6,15 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * VPN конфигурация с поддержкой множественных протоколов
  *
  * Поддерживаемые протоколы:
  * 1. VLESS+Reality (primary) - для обычного использования
- * 2. Shadowsocks (fallback #1) - если Reality заблокирован
- * 3. Hysteria2 (fallback #2) - для мобильных сетей и при глушении
+ * 2. VLESS+Reality+Ru Server (fallback #1) - для мобильных сетей и при глушении
+ * 3. Hysteria2 (fallback #2) - fallback если не работает Reality
  */
 @Data
 @Builder
@@ -23,93 +25,68 @@ public class VpnConfigResponse {
     private Long id;
     private Long deviceId;
     private Long userId;
-    private Integer serverId;
-    private ServerInfo server;
 
     /**
-     * VLESS ссылка (для быстрого импорта)
-     * Работает везде, но может быть заблокирован DPI
+     * URL подписки для импорта в Happ/V2Box
+     * Содержит все доступные серверы в base64
      */
-    @JsonProperty("vlessLink")
-    private String vlessLink;
+    @JsonProperty("subscriptionUrl")
+    private String subscriptionUrl;
 
     /**
-     * URL для скачивания полного JSON конфига (с routing rules)
-     * Содержит smart routing: российские сайты → direct, заблокированные → proxy
+     * Список всех конфигураций (для отображения)
      */
-    @JsonProperty("fullConfigUrl")
-    private String fullConfigUrl;
-
-    /**
-     * Shadowsocks ссылка
-     * TCP-based, работает с obfuscation
-     * Используй если VLESS заблокирован
-     */
-    @JsonProperty("shadowsocksLink")
-    private String shadowsocksLink;
-
-    /**
-     * Shadowsocks JSON конфигурация
-     */
-    @JsonProperty("shadowsocksConfig")
-    private Object shadowsocksConfig;
-
-    /**
-     * Hysteria2 ссылка
-     * UDP-based (QUIC), оптимизирован для мобильных сетей
-     * ЛУЧШИЙ ВАРИАНТ при глушении и на LTE/5G
-     */
-    @JsonProperty("hysteria2Link")
-    private String hysteria2Link;
-
-    /**
-     * Hysteria2 JSON конфигурация
-     */
-    @JsonProperty("hysteria2Config")
-    private Object hysteria2Config;
-
-    /**
-     * QR код (по умолчанию для VLESS)
-     */
-    @JsonProperty("qrCode")
-    private String qrCode;
-
-    /**
-     * Статус конфигурации
-     */
-    private String status;
-
-    /**
-     * Причина выбора сервера
-     */
-    @JsonProperty("selectionReason")
-    private String selectionReason;
-
-    /**
-     * Оценка сервера
-     */
-    @JsonProperty("serverScore")
-    private Double serverScore;
-
-    /**
-     * Доступные протоколы
-     * Пример: ["VLESS", "Shadowsocks", "Hysteria2"]
-     */
-    @JsonProperty("availableProtocols")
-    private java.util.List<String> availableProtocols;
+    @JsonProperty("configs")
+    private List<ServerConfig> configs;
 
     /**
      * Рекомендуемый протокол
-     * Логика:
-     * - Для России + мобильные сети → Hysteria2
-     * - Для обычного использования → VLESS
-     * - При блокировках → Shadowsocks/Hysteria2
      */
     @JsonProperty("recommendedProtocol")
     private String recommendedProtocol;
 
     /**
-     * Информация о сервере
+     * Статус
+     */
+    private String status;
+
+    @JsonProperty("subscriptionBase64")
+    private String subscriptionBase64;
+
+    private String qrCode;
+
+    @JsonProperty("selectionReason")
+    private String selectionReason;
+
+    @JsonProperty("serverScore")
+    private Double serverScore;
+
+    @JsonProperty("fullConfigUrl")
+    private String fullConfigUrl;
+
+    @JsonProperty("availableProtocols")
+    private List<String> availableProtocols;
+
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ServerConfig {
+        private Integer serverId;
+        private String serverName;
+        private String countryCode;
+        private String countryEmoji;
+        private String type;
+        private String vlessLink;
+        private String protocol;
+        private Integer avgLatencyMs;
+        private Double healthScore;
+        private Boolean isRelay;
+    }
+
+    /**
+     * Информация о сервере (упрощённая)
      */
     @Data
     @Builder

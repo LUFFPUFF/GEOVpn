@@ -26,22 +26,22 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class Hysteria2ConfigGenerator {
 
-    @Value("${vpn.config.hysteria2.port:8443}")
+    @Value("${vpn.config.hysteria2.port}")
     private Integer hysteria2Port;
 
-    @Value("${vpn.config.hysteria2.password:}")
+    @Value("${vpn.config.hysteria2.password}")
     private String hysteria2Password;
 
-    @Value("${vpn.config.hysteria2.obfs.type:salamander}")
+    @Value("${vpn.config.hysteria2.obfs.type}")
     private String obfsType;
 
-    @Value("${vpn.config.hysteria2.obfs.password:}")
+    @Value("${vpn.config.hysteria2.obfs.password}")
     private String obfsPassword;
 
-    @Value("${vpn.config.hysteria2.sni:www.bing.com}")
+    @Value("${vpn.config.hysteria2.sni}")
     private String sni;
 
-    @Value("${vpn.config.hysteria2.tls.insecure:true}")
+    @Value("${vpn.config.hysteria2.tls.insecure}")
     private Boolean tlsInsecure;
 
     /**
@@ -95,22 +95,13 @@ public class Hysteria2ConfigGenerator {
 
     /**
      * Строит Hysteria2 URI
-     *
-     * Формат: hysteria2://password@server:port?obfs=salamander&obfs-password=xxx&sni=xxx&insecure=1#name
      */
     public String buildHysteria2Link(ServerDto server, String name) {
-        log.debug("Построение Hysteria2 ссылки для server: {}", server.getName());
-
         StringBuilder uri = new StringBuilder();
         uri.append("hysteria2://");
-
         uri.append(urlEncode(hysteria2Password));
         uri.append("@");
-
-        uri.append(server.getIpAddress());
-        uri.append(":");
-        uri.append(hysteria2Port);
-
+        uri.append(server.getIpAddress()).append(":").append(hysteria2Port);
         uri.append("?");
 
         if (obfsPassword != null && !obfsPassword.isEmpty()) {
@@ -124,17 +115,8 @@ public class Hysteria2ConfigGenerator {
             uri.append("&insecure=1");
         }
 
-        if (name != null && !name.isEmpty()) {
-            uri.append("#").append(urlEncode(name));
-        } else {
-            uri.append("#").append(urlEncode(server.getName() + "-Hysteria2"));
-        }
-
-        String link = uri.toString();
-
-        log.debug("Hysteria2 ссылка сгенерирована");
-
-        return link;
+        uri.append("#").append(urlEncode(name != null ? name : "LTE-Hysteria2"));
+        return uri.toString();
     }
 
     public boolean isHysteria2Configured() {

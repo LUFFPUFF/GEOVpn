@@ -8,19 +8,19 @@ import org.springframework.stereotype.Component;
 @Component
 public class ConfigMapper {
 
-    public VpnConfigResponse toResponse(VpnConfiguration config, ServerDto server, String qrDataUrl) {
-        return VpnConfigResponse.builder()
-                .id(config.getId())
-                .deviceId(config.getDeviceId())
-                .userId(config.getUserId())
-                .serverId(config.getServerId())
-                .server(mapToServerInfo(server))
-                .vlessLink(config.getVlessLink())
-                .qrCode(qrDataUrl)
-                .status(config.getStatus().name())
-                .fullConfigUrl("/api/v1/configs/" + config.getId() + "/json")
-                .build();
-    }
+//    public VpnConfigResponse toResponse(VpnConfiguration config, ServerDto server, String qrDataUrl) {
+//        return VpnConfigResponse.builder()
+//                .id(config.getId())
+//                .deviceId(config.getDeviceId())
+//                .userId(config.getUserId())
+//                .serverId(config.getServerId())
+//                .server(mapToServerInfo(server))
+//                .vlessLink(config.getVlessLink())
+//                .qrCode(qrDataUrl)
+//                .status(config.getStatus().name())
+//                .fullConfigUrl("/api/v1/configs/" + config.getId() + "/json")
+//                .build();
+//    }
 
     private VpnConfigResponse.ServerInfo mapToServerInfo(ServerDto server) {
         if (server == null) {
@@ -40,7 +40,7 @@ public class ConfigMapper {
                 .build();
     }
 
-    public VpnConfigResponse toResponse(VpnConfiguration config, ServerDto server) {
-        return toResponse(config, server, null);
-    }
+//    public VpnConfigResponse toResponse(VpnConfiguration config, ServerDto server) {
+//        return toResponse(config, server, null);
+//    }
 }

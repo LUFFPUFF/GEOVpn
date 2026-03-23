@@ -1,9 +1,11 @@
 package com.vpn.config.controller;
 
 import com.vpn.common.security.annotations.Public;
+import com.vpn.common.security.annotations.RequireUser;
 import com.vpn.config.domain.entity.VpnConfiguration;
 import com.vpn.common.dto.ServerDto;
 import com.vpn.config.repository.VpnConfigurationRepository;
+import com.vpn.config.service.SubscriptionService;
 import com.vpn.config.service.interf.ServerSelectionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,72 +25,30 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
-@RequestMapping("/sub")
+@RequestMapping("/api/v1/subscription")
 @RequiredArgsConstructor
 public class SubscriptionController {
 
-    private final VpnConfigurationRepository configRepository;
-    private final ServerSelectionService serverSelectionService;
+    private final SubscriptionService subscriptionService;
 
+    /**
+     * Эндпоинт подписки для VPN клиентов
+     * GET /api/v1/subscription/{vlessUuid}
+     *
+     * Клиент добавляет этот URL — все серверы обновляются автоматически
+     */
     @GetMapping("/{vlessUuid}")
-    @Public
-    public ResponseEntity<String> getSubscription(@PathVariable String vlessUuid) {
+    @RequireUser
+    public ResponseEntity<String> getSubscription(@PathVariable UUID vlessUuid) {
+        log.info("Subscription request for UUID: {}", vlessUuid);
 
-        String cleanUuid = vlessUuid.trim();
-        log.info("📥 Запрошена подписка для UUID: {}", vlessUuid);
+        String subscriptionContent = subscriptionService.generateSubscription(vlessUuid);
 
-        UUID uuid;
-        try {
-            uuid = UUID.fromString(cleanUuid);
-        } catch (IllegalArgumentException e) {
-            log.warn("❌ Неверный формат UUID: {}", cleanUuid);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid UUID format");
-        }
-        VpnConfiguration primaryConfig = configRepository.findByVlessUuid(uuid).orElse(null);
-        if (primaryConfig == null || !primaryConfig.isActive()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Subscription not found or inactive");
-        }
-
-        ServerDto server = serverSelectionService.getAllActiveServers().stream()
-                .filter(s -> s.getId().equals(primaryConfig.getServerId()))
-                .findFirst()
-                .orElse(null);
-
-        if (server == null) {
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Server is offline");
-        }
-
-        StringBuilder payloadBuilder = new StringBuilder();
-
-        String vlessLink = String.format(
-                "vless://%s@%s:%d?security=reality&sni=%s&fp=chrome&pbk=%s&sid=%s&type=tcp&flow=xtls-rprx-vision#%s-VLESS",
-                primaryConfig.getVlessUuid(),
-                server.getIpAddress(),
-                server.getPort(),
-                server.getRealitySni(),
-                server.getRealityPublicKey(),
-                server.getRealityShortId(),
-                server.getName()
-        );
-        payloadBuilder.append(vlessLink).append("\n");
-
-        String hysteriaLink = String.format(
-                "hysteria2://%s@%s:8443?sni=%s&insecure=1#%s-Hysteria2(Anti-Block)",
-                primaryConfig.getVlessUuid(),
-                server.getIpAddress(),
-                server.getRealitySni(),
-                server.getName()
-        );
-        payloadBuilder.append(hysteriaLink).append("\n");
-
-        String base64Payload = Base64.getEncoder().encodeToString(payloadBuilder.toString().getBytes());
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.TEXT_PLAIN);
-        headers.set("profile-update-interval", "12");
-        headers.set("profile-title", "GeoVPN Premium");
-        headers.set("subscription-userinfo", "upload=0; download=0; total=10737418240; expire=0");
-
-        return new ResponseEntity<>(base64Payload, headers, HttpStatus.OK);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, "text/plain; charset=utf-8")
+                .header("subscription-userinfo", "upload=0; download=0; total=10737418240; expire=0")
+                .header("profile-title", "GeoVPN")
+                .header("profile-update-interval", "24")
+                .body(subscriptionContent);
     }
 }

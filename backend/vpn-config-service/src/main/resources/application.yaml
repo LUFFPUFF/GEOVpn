@@ -84,43 +84,53 @@ resilience4j:
 
 
 vpn:
+  relay:
+    ru:
+      ip: "158.160.42.244"
+    panel:
+      url: "http://158.160.42.244:2053"
+      username: "admin"
+      password: "admin"
+      inbound-id: 1
+  panel:
+    url: "https://193.104.33.209:38736/bWEny6FV17ImG46K42"
+    username: "Nikita"
+    password: "nikita090504"
+    inbound-id: 3
   config:
     vless:
-      default-sni: www.google.com
-      default-fingerprint: chrome
-      flow: xtls-rprx-vision
-      network-type: tcp
+      default-sni: "mega.nz"
+      default-fingerprint: "chrome"
+      flow: "xtls-rprx-vision"
+      network-type: "tcp"
+      relay-server-address: http://158.160.42.244:2053/
+      relay-server-port: 443
 
     shadowsocks:
-      enabled: ${SHADOWSOCKS_ENABLED:true}
+      enabled: true
 
-      port: ${SHADOWSOCKS_PORT:8388}
+      port: 25431
 
-      password: ${SHADOWSOCKS_PASSWORD:}
+      password: "U1juOUzmlInpzO1o0DlEtgbvrrVqE4PmwmKjrPjER8w"
 
-      method: ${SHADOWSOCKS_METHOD:chacha20-ietf-poly1305}
-
-      plugin: ${SHADOWSOCKS_PLUGIN:obfs-local}
-
-      plugin-opts: ${SHADOWSOCKS_PLUGIN_OPTS:obfs=http;obfs-host=www.bing.com}
+      method: "BLAKE_AES_256_GCM"
 
     hysteria2:
-      enabled: ${HYSTERIA2_ENABLED:true}
+      enabled: true
 
-      port: ${HYSTERIA2_PORT:8443}
+      port: 36712
 
-      password: ${HYSTERIA2_PASSWORD:28XYMyHYOGqJrU5V+nyv8T9qyvITI6WMC+gyqJxx96g=}
-
+      password: "28XYMyHYOGqJrU5V+nyv8T9qyvITI6WMC+gyqJxx96g="
 
       obfs:
-        type: ${HYSTERIA2_OBFS_TYPE:salamander}
+        type: salamander
 
-        password: ${HYSTERIA2_OBFS_PASSWORD:+H5yF9LA5QGoDK0LzpPHPA==}
+        password: "+H5yF9LA5QGoDK0LzpPHPA=="
 
-      sni: ${HYSTERIA2_SNI:www.bing.com}
+      sni: discord.com
 
       tls:
-        insecure: ${HYSTERIA2_TLS_INSECURE:true}
+        insecure: true
 
     qr-code:
       enabled: true

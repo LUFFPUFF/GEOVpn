@@ -12,6 +12,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -28,94 +29,51 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
-public class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFilter.Config>  {
+public class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFilter.Config> {
 
     private final RouteValidator validator;
-    private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
 
-    public AuthenticationFilter(RouteValidator validator, JwtUtil jwtUtil, ObjectMapper objectMapper) {
+    public AuthenticationFilter(RouteValidator validator, ObjectMapper objectMapper) {
         super(Config.class);
         this.validator = validator;
-        this.jwtUtil = jwtUtil;
         this.objectMapper = objectMapper;
     }
 
-    public static class Config {
-    }
+    public static class Config {}
 
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
             ServerHttpRequest request = exchange.getRequest();
 
-            if (validator.isSecured(request)) {
-
-                if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-                    log.warn("Missing Authorization header for secured endpoint: {}",
-                            request.getPath());
-                    return onError(exchange, "Authorization header is required",
-                            HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED);
-                }
-
-                String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-
-                if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                    log.warn("Invalid Authorization header format: {}", authHeader);
-                    return onError(exchange, "Invalid Authorization header format. Expected: Bearer <token>",
-                            HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED);
-                }
-
-                String token = authHeader.substring(7);
-
-                try {
-                    if (!jwtUtil.validateToken(token)) {
-                        log.warn("Invalid or expired token for path: {}", request.getPath());
-                        return onError(exchange, "Token is invalid or expired",
-                                HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED);
-                    }
-
-                    String userId = jwtUtil.getUserIdFromToken(token);
-
-                    if (userId == null || userId.isEmpty()) {
-                        log.error("Token validation passed but userId is null");
-                        return onError(exchange, "Invalid token claims",
-                                HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED);
-                    }
-
-                    request = exchange.getRequest()
-                            .mutate()
-                            .header("X-User-Id", userId)
-                            .header("X-Auth-Token", token)
-                            .build();
-
-                    log.debug("Authentication successful. User: {}, Path: {}",
-                            userId, request.getPath());
-
-                } catch (ExpiredJwtException e) {
-                    log.warn("Expired JWT token: {}", e.getMessage());
-                    return onError(exchange, "Token has expired",
-                            HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED);
-                } catch (Exception e) {
-                    log.error("JWT authentication failed for path: {}", request.getPath(), e);
-                    return onError(exchange, "Authentication failed: " + e.getMessage(),
-                            HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED);
-                }
+            if (request.getMethod() == HttpMethod.OPTIONS) {
+                return chain.filter(exchange);
             }
 
-            return chain.filter(exchange.mutate().request(request).build());
+            if (validator.isSecured(request)) {
+                log.debug("Checking header X-User-Id for path: {}", request.getPath());
+
+                if (!request.getHeaders().containsKey("X-User-Id")) {
+                    log.warn("401: Missing X-User-Id for secured path {}", request.getPath());
+                    return onError(exchange, "X-User-Id header is missing", HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED);
+                }
+
+            }
+
+            return chain.filter(exchange);
         };
     }
 
-    /**
-     * Отправка ошибки клиенту
-     */
-    private Mono<Void> onError(ServerWebExchange exchange,
-                               String message,
-                               HttpStatus status,
-                               ErrorCode errorCode) {
+    private Mono<Void> onError(ServerWebExchange exchange, String message, HttpStatus status, ErrorCode errorCode) {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(status);
+
+        response.getHeaders().add("Access-Control-Allow-Origin", "http://localhost:5173");
+        response.getHeaders().add("Access-Control-Allow-Methods", "*");
+        response.getHeaders().add("Access-Control-Allow-Headers", "*");
+        response.getHeaders().add("Access-Control-Allow-Credentials", "true");
+
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
         ErrorResponse errorResponse = ErrorResponse.builder()
@@ -123,17 +81,12 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                 .message(message)
                 .build();
 
-        ApiResponse<Void> apiResponse = ApiResponse.error(errorResponse);
-
         try {
-            byte[] bytes = objectMapper.writeValueAsBytes(apiResponse);
+            byte[] bytes = objectMapper.writeValueAsBytes(ApiResponse.error(errorResponse));
             DataBuffer buffer = response.bufferFactory().wrap(bytes);
             return response.writeWith(Mono.just(buffer));
         } catch (JsonProcessingException e) {
-            log.error("Error writing authentication error response", e);
             return response.setComplete();
         }
     }
-
-
 }

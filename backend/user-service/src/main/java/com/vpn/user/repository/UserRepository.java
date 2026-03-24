@@ -17,6 +17,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByReferralCode(String referralCode);
 
+    @Query("SELECT SUM(u.balance) FROM User u")
+    Integer sumAllBalances();
+
     @Query("SELECT COUNT(u) FROM User u WHERE u.referredBy = :telegramId")
     long countReferrals(@Param("telegramId") Long telegramId);
 }

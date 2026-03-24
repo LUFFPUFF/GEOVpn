@@ -11,6 +11,7 @@ import com.vpn.common.dto.request.UserUpdateRequest;
 import com.vpn.user.exception.DuplicateUserException;
 import com.vpn.user.exception.InsufficientBalanceException;
 import com.vpn.user.exception.UserNotFoundException;
+import com.vpn.user.repository.ConnectionRepository;
 import com.vpn.user.repository.DeviceRepository;
 import com.vpn.user.repository.UserRepository;
 import com.vpn.user.service.interf.ReferralService;
@@ -51,6 +52,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final DeviceRepository deviceRepository;
+    private final ConnectionRepository connectionRepository;
     private final UserMapper userMapper;
     private final ReferralService referralService;
 
@@ -247,7 +249,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Cacheable(value = "user-stats", key = "#telegramId", unless = "#result == null")
     public UserStatsResponse getUserStats(Long telegramId) {
-        log.debug("Fetching user stats: telegramId={}", telegramId);
+        log.debug("Fetching real user stats: telegramId={}", telegramId);
 
         ValidationUtils.validateTelegramId(telegramId);
 
@@ -255,11 +257,18 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new UserNotFoundException(telegramId));
 
         long activeDevices = deviceRepository.countActiveDevicesByUserId(telegramId);
-        long totalDevices = deviceRepository.findByUserIdAndIsActiveTrue(telegramId).size();
+        long totalDevices = deviceRepository.countByUserId(telegramId);
 
         long totalReferrals = userRepository.countReferrals(telegramId);
 
-        // TODO: Добавить статистику подключений и трафика из connections таблицы
+        long totalConnections = connectionRepository.countByUserId(telegramId);
+        Long totalTraffic = connectionRepository.sumTotalTrafficByUserId(telegramId);
+
+        long finalTraffic = (totalTraffic != null) ? totalTraffic : 0L;
+
+        //todo Доходы от рефералов (заглушка, так как сущность Transaction не предоставлена)
+        // В будущем: referralRepository.sumEarningsByReferrerId(telegramId)
+        Integer totalReferralEarnings = 0;
 
         return UserStatsResponse.builder()
                 .telegramId(telegramId)
@@ -267,9 +276,9 @@ public class UserServiceImpl implements UserService {
                 .totalDevices((int) totalDevices)
                 .activeDevices((int) activeDevices)
                 .totalReferrals(totalReferrals)
-                .totalReferralEarnings(0) // TODO: рассчитать из transactions
-                .totalConnections(0L) // TODO: из connections
-                .totalTrafficBytes(0L) // TODO: из connections
+                .totalReferralEarnings(totalReferralEarnings)
+                .totalConnections(totalConnections)
+                .totalTrafficBytes(finalTraffic)
                 .build();
     }
 

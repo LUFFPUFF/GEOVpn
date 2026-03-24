@@ -2,6 +2,8 @@ package com.vpn.user.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.math.BigInteger;
 import java.time.LocalDateTime;
 
 @Entity
@@ -24,7 +26,7 @@ public class Connection {
     private Long deviceId;
 
     @Column(name = "server_id")
-    private Long serverId;
+    private Integer serverId;
 
     @Column(name = "bytes_sent")
     private Long bytesSent;

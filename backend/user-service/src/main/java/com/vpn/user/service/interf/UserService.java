@@ -1,6 +1,7 @@
 package com.vpn.user.service.interf;
 
 import com.vpn.common.dto.request.UserRegistrationRequest;
+import com.vpn.common.dto.response.TrafficStatsResponse;
 import com.vpn.common.dto.response.UserResponse;
 import com.vpn.common.dto.response.UserStatsResponse;
 import com.vpn.common.dto.request.UserUpdateRequest;
@@ -63,4 +64,6 @@ public interface UserService {
      * Обновить время последней активности
      */
     void updateLastActive(Long telegramId);
+
+    TrafficStatsResponse getTrafficStats(Long telegramId);
 }

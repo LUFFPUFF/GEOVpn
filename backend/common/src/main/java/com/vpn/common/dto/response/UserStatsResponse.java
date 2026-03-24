@@ -17,6 +17,7 @@ public class UserStatsResponse {
     private Integer activeDevices;
     private Long totalReferrals;
     private Integer totalReferralEarnings;
+    private Long totalSpentKopecks;
     private Long totalConnections;
     private Long totalTrafficBytes;
 }

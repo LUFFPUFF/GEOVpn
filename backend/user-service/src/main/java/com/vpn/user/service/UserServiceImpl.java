@@ -1,5 +1,8 @@
 package com.vpn.user.service;
 
+import com.vpn.common.dto.TrafficSessionDto;
+import com.vpn.common.dto.TrafficSummaryDto;
+import com.vpn.common.dto.response.TrafficStatsResponse;
 import com.vpn.common.util.ValidationUtils;
 import com.vpn.common.dto.enums.SubscriptionType;
 import com.vpn.user.domain.entity.User;
@@ -11,6 +14,7 @@ import com.vpn.common.dto.request.UserUpdateRequest;
 import com.vpn.user.exception.DuplicateUserException;
 import com.vpn.user.exception.InsufficientBalanceException;
 import com.vpn.user.exception.UserNotFoundException;
+import com.vpn.user.grpc.TrafficServiceClient;
 import com.vpn.user.repository.ConnectionRepository;
 import com.vpn.user.repository.DeviceRepository;
 import com.vpn.user.repository.UserRepository;
@@ -55,8 +59,9 @@ public class UserServiceImpl implements UserService {
     private final ConnectionRepository connectionRepository;
     private final UserMapper userMapper;
     private final ReferralService referralService;
+    private final TrafficServiceClient trafficServiceClient;
 
-    private static final int REGISTRATION_BONUS = 5000;
+    private static final int REGISTRATION_BONUS = 5000; //todo нужно ли?
 
     /**
      * Регистрация нового пользователя
@@ -249,7 +254,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Cacheable(value = "user-stats", key = "#telegramId", unless = "#result == null")
     public UserStatsResponse getUserStats(Long telegramId) {
-        log.debug("Fetching real user stats: telegramId={}", telegramId);
+        log.debug("Fetching user stats: telegramId={}", telegramId);
 
         ValidationUtils.validateTelegramId(telegramId);
 
@@ -257,18 +262,16 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new UserNotFoundException(telegramId));
 
         long activeDevices = deviceRepository.countActiveDevicesByUserId(telegramId);
-        long totalDevices = deviceRepository.countByUserId(telegramId);
-
+        long totalDevices  = deviceRepository.countByUserId(telegramId);
         long totalReferrals = userRepository.countReferrals(telegramId);
-
         long totalConnections = connectionRepository.countByUserId(telegramId);
-        Long totalTraffic = connectionRepository.sumTotalTrafficByUserId(telegramId);
 
-        long finalTraffic = (totalTraffic != null) ? totalTraffic : 0L;
+        TrafficSummaryDto summary = trafficServiceClient.getTrafficSummary(telegramId).getData();
 
-        //todo Доходы от рефералов (заглушка, так как сущность Transaction не предоставлена)
-        // В будущем: referralRepository.sumEarningsByReferrerId(telegramId)
-        Integer totalReferralEarnings = 0;
+        long totalBytesIn = summary != null && summary.getBytesIn() != null ? summary.getBytesIn() : 0L;
+        long totalBytesOut = summary != null && summary.getBytesOut() != null ? summary.getBytesOut() : 0L;
+        long totalTraffic = totalBytesIn + totalBytesOut;
+        long totalSpentKopecks = summary != null && summary.getCostKopecks() != null ? summary.getCostKopecks() : 0L;
 
         return UserStatsResponse.builder()
                 .telegramId(telegramId)
@@ -276,9 +279,51 @@ public class UserServiceImpl implements UserService {
                 .totalDevices((int) totalDevices)
                 .activeDevices((int) activeDevices)
                 .totalReferrals(totalReferrals)
-                .totalReferralEarnings(totalReferralEarnings)
+                .totalReferralEarnings(0)
                 .totalConnections(totalConnections)
-                .totalTrafficBytes(finalTraffic)
+                .totalTrafficBytes(totalTraffic)
+                .totalSpentKopecks(totalSpentKopecks)
+                .build();
+    }
+
+    public TrafficStatsResponse getTrafficStats(Long telegramId) {
+        log.debug("Fetching traffic stats: telegramId={}", telegramId);
+
+        ValidationUtils.validateTelegramId(telegramId);
+
+        if (!userRepository.existsByTelegramId(telegramId)) {
+            throw new UserNotFoundException(telegramId);
+        }
+
+        TrafficSummaryDto summary = trafficServiceClient.getTrafficSummary(telegramId).getData();
+        List<TrafficSessionDto> recentSessions = trafficServiceClient.getRecentSessions(telegramId).getData();
+
+        long bytesIn = summary != null && summary.getBytesIn() != null ? summary.getBytesIn() : 0L;
+        long bytesOut = summary != null && summary.getBytesOut() != null ? summary.getBytesOut() : 0L;
+        long total = bytesIn + bytesOut;
+        long cost = summary != null && summary.getCostKopecks() != null ? summary.getCostKopecks() : 0L;
+
+        List<TrafficStatsResponse.TrafficSession> sessions = recentSessions.stream()
+                .limit(50)
+                .map(t -> TrafficStatsResponse.TrafficSession.builder()
+                        .serverId(t.getServerId())
+                        .bytesIn(t.getBytesIn())
+                        .bytesOut(t.getBytesOut())
+                        .bytesTotal(t.getBytesIn() + t.getBytesOut())
+                        .costKopecks(t.getCostKopecks())
+                        .collectedAt(t.getCollectedAt())
+                        .build())
+                .toList();
+
+        return TrafficStatsResponse.builder()
+                .userId(telegramId)
+                .totalBytesIn(bytesIn)
+                .totalBytesOut(bytesOut)
+                .totalBytes(total)
+                .totalGb(total / (1024.0 * 1024.0 * 1024.0))
+                .totalCostKopecks(cost)
+                .totalCostRubles(cost / 100.0)
+                .sessions(sessions)
                 .build();
     }
 

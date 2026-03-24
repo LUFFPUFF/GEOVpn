@@ -2,6 +2,7 @@ package com.vpn.server.scheduler;
 
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ConfigMetadataDto;
+import com.vpn.common.dto.request.ConnectionUpdateRequest;
 import com.vpn.common.service.RedisCacheService;
 import com.vpn.server.domain.entity.Server;
 import com.vpn.server.domain.entity.TrafficUsage;
@@ -15,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
 
 import java.util.List;
 import java.util.Map;
@@ -51,86 +53,144 @@ public class TrafficCollectorJob {
         }
 
         List<CompletableFuture<Void>> futures = activeServers.stream()
-                .map(server -> CompletableFuture.runAsync(() -> processServer(server), executor))
+                .map(server -> CompletableFuture.runAsync(
+                        () -> processServer(server), executor))
                 .toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
         log.info("Global traffic collection cycle finished.");
     }
 
     private void processServer(Server server) {
         try {
-            log.debug("Polling server: {} ({})", server.getName(), server.getIpAddress());
-
-            var stats = xrayGrpcClient.getAllStatistics(server.getIpAddress(), server.getGrpcPort());
+            var stats = xrayGrpcClient.getAllStatistics(
+                    server.getIpAddress(), server.getGrpcPort());
 
             Map<String, List<com.vpn.server.grpc.generated.Stat>> groupedStats = stats.stream()
                     .filter(s -> s.getName().startsWith("user>>>"))
-                    .collect(Collectors.groupingBy(s -> s.getName().split(">>>")[1]));
+                    .collect(Collectors.groupingBy(
+                            s -> s.getName().split(">>>")[1]));
 
-            groupedStats.forEach((userUuidStr, metrics) -> handleUserStats(server, userUuidStr, metrics));
+            groupedStats.forEach((uuid, metrics) ->
+                    handleUserStats(server, uuid, metrics));
 
         } catch (Exception e) {
-            log.error("Critical error processing server {}: {}", server.getName(), e.getMessage());
+            log.error("Critical error processing server {}: {}",
+                    server.getName(), e.getMessage());
         }
     }
 
-    private void handleUserStats(Server server, String userUuidStr, List<com.vpn.server.grpc.generated.Stat> metrics) {
+    private void handleUserStats(
+            Server server,
+            String userUuidStr,
+            List<com.vpn.server.grpc.generated.Stat> metrics) {
         try {
-            ConfigMetadataDto meta = redisCacheService.get("vpn:meta:" + userUuidStr, ConfigMetadataDto.class);
+            ConfigMetadataDto meta = redisCacheService.get(
+                    "vpn:meta:" + userUuidStr, ConfigMetadataDto.class);
 
             if (meta == null) {
-                log.debug("Metadata not found for UUID {}, skipping stats", userUuidStr);
+                log.debug("Metadata not found for UUID {}, skipping", userUuidStr);
                 return;
             }
 
-            long rawUp = 0;
-            long rawDown = 0;
+            long rawUp = 0, rawDown = 0;
             for (var m : metrics) {
-                if (m.getName().contains("uplink")) rawUp = m.getValue();
+                if (m.getName().contains("uplink"))   rawUp   = m.getValue();
                 if (m.getName().contains("downlink")) rawDown = m.getValue();
             }
 
-            long deltaUp = trafficCalculationService.calculateDelta(server.getId(), meta.getConfigId(), "up", rawUp);
-            long deltaDown = trafficCalculationService.calculateDelta(server.getId(), meta.getConfigId(), "down", rawDown);
+            long deltaUp   = trafficCalculationService.calculateDelta(
+                    server.getId(), meta.getConfigId(), "up",   rawUp);
+            long deltaDown = trafficCalculationService.calculateDelta(
+                    server.getId(), meta.getConfigId(), "down", rawDown);
             long totalDelta = deltaUp + deltaDown;
 
-            if (totalDelta > 0) {
-                int cost = trafficCalculationService.calculateCost(totalDelta, pricePerGb);
+            if (totalDelta <= 0) return;
 
-                TrafficUsage usage = TrafficUsage.builder()
-                        .userId(meta.getUserId())
-                        .deviceId(meta.getDeviceId())
-                        .serverId(server.getId())
-                        .configId(meta.getConfigId())
-                        .bytesIn(deltaUp)
-                        .bytesOut(deltaDown)
-                        .costKopecks(cost)
-                        .build();
-                trafficRepository.save(usage);
+            int cost = trafficCalculationService.calculateCost(totalDelta, pricePerGb);
 
-                try {
-                    ApiResponse<Integer> billingResponse = userClient.deductBalance(meta.getUserId(), cost);
+            TrafficUsage usage = TrafficUsage.builder()
+                    .userId(meta.getUserId())
+                    .deviceId(meta.getDeviceId())
+                    .serverId(server.getId())
+                    .configId(meta.getConfigId())
+                    .bytesIn(deltaUp)
+                    .bytesOut(deltaDown)
+                    .costKopecks(cost)
+                    .build();
+            trafficRepository.save(usage);
 
-                    if (billingResponse.getData() != null && billingResponse.getData() <= 0) {
-                        log.warn("DISCONNECTING user {} - balance is empty!", meta.getUserId());
+            updateConnection(meta, server.getId(), deltaUp, deltaDown);
 
-                        xrayGrpcClient.removeUser(
-                                server.getIpAddress(),
-                                server.getGrpcPort(),
-                                "vless-reality",
-                                userUuidStr
-                        );
-                    }
-                } catch (Exception billingEx) {
-                    log.error("Failed to deduct balance for user {}: {}", meta.getUserId(), billingEx.getMessage());
+            try {
+                ApiResponse<Integer> billing =
+                        userClient.deductBalance(meta.getUserId(), cost);
+
+                if (billing.getData() != null && billing.getData() <= 0) {
+                    log.warn("DISCONNECTING user {} — balance empty!", meta.getUserId());
+                    xrayGrpcClient.removeUser(
+                            server.getIpAddress(),
+                            server.getGrpcPort(),
+                            "vless-reality",
+                            userUuidStr
+                    );
+                    closeConnection(meta, server.getId());
                 }
+            } catch (Exception e) {
+                log.error("Billing failed for user {}: {}",
+                        meta.getUserId(), e.getMessage());
             }
+
         } catch (Exception e) {
-            log.error("Error handling stats for user {}: {}", userUuidStr, e.getMessage());
+            log.error("Error handling stats for user {}: {}",
+                    userUuidStr, e.getMessage());
         }
     }
 
+    /**
+     * Открывает новую сессию или обновляет байты в существующей.
+     * Логика:
+     * - Если открытой сессии нет — создаём новую
+     * - Если есть — прибавляем дельту к bytesSent/bytesReceived
+     */
+    private void updateConnection(
+            ConfigMetadataDto meta, Integer serverId,
+            long deltaUp, long deltaDown) {
 
+        ConnectionUpdateRequest request = ConnectionUpdateRequest.builder()
+                .userId(meta.getUserId())
+                .deviceId(meta.getDeviceId())
+                .serverId(serverId)
+                .deltaUp(deltaUp)
+                .deltaDown(deltaDown)
+                .build();
+
+        try {
+            userClient.updateConnection(request);
+        } catch (Exception e) {
+            log.error("Failed to update connection for userId={}: {}",
+                    meta.getUserId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Закрывает открытую сессию при отключении пользователя
+     */
+    private void closeConnection(ConfigMetadataDto meta, Integer serverId) {
+
+        ConnectionUpdateRequest request = ConnectionUpdateRequest.builder()
+                .userId(meta.getUserId())
+                .deviceId(meta.getDeviceId())
+                .serverId(serverId)
+                .deltaUp(0L)
+                .deltaDown(0L)
+                .build();
+
+        try {
+            userClient.closeConnection(request);
+        } catch (Exception e) {
+            log.error("Failed to close connection for userId={}: {}",
+                    meta.getUserId(), e.getMessage());
+        }
+    }
 }

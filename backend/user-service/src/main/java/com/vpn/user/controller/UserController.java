@@ -2,6 +2,7 @@ package com.vpn.user.controller;
 
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.request.UserRegistrationRequest;
+import com.vpn.common.dto.response.TrafficStatsResponse;
 import com.vpn.common.dto.response.UserResponse;
 import com.vpn.common.dto.response.UserStatsResponse;
 import com.vpn.common.dto.request.UserUpdateRequest;
@@ -106,5 +107,27 @@ public class UserController {
             @RequestParam Integer amount) {
         var updatedUser = userService.deductBalance(telegramId, amount);
         return ResponseEntity.ok(ApiResponse.success(updatedUser.getBalance()));
+    }
+
+    /**
+     * Получить статистику трафика пользователя
+     * Доступно самому пользователю и администратору
+     */
+    @GetMapping("/me/traffic")
+    @RequireUser
+    public ResponseEntity<ApiResponse<TrafficStatsResponse>> getMyTrafficStats(
+            @RequestHeader("X-User-Id") Long telegramId) {
+
+        TrafficStatsResponse response = userService.getTrafficStats(telegramId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{telegramId}/traffic")
+    @RequireAnyRole({UserRole.ADMIN, UserRole.SERVICE})
+    public ResponseEntity<ApiResponse<TrafficStatsResponse>> getUserTrafficStats(
+            @PathVariable Long telegramId) {
+
+        TrafficStatsResponse response = userService.getTrafficStats(telegramId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

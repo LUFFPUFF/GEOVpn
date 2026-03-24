@@ -1,5 +1,6 @@
 package com.vpn.server.repository;
 
+import com.vpn.common.dto.projection.TrafficSummaryProjection;
 import com.vpn.server.domain.entity.TrafficUsage;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -12,16 +13,25 @@ import java.util.List;
 @Repository
 public interface TrafficUsageRepository extends JpaRepository<TrafficUsage, Long> {
 
-    List<TrafficUsage> findByUserId(Long userId);
+    List<TrafficUsage> findByUserIdOrderByCollectedAtDesc(Long userId);
 
-    @Query("SELECT SUM(t.bytesTotal) FROM TrafficUsage t WHERE t.userId = :userId AND t.collectedAt > :since")
-    Long getTotalBytesSince(@Param("userId") Long userId, @Param("since") LocalDateTime since);
+    @Query("""
+        SELECT 
+            COALESCE(SUM(t.bytesIn), 0) as bytesIn, 
+            COALESCE(SUM(t.bytesOut), 0) as bytesOut 
+        FROM TrafficUsage t 
+        WHERE t.userId = :userId
+    """)
+    TrafficSummaryProjection sumTrafficByUserId(@Param("userId") Long userId);
 
-    @Query("SELECT SUM(t.costKopecks) FROM TrafficUsage t WHERE t.userId = :userId")
-    Long getTotalSpent(@Param("userId") Long userId);
+    @Query("SELECT COALESCE(SUM(t.costKopecks), 0) FROM TrafficUsage t WHERE t.userId = :userId")
+    Long sumCostByUserId(@Param("userId") Long userId);
 
-    @Query("SELECT SUM(t.bytesIn + t.bytesOut) FROM TrafficUsage t WHERE t.userId = :userId")
-    Long sumTotalTrafficByUserId(@Param("userId") Long userId);
-
-    long countByUserId(Long userId);
+    @Query("""
+        SELECT COALESCE(SUM(t.bytesIn + t.bytesOut), 0)
+        FROM TrafficUsage t WHERE t.userId = :userId AND t.serverId = :serverId
+    """)
+    Long sumTrafficByUserAndServer(
+            @Param("userId") Long userId,
+            @Param("serverId") Integer serverId);
 }

@@ -19,7 +19,7 @@ ID_ROUTES_BILLING_SERVICE: billing-service
 
 PATH_USER_SERVICE: "/api/v1/users/**,/api/v1/devices/**,/api/v1/admin/dashboard/**,/api/v1/admin/users/**"
 PATH_VPN_CONFIG_SERVICE: "/api/v1/configs/**,/api/v1/admin/devices/**,/api/v1/admin/device-limits/**"
-PATH_SERVER_MGM_SERVICE: "/api/v1/servers/**"
+PATH_SERVER_MGM_SERVICE: "/api/v1/servers/**,/api/v1/traffic/**"
 PATH_BILLING_SERVICE: "/api/v1/billing/**,/api/v1/transactions/**"
 
 JWT_SECRET: "uW9qAlq/RnfpA1iSdRmHtFsECIDK8i7wv1GUtmYCHG/9RliQzAxx3szjOFtfSaZg+DmLcbluvS1yr7vOsiApjg=="

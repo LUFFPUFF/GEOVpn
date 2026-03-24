@@ -63,8 +63,8 @@ public class XUIServerApiClient {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private static final int PRIMARY_SERVER_ID = 1;
-    private static final int RELAY_SERVER_ID   = 2;
+    public static final int PRIMARY_SERVER_ID = 1;
+    public static final int RELAY_SERVER_ID   = 2;
 
 
     /**

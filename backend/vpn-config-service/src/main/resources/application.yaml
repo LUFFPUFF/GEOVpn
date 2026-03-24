@@ -106,15 +106,6 @@ vpn:
       relay-server-address: http://158.160.42.244:2053/
       relay-server-port: 443
 
-    shadowsocks:
-      enabled: true
-
-      port: 25431
-
-      password: "U1juOUzmlInpzO1o0DlEtgbvrrVqE4PmwmKjrPjER8w"
-
-      method: "BLAKE_AES_256_GCM"
-
     hysteria2:
       enabled: true
 

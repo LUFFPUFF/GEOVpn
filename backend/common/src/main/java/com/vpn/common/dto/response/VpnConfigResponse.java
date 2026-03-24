@@ -61,9 +61,6 @@ public class VpnConfigResponse {
     @JsonProperty("serverScore")
     private Double serverScore;
 
-    @JsonProperty("fullConfigUrl")
-    private String fullConfigUrl;
-
     @JsonProperty("availableProtocols")
     private List<String> availableProtocols;
 

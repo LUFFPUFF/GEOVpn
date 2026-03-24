@@ -314,18 +314,25 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         return result;
     }
 
-    private String buildLinkForServer(UUID vlessUuid, ServerDto server, String name, boolean isRelay) {
-        String address = isRelay ? ruRelayIp : server.getIpAddress();
-        String sni = isRelay ? "eh.vk.com" : (server.getRealitySni() != null ? server.getRealitySni() : "google.com");
+    private String buildLinkForServer(
+            UUID vlessUuid, ServerDto server, String name, boolean isRelay) {
 
-        return vlessLinkBuilder.buildVlessLink(
+        String address = isRelay ? ruRelayIp : server.getIpAddress();
+        String sni = isRelay
+                ? "eh.vk.com"
+                : (server.getRealitySni() != null
+                ? server.getRealitySni()
+                : "eh.vk.com");
+
+        return vlessLinkBuilder.buildVlessLinkCustom(
                 vlessUuid,
-                vlessUuid.toString(),
                 new ServerAddress(address),
                 server.getPort(),
                 name,
                 server.getRealityPublicKey(),
-                server.getRealityShortId()
+                server.getRealityShortId(),
+                sni,
+                "chrome"
         );
     }
 
@@ -359,19 +366,36 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     }
 
     private void syncWithXui(UUID vlessUuid, List<ServerDto> servers, int limitIp) {
+        String email = vlessUuid.toString();
+
         servers.forEach(server -> {
             try {
                 xuiClient.addClient(
-                        server.getId(),
+                        XUIServerApiClient.PRIMARY_SERVER_ID,
                         vlessUuid.toString(),
-                        vlessUuid.toString(),
+                        email,
                         limitIp
                 );
+                log.info("Synced client to NL panel, server: {}", server.getName());
             } catch (Exception e) {
-                log.error("Failed to sync with server {}: {}",
-                        server.getId(), e.getMessage());
+                log.error("Failed to sync with NL server {}: {}",
+                        server.getName(), e.getMessage());
             }
         });
+
+        if (ruRelayIp != null && !ruRelayIp.isEmpty()) {
+            try {
+                xuiClient.addClient(
+                        XUIServerApiClient.RELAY_SERVER_ID,
+                        vlessUuid.toString(),
+                        email,
+                        limitIp
+                );
+                log.info("Synced client to RU relay panel");
+            } catch (Exception e) {
+                log.error("Failed to sync with RU relay panel: {}", e.getMessage());
+            }
+        }
     }
 
 }

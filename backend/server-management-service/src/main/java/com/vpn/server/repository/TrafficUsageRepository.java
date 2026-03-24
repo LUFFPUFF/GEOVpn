@@ -19,4 +19,9 @@ public interface TrafficUsageRepository extends JpaRepository<TrafficUsage, Long
 
     @Query("SELECT SUM(t.costKopecks) FROM TrafficUsage t WHERE t.userId = :userId")
     Long getTotalSpent(@Param("userId") Long userId);
+
+    @Query("SELECT SUM(t.bytesIn + t.bytesOut) FROM TrafficUsage t WHERE t.userId = :userId")
+    Long sumTotalTrafficByUserId(@Param("userId") Long userId);
+
+    long countByUserId(Long userId);
 }

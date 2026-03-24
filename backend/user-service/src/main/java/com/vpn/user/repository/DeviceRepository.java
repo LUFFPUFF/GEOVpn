@@ -20,5 +20,10 @@ public interface DeviceRepository extends JpaRepository<Device, Long> {
     @Query("SELECT COUNT(d) FROM Device d WHERE d.userId = :userId AND d.isActive = true")
     long countActiveDevicesByUserId(@Param("userId") Long userId);
 
+    @Query("SELECT COUNT(DISTINCT d.userId) FROM Device d WHERE d.isActive = true")
+    long countDistinctUserIdByIsActiveTrue();
+
     boolean existsByUuid(UUID uuid);
+
+    long countByUserId(Long userId);
 }

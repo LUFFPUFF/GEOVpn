@@ -34,7 +34,7 @@ public class VpnConfigController {
     /**
      * Создать новую VPN подписку (набор серверов) для устройства.
      */
-    @PostMapping("/configs")
+    @PostMapping()
     @RequireAnyRole({UserRole.USER, UserRole.SERVICE})
     public ResponseEntity<ApiResponse<VpnConfigResponse>> createConfig(
             @RequestHeader("X-User-Id") Long telegramId,

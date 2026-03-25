@@ -2,8 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"
 import AdminLayout from "@/components/layout/AdminLayout"
 import Dashboard from "@/pages/Dashboard/Dashboard"
 import Users from "@/pages/Users/Users"
-
-const Servers = () => <div>Страница Серверов (в разработке)</div>
+import Servers from "@/pages/Servers/Servers"
 
 function App() {
     return (

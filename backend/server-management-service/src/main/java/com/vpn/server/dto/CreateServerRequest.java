@@ -29,7 +29,7 @@ public class CreateServerRequest {
     @NotNull
     private Integer port = 443;
 
-    private Integer grpcPort = 10085;
+    private Integer grpcPort;
 
     @NotBlank
     private String realityPublicKey;
@@ -38,7 +38,7 @@ public class CreateServerRequest {
     @Size(max = 50)
     private String realityShortId;
 
-    private String realitySni = "www.microsoft.com";
+    private String realitySni;
 
     private Integer maxConnections = 1000;
 }

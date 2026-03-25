@@ -65,8 +65,7 @@ public class Server {
     private Double healthScore = 100.00;
 
     @Column(name = "grpc_port")
-    @Builder.Default
-    private Integer grpcPort = 10085;
+    private Integer grpcPort;
 
     @Column(name = "last_health_check")
     private LocalDateTime lastHealthCheck;

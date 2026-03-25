@@ -149,14 +149,14 @@ public class XrayGrpcClient {
     }
 
     public List<Stat> getAllStatistics(String ipAddress, int grpcPort) {
-        ManagedChannel channel = null;
+        ManagedChannel channel = ManagedChannelBuilder.forAddress(ipAddress, grpcPort)
+                .usePlaintext()
+                .keepAliveTime(5, TimeUnit.SECONDS)
+                .keepAliveTimeout(2, TimeUnit.SECONDS)
+                .build();
         try {
-            channel = ManagedChannelBuilder.forAddress(ipAddress, grpcPort)
-                    .usePlaintext()
-                    .build();
-
             StatsServiceGrpc.StatsServiceBlockingStub stub = StatsServiceGrpc.newBlockingStub(channel)
-                    .withDeadlineAfter(10, TimeUnit.SECONDS);
+                    .withDeadlineAfter(15, TimeUnit.SECONDS);
 
             QueryStatsResponse response = stub.queryStats(QueryStatsRequest.newBuilder()
                     .setPattern("")
@@ -168,7 +168,7 @@ public class XrayGrpcClient {
             log.error("Failed to query stats from {}: {}", ipAddress, e.getMessage());
             return List.of();
         } finally {
-            if (channel != null) channel.shutdown();
+            channel.shutdown();
         }
     }
 

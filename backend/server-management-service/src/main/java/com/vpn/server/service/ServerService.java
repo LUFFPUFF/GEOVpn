@@ -95,4 +95,8 @@ public class ServerService {
                 .orElseThrow(() -> new BaseException(ErrorCode.SERVER_NOT_FOUND, "Server not found: " + id));
         return serverMapper.toDto(server);
     }
+
+    public List<ServerDto> getAllServers() {
+        return serverMapper.toDtoList(serverRepository.findAll());
+    }
 }

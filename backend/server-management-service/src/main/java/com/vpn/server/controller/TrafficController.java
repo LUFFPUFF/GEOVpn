@@ -4,6 +4,7 @@ import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.TrafficSessionDto;
 import com.vpn.common.dto.TrafficSummaryDto;
 import com.vpn.common.dto.projection.TrafficSummaryProjection;
+import com.vpn.server.dto.UserTrafficStatsDto;
 import com.vpn.server.repository.TrafficUsageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,5 +57,20 @@ public class TrafficController {
                 .collect(Collectors.toList());
 
         return ApiResponse.success(sessions);
+    }
+
+    @GetMapping("/servers/{serverId}/stats")
+    public ApiResponse<List<UserTrafficStatsDto>> getServerTrafficStats(@PathVariable Integer serverId) {
+        var stats = trafficRepository.findTrafficByServer(serverId);
+
+        List<UserTrafficStatsDto> result = stats.stream().map(s ->
+                UserTrafficStatsDto.builder()
+                        .userId(s.getUserId())
+                        .totalUp(s.getBytesIn())
+                        .totalDown(s.getBytesOut())
+                        .build()
+        ).collect(Collectors.toList());
+
+        return ApiResponse.success(result);
     }
 }

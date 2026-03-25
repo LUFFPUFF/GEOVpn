@@ -34,4 +34,18 @@ public interface TrafficUsageRepository extends JpaRepository<TrafficUsage, Long
     Long sumTrafficByUserAndServer(
             @Param("userId") Long userId,
             @Param("serverId") Integer serverId);
+
+    interface UserServerTraffic {
+        Long getUserId();
+        Long getBytesIn();
+        Long getBytesOut();
+    }
+
+    @Query("""
+        SELECT t.userId as userId, SUM(t.bytesIn) as bytesIn, SUM(t.bytesOut) as bytesOut
+        FROM TrafficUsage t 
+        WHERE t.serverId = :serverId 
+        GROUP BY t.userId
+    """)
+    List<UserServerTraffic> findTrafficByServer(@Param("serverId") Integer serverId);
 }

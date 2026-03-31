@@ -129,3 +129,57 @@ export interface ApiResponse<T> {
         traceId: string;
     };
 }
+export interface ServerDto {
+    id: number;
+    name: string;
+    location: string;
+    countryCode: string;
+    ipAddress: string;
+    port: number;
+    grpcPort: number;
+    realityPublicKey: string;
+    realityShortId: string;
+    realitySni: string;
+    isActive: boolean;
+    maxConnections: number;
+    currentConnections: number;
+    avgLatencyMs: number | null;
+    healthScore: number;
+    lastHealthCheck: string | null;
+}
+
+export interface CreateServerRequest {
+    name: string;
+    location: string;
+    countryCode: string;
+    ipAddress: string;
+    port: number;
+    grpcPort: number;
+    realityPublicKey: string;
+    realityShortId: string;
+    realitySni: string;
+    maxConnections: number;
+}
+
+export interface XrayUserStat {
+    name: string;
+    value: number;
+}
+
+export interface UserTrafficStatsDto {
+    userId: number;
+    totalUp: number;
+    totalDown: number;
+}
+
+export interface SystemHealthDto {
+    status: 'UP' | 'DOWN' | 'DEGRADED';
+    services: Record<string, {
+        status: string;
+        details: string;
+        cpuUsage?: number;
+        memoryUsedMb?: number;
+        memoryMaxMb?: number;
+        uptime?: number;
+    }>;
+}

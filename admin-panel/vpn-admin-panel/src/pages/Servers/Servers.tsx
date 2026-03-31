@@ -12,35 +12,30 @@ function HealthDot({ score }: { score: number }) {
     const color = score >= 80 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444"
     return (
         <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
-      <span style={{
-          width:8, height:8, borderRadius:"50%", background:color,
-          boxShadow:`0 0 8px ${color}88`, display:"inline-block",
-          animation: score >= 80 ? "pulse 2s infinite" : "none"
-      }}/>
-      <span style={{ fontSize:12, fontWeight:700, color }}>{score.toFixed(0)}</span>
-    </span>
+            <span className={score >= 80 ? "pulse-dot-static" : ""} style={{ width:8, height:8, borderRadius:"50%", background:color, display:"inline-block" }}/>
+            <span style={{ fontSize:13, fontWeight:800, color }}>{score.toFixed(0)}</span>
+        </span>
     )
 }
 
 function LoadBar({ current, max }: { current: number, max: number }) {
     const pct = max > 0 ? Math.min(100, (current / max) * 100) : 0
-    const color = pct > 80 ? "#ef4444" : pct > 50 ? "#f59e0b" : "#10b981"
+    const color = pct > 80 ? "#ef4444" : pct > 50 ? "#f59e0b" : "#3b82f6"
     return (
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ flex:1, height:4, background:"rgba(255,255,255,0.06)", borderRadius:2, overflow:"hidden" }}>
-                <div style={{ height:"100%", width:`${pct}%`, background:color, borderRadius:2, transition:"width 0.5s" }}/>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ flex:1, height:6, background:"var(--border-color)", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${pct}%`, background:color, borderRadius:3, transition:"width 0.5s ease" }}/>
             </div>
-            <span style={{ fontSize:11, color:"#64748b", fontFamily:"'DM Mono',monospace", minWidth:50 }}>
-        {current}/{max}
-      </span>
+            <span style={{ fontSize:12, color:"var(--text-muted)", fontWeight:600, fontFamily:"'DM Mono',monospace", minWidth:50, textAlign:"right" }}>
+                {current}/{max}
+            </span>
         </div>
     )
 }
 
 function AddServerModal({ onClose, onCreate }: { onClose:()=>void, onCreate:(d:CreateServerRequest)=>Promise<void> }) {
     const [form, setForm] = useState<CreateServerRequest>({
-        name:"", location:"", countryCode:"", ipAddress:"",
-        port:443, grpcPort:62789, realityPublicKey:"",
+        name:"", location:"", countryCode:"", ipAddress:"", port:443, grpcPort:62789, realityPublicKey:"",
         realityShortId:"", realitySni:"eh.vk.com", maxConnections:1000
     })
     const [saving, setSaving] = useState(false)
@@ -50,33 +45,21 @@ function AddServerModal({ onClose, onCreate }: { onClose:()=>void, onCreate:(d:C
         setForm(p => ({ ...p, [k]: typeof p[k] === "number" ? Number(e.target.value) : e.target.value }))
 
     const handleSubmit = async () => {
-        if (!form.name || !form.ipAddress || !form.realityPublicKey) {
-            setError("Заполните обязательные поля: Имя, IP, Public Key")
-            return
-        }
+        if (!form.name || !form.ipAddress || !form.realityPublicKey) { setError("Заполните обязательные поля: Имя, IP, Public Key"); return }
         setSaving(true)
-        try { await onCreate(form); onClose() }
-        catch(e: any) { setError(e?.message || "Ошибка создания сервера") }
+        try { await onCreate(form); onClose() } catch(e: any) { setError(e?.message || "Ошибка создания сервера") }
         setSaving(false)
     }
 
     return (
-        <div style={{
-            position:"fixed", inset:0, zIndex:1000,
-            background:"rgba(0,0,0,0.85)", backdropFilter:"blur(8px)",
-            display:"flex", alignItems:"center", justifyContent:"center"
-        }} onClick={onClose}>
-            <div style={{
-                width:560, background:"#0a1628",
-                border:"1px solid rgba(255,255,255,0.1)",
-                borderRadius:20, padding:32, boxShadow:"0 40px 80px rgba(0,0,0,0.8)"
-            }} onClick={e => e.stopPropagation()}>
-                <div style={{ fontSize:20, fontWeight:800, color:"#f1f5f9", marginBottom:4 }}>Добавить сервер</div>
-                <div style={{ fontSize:13, color:"#334155", marginBottom:24 }}>Регистрация нового VPN-узла в кластере</div>
+        <div className="modal-backdrop" onClick={onClose} style={{ background:"rgba(0, 0, 0, 0.4)", backdropFilter:"blur(6px)" }}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)" }}>
+                <div style={{ fontSize:22, fontWeight:800, color:"var(--text-main)", marginBottom:6, fontFamily:"'Space Grotesk',sans-serif" }}>Добавить сервер</div>
+                <div style={{ fontSize:14, color:"var(--text-muted)", marginBottom:24 }}>Регистрация нового VPN-узла в кластере</div>
 
-                {error && <div style={{ padding:"10px 14px", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:10, fontSize:13, color:"#ef4444", marginBottom:16 }}>{error}</div>}
+                {error && <div style={{ padding:"12px 16px", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:10, fontSize:13, color:"#ef4444", fontWeight:500, marginBottom:20 }}>{error}</div>}
 
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:16 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
                     {[
                         { label:"Имя *", key:"name", placeholder:"Netherlands-02" },
                         { label:"Локация", key:"location", placeholder:"Amsterdam, NL" },
@@ -88,53 +71,25 @@ function AddServerModal({ onClose, onCreate }: { onClose:()=>void, onCreate:(d:C
                         { label:"Reality SNI", key:"realitySni", placeholder:"eh.vk.com" },
                     ].map(f => (
                         <div key={f.key}>
-                            <label style={{ fontSize:11, color:"#475569", fontWeight:600, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>{f.label}</label>
-                            <input type={f.num ? "number" : "text"} value={(form as any)[f.key]} onChange={F(f.key as any)}
-                                   placeholder={f.placeholder}
-                                   style={{
-                                       width:"100%", padding:"10px 12px", background:"rgba(255,255,255,0.04)",
-                                       border:"1px solid rgba(255,255,255,0.08)", borderRadius:8,
-                                       color:"#e2e8f0", fontSize:13, outline:"none", boxSizing:"border-box"
-                                   }}/>
+                            <label className="input-label" style={{ color:"var(--text-muted)" }}>{f.label}</label>
+                            <input type={f.num ? "number" : "text"} className="input-field" value={(form as any)[f.key]} onChange={F(f.key as any)} placeholder={f.placeholder}/>
                         </div>
                     ))}
                 </div>
 
-                <div style={{ marginBottom:16 }}>
-                    <label style={{ fontSize:11, color:"#475569", fontWeight:600, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>Reality Public Key *</label>
-                    <input value={form.realityPublicKey} onChange={F("realityPublicKey")}
-                           placeholder="0aOBytw1IiaspVe0c-p2YrIEIvyNH7ZUQ1pLx78l42I"
-                           style={{
-                               width:"100%", padding:"10px 12px", background:"rgba(255,255,255,0.04)",
-                               border:"1px solid rgba(255,255,255,0.08)", borderRadius:8,
-                               color:"#e2e8f0", fontSize:13, outline:"none", boxSizing:"border-box",
-                               fontFamily:"'DM Mono',monospace"
-                           }}/>
+                <div style={{ marginBottom:20 }}>
+                    <label className="input-label" style={{ color:"var(--text-muted)" }}>Reality Public Key *</label>
+                    <input className="input-field" value={form.realityPublicKey} onChange={F("realityPublicKey")} placeholder="0aOBytw..." style={{ fontFamily:"'DM Mono',monospace" }}/>
                 </div>
 
-                <div style={{ marginBottom:24 }}>
-                    <label style={{ fontSize:11, color:"#475569", fontWeight:600, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>Reality Short ID</label>
-                    <input value={form.realityShortId} onChange={F("realityShortId")}
-                           placeholder="2c8c7ec15fb55d91"
-                           style={{
-                               width:"100%", padding:"10px 12px", background:"rgba(255,255,255,0.04)",
-                               border:"1px solid rgba(255,255,255,0.08)", borderRadius:8,
-                               color:"#e2e8f0", fontSize:13, outline:"none", boxSizing:"border-box",
-                               fontFamily:"'DM Mono',monospace"
-                           }}/>
+                <div style={{ marginBottom:30 }}>
+                    <label className="input-label" style={{ color:"var(--text-muted)" }}>Reality Short ID</label>
+                    <input className="input-field" value={form.realityShortId} onChange={F("realityShortId")} placeholder="2c8c7ec..." style={{ fontFamily:"'DM Mono',monospace" }}/>
                 </div>
 
-                <div style={{ display:"flex", gap:10 }}>
-                    <button onClick={onClose} style={{
-                        flex:1, padding:12, background:"rgba(255,255,255,0.04)",
-                        border:"1px solid rgba(255,255,255,0.08)", borderRadius:10,
-                        color:"#64748b", fontSize:14, fontWeight:600, cursor:"pointer"
-                    }}>Отмена</button>
-                    <button onClick={handleSubmit} disabled={saving} style={{
-                        flex:2, padding:12, background:"linear-gradient(135deg,#3b82f6,#2563eb)",
-                        border:"none", borderRadius:10, color:"white",
-                        fontSize:14, fontWeight:700, cursor:"pointer", opacity:saving ? 0.7 : 1
-                    }}>{saving ? "Создаётся..." : "Добавить сервер"}</button>
+                <div style={{ display:"flex", gap:12 }}>
+                    <button onClick={onClose} className="btn-secondary" style={{ flex:1 }}>Отмена</button>
+                    <button onClick={handleSubmit} disabled={saving} className="btn-primary" style={{ flex:2 }}>{saving ? "Создаётся..." : "Добавить сервер"}</button>
                 </div>
             </div>
         </div>
@@ -148,59 +103,37 @@ function ServiceHealthCard({ name, svc }: { name: string, svc: any }) {
     const upMins = svc?.uptime ? Math.floor((svc.uptime % 3600) / 60) : 0
 
     return (
-        <div style={{
-            background:"rgba(255,255,255,0.03)", border:`1px solid ${isUp ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
-            borderRadius:16, padding:"20px 22px"
-        }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+        <div className="info-card" style={{ border:`1px solid ${isUp ? "#a7f3d0" : "#fecaca"}`, background:"var(--bg-card)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
                 <div>
-                    <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0", marginBottom:3 }}>{name}</div>
-                    <div style={{ fontSize:12, color:"#475569" }}>{svc?.details || "—"}</div>
+                    <div style={{ fontSize:16, fontWeight:800, color:"var(--text-main)", marginBottom:4 }}>{name}</div>
+                    <div style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500 }}>{svc?.details || "—"}</div>
                 </div>
-                <span style={{
-                    fontSize:11, fontWeight:700, padding:"4px 12px", borderRadius:20,
-                    background: isUp ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
-                    color: isUp ? "#10b981" : "#ef4444"
-                }}>{svc?.status || "UNKNOWN"}</span>
+                <span className="badge" style={{ background: isUp ? "#d1fae5" : "#fee2e2", color: isUp ? "#059669" : "#dc2626", fontSize:12 }}>{svc?.status || "UNKNOWN"}</span>
             </div>
 
             {isUp && (
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-                    <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:10, padding:"10px 12px" }}>
-                        <div style={{ fontSize:10, color:"#475569", fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.06em" }}>CPU</div>
-                        <div style={{ fontSize:22, fontWeight:800, color:"#3b82f6", fontFamily:"'DM Mono',monospace" }}>
-                            {svc.cpuUsage?.toFixed(1) || "0"}%
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+                    {[
+                        { label:"CPU", value:`${svc.cpuUsage?.toFixed(1) || "0"}%`, color:"#3b82f6", bar:svc.cpuUsage||0 },
+                        { label:"RAM", value:`${svc.memoryUsedMb || 0}MB`, color:"#10b981", bar:memPct },
+                        { label:"Uptime", value:`${upHours}h ${upMins}m`, color:"#f59e0b", sub:"● Stable" }
+                    ].map(m => (
+                        <div key={m.label} style={{ background:"var(--bg-input)", borderRadius:10, padding:"12px 14px", border:"1px solid var(--border-color)" }}>
+                            <div style={{ fontSize:10, color:"var(--text-muted)", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>{m.label}</div>
+                            <div style={{ fontSize:18, fontWeight:800, color:m.color, fontFamily:"'DM Mono',monospace" }}>{m.value}</div>
+                            {m.bar !== undefined ? (
+                                <div style={{ marginTop:8, height:4, background:"var(--border-color)", borderRadius:2, overflow:"hidden" }}>
+                                    <div style={{ height:"100%", width:`${m.bar}%`, background:m.color, borderRadius:2 }}/>
+                                </div>
+                            ) : (
+                                <div style={{ fontSize:12, color:"#10b981", marginTop:8, fontWeight:600 }}>{m.sub}</div>
+                            )}
                         </div>
-                        <div style={{ marginTop:6, height:4, background:"rgba(255,255,255,0.06)", borderRadius:2, overflow:"hidden" }}>
-                            <div style={{ height:"100%", width:`${svc.cpuUsage || 0}%`, background:"#3b82f6", borderRadius:2 }}/>
-                        </div>
-                    </div>
-
-                    <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:10, padding:"10px 12px" }}>
-                        <div style={{ fontSize:10, color:"#475569", fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.06em" }}>RAM</div>
-                        <div style={{ fontSize:22, fontWeight:800, color:"#10b981", fontFamily:"'DM Mono',monospace" }}>
-                            {svc.memoryUsedMb || 0}<span style={{ fontSize:12, color:"#475569" }}>MB</span>
-                        </div>
-                        <div style={{ marginTop:6, height:4, background:"rgba(255,255,255,0.06)", borderRadius:2, overflow:"hidden" }}>
-                            <div style={{ height:"100%", width:`${memPct}%`, background:"#10b981", borderRadius:2 }}/>
-                        </div>
-                    </div>
-
-                    <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:10, padding:"10px 12px" }}>
-                        <div style={{ fontSize:10, color:"#475569", fontWeight:600, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.06em" }}>Uptime</div>
-                        <div style={{ fontSize:18, fontWeight:800, color:"#f59e0b", fontFamily:"'DM Mono',monospace" }}>
-                            {upHours}h {upMins}m
-                        </div>
-                        <div style={{ fontSize:11, color:"#10b981", marginTop:6, fontWeight:600 }}>● Stable</div>
-                    </div>
+                    ))}
                 </div>
             )}
-
-            {!isUp && (
-                <div style={{ padding:"12px 16px", background:"rgba(239,68,68,0.06)", borderRadius:10, fontSize:13, color:"#ef4444" }}>
-                    Сервис недоступен · Нет данных мониторинга
-                </div>
-            )}
+            {!isUp && <div style={{ padding:"14px", background:"#fef2f2", borderRadius:10, fontSize:13, color:"#dc2626", fontWeight:600 }}>Сервис недоступен · Нет данных мониторинга</div>}
         </div>
     )
 }
@@ -247,64 +180,81 @@ export default function Servers() {
     }), [servers, searchQuery, filterStatus])
 
     const stats = useMemo(() => ({
-        total: servers.length,
-        active: servers.filter(s => s.isActive).length,
+        total: servers.length, active: servers.filter(s => s.isActive).length,
         connections: servers.reduce((a, s) => a + (s.currentConnections || 0), 0),
         avgHealth: servers.length ? servers.reduce((a,s) => a + (s.healthScore || 0), 0) / servers.length : 0,
     }), [servers])
 
-    const handleCreate = async (data: CreateServerRequest) => {
-        await adminApi.createServer(data)
-        loadData()
-    }
+    const handleCreate = async (data: CreateServerRequest) => { await adminApi.createServer(data); loadData() }
 
     return (
-        <div style={{ minHeight:"100vh", background:"#060d18", fontFamily:"'Inter',-apple-system,sans-serif", color:"#e2e8f0", display:"flex" }}>
+        <div style={{ minHeight:"100vh", background:"var(--bg-base)", fontFamily:"'Inter',-apple-system,sans-serif", color:"var(--text-main)", display:"flex", transition:"background 0.3s" }}>
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
-        * { box-sizing:border-box; margin:0; padding:0; }
-        input::placeholder { color:#334155; }
-        ::-webkit-scrollbar { width:4px; }
-        ::-webkit-scrollbar-thumb { background:#1e293b; border-radius:2px; }
-        button:hover { opacity:0.85; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-      `}</style>
+                @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap');
+                * { box-sizing:border-box; margin:0; padding:0; }
+                
+                /* CSS UI Kit */
+                .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; box-shadow: var(--shadow-card); transition: all 0.2s ease; }
+                .card:hover { transform: translateY(-3px); border-color: var(--text-muted); }
+                .info-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; box-shadow: var(--shadow-card); }
+                
+                .input-field { width:100%; padding:12px 14px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:10px; color:var(--text-main); font-size:14px; outline:none; transition:all 0.2s; font-family: inherit; }
+                .input-field::placeholder { color: var(--text-muted); }
+                .input-field:focus { background:var(--bg-card); border-color:#3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+                
+                .btn-primary { padding:12px 20px; background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; border-radius:10px; color:white; font-size:14px; font-weight:700; cursor:pointer; transition:all 0.2s; box-shadow: 0 4px 10px -2px rgba(37,99,235,0.3); }
+                .btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+                
+                .btn-secondary { padding:12px 20px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:10px; color:var(--text-main); font-size:14px; font-weight:700; cursor:pointer; transition:all 0.2s; }
+                .btn-secondary:hover { background:var(--border-color); }
+
+                .btn-danger { padding:10px 16px; background:#fee2e2; border:1px solid #fecaca; border-radius:8px; color:#dc2626; font-size:13px; font-weight:700; cursor:pointer; transition:all 0.2s; }
+                .btn-danger:hover { background:#fecaca; }
+                .btn-danger-outline { padding:8px 14px; background:transparent; border:1px solid #fecaca; border-radius:8px; color:#dc2626; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.2s; }
+                .btn-danger-outline:hover { background:#fee2e2; }
+                
+                .btn-success-outline { padding:8px 14px; background:transparent; border:1px solid #a7f3d0; border-radius:8px; color:#059669; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.2s; }
+                .btn-success-outline:hover { background:#d1fae5; }
+                
+                .icon-btn { width:36px; height:36px; border-radius:10px; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px; transition:all 0.2s; }
+                .icon-btn:hover { transform: scale(1.05); }
+
+                .badge { font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; display:inline-flex; align-items:center; letter-spacing:0.02em; }
+                
+                .list-row { display:flex; justify-content:space-between; align-items:center; padding:12px 18px; border-bottom:1px solid var(--border-color); }
+                .list-row:last-child { border-bottom: none; }
+                
+                .copy-btn { background:none; border:none; cursor:pointer; font-size:13px; padding:2px; border-radius:4px; transition:all 0.2s; }
+                .copy-btn:hover { background: var(--bg-input); color: var(--text-main) !important; }
+            `}</style>
 
             {/* Main panel */}
-            <div style={{ flex:1, padding:"32px 36px", display:"flex", flexDirection:"column", minWidth:0, overflow:"auto" }}>
+            <div style={{ flex:1, padding:"40px", display:"flex", flexDirection:"column", minWidth:0, overflow:"auto" }}>
 
                 {/* Header */}
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:32 }}>
                     <div>
-                        <div style={{ fontSize:28, fontWeight:800, color:"#f8fafc", fontFamily:"'Space Grotesk',sans-serif", marginBottom:4 }}>
+                        <div style={{ fontSize:36, fontWeight:800, color:"var(--text-main)", fontFamily:"'Space Grotesk',sans-serif", letterSpacing:"-0.03em", marginBottom:6 }}>
                             Серверы
                         </div>
-                        <div style={{ fontSize:14, color:"#334155" }}>Управление VPN-кластером и инфраструктурой</div>
+                        <div style={{ fontSize:15, color:"var(--text-muted)", fontWeight:500 }}>Управление VPN-кластером и инфраструктурой</div>
                     </div>
-                    <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                        <button onClick={loadData} style={{
-                            width:40, height:40, borderRadius:10, background:"rgba(255,255,255,0.04)",
-                            border:"1px solid rgba(255,255,255,0.07)", color:"#475569", cursor:"pointer",
-                            display:"flex", alignItems:"center", justifyContent:"center", fontSize:16
-                        }}>↻</button>
+                    <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                        <button onClick={loadData} className="icon-btn" style={{ background:"var(--bg-card)", border:"1px solid var(--border-color)", color:"var(--text-muted)", boxShadow:"var(--shadow-card)" }}>↻</button>
                         {viewMode === "fleet" && (
-                            <button onClick={() => setShowAddModal(true)} style={{
-                                padding:"10px 18px", background:"linear-gradient(135deg,#3b82f6,#2563eb)",
-                                border:"none", borderRadius:10, color:"white",
-                                fontSize:13, fontWeight:700, cursor:"pointer"
-                            }}>+ Добавить сервер</button>
+                            <button onClick={() => setShowAddModal(true)} className="btn-primary" style={{ padding:"12px 24px" }}>+ Добавить узел</button>
                         )}
                     </div>
                 </div>
 
                 {/* View toggle */}
-                <div style={{ display:"flex", gap:4, marginBottom:24, background:"rgba(255,255,255,0.03)", padding:4, borderRadius:12, width:"fit-content", border:"1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ display:"flex", gap:4, marginBottom:28, background:"var(--bg-card)", padding:6, borderRadius:14, width:"fit-content", border:"1px solid var(--border-color)", boxShadow:"var(--shadow-card)" }}>
                     {[["fleet","🌐 VPN Fleet"],["infra","🔧 Инфраструктура"]].map(([v,l]) => (
                         <button key={v} onClick={() => { setViewMode(v as any); setSelectedServer(null) }} style={{
-                            padding:"8px 20px", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer",
-                            background: viewMode === v ? "rgba(59,130,246,0.2)" : "none",
-                            border: viewMode === v ? "1px solid rgba(59,130,246,0.3)" : "1px solid transparent",
-                            color: viewMode === v ? "#60a5fa" : "#475569"
+                            padding:"10px 24px", borderRadius:10, fontSize:14, fontWeight:700, cursor:"pointer", transition:"all 0.2s",
+                            background: viewMode === v ? "var(--bg-input)" : "transparent",
+                            border: "none",
+                            color: viewMode === v ? "var(--text-main)" : "var(--text-muted)"
                         }}>{l}</button>
                     ))}
                 </div>
@@ -312,126 +262,105 @@ export default function Servers() {
                 {viewMode === "fleet" ? (
                     <>
                         {/* Stats */}
-                        <div style={{ display:"flex", gap:12, marginBottom:24, flexWrap:"wrap" }}>
+                        <div style={{ display:"flex", gap:16, marginBottom:32, flexWrap:"wrap" }}>
                             {[
-                                { label:"Всего серверов", value:stats.total, color:"#94a3b8" },
-                                { label:"Активных", value:stats.active, color:"#10b981" },
-                                { label:"Неактивных", value:stats.total - stats.active, color:"#ef4444" },
-                                { label:"Подключений", value:stats.connections, color:"#3b82f6" },
+                                { label:"Всего узлов", value:stats.total, color:"var(--text-muted)" },
+                                { label:"В работе", value:stats.active, color:"#10b981" },
+                                { label:"Офлайн", value:stats.total - stats.active, color:"#ef4444" },
+                                { label:"Live Подключения", value:stats.connections, color:"#3b82f6" },
                                 { label:"Avg Health", value:stats.avgHealth.toFixed(1), color:"#f59e0b" },
                             ].map(s => (
-                                <div key={s.label} style={{
-                                    background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)",
-                                    borderRadius:14, padding:"14px 20px", flex:"1 1 120px"
-                                }}>
-                                    <div style={{ fontSize:11, color:"#475569", fontWeight:600, letterSpacing:"0.07em", textTransform:"uppercase", marginBottom:6 }}>{s.label}</div>
-                                    <div style={{ fontSize:26, fontWeight:800, color:s.color, fontFamily:"'Space Grotesk',sans-serif" }}>{s.value}</div>
+                                <div key={s.label} className="card" style={{ padding:"18px 24px", flex:"1 1 140px" }}>
+                                    <div style={{ fontSize:11, color:"var(--text-muted)", fontWeight:700, letterSpacing:"0.05em", textTransform:"uppercase", marginBottom:8 }}>{s.label}</div>
+                                    <div style={{ fontSize:32, fontWeight:800, color:s.color, fontFamily:"'Space Grotesk',sans-serif" }}>{s.value}</div>
                                 </div>
                             ))}
                         </div>
 
                         {/* Search + filter */}
-                        <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+                        <div style={{ display:"flex", gap:12, marginBottom:24 }}>
                             <div style={{ flex:1, position:"relative" }}>
-                                <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#334155", fontSize:14 }}>🔍</span>
-                                <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                                       placeholder="Поиск по имени, IP, локации..."
-                                       style={{
-                                           width:"100%", padding:"10px 14px 10px 36px",
-                                           background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)",
-                                           borderRadius:10, color:"#e2e8f0", fontSize:13, outline:"none"
-                                       }}/>
+                                <span style={{ position:"absolute", left:16, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", fontSize:16 }}>🔍</span>
+                                <input className="input-field" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Поиск сервера по имени, IP или локации..." style={{ paddingLeft:44, fontSize:15 }}/>
                             </div>
-                            {["ALL","ACTIVE","INACTIVE"].map(f => (
-                                <button key={f} onClick={() => setFilterStatus(f as any)} style={{
-                                    padding:"10px 14px", borderRadius:10, fontSize:12, fontWeight:600, cursor:"pointer",
-                                    background: filterStatus === f ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)",
-                                    border: filterStatus === f ? "1px solid rgba(59,130,246,0.3)" : "1px solid rgba(255,255,255,0.06)",
-                                    color: filterStatus === f ? "#60a5fa" : "#475569"
-                                }}>{f === "ALL" ? "Все" : f === "ACTIVE" ? "Активные" : "Неактивные"}</button>
-                            ))}
+                            <div style={{ display:"flex", background:"var(--bg-card)", border:"1px solid var(--border-color)", borderRadius:10, padding:4, boxShadow:"var(--shadow-card)" }}>
+                                {["ALL","ACTIVE","INACTIVE"].map(f => (
+                                    <button key={f} onClick={() => setFilterStatus(f as any)} style={{
+                                        padding:"10px 16px", borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer", transition:"all 0.2s",
+                                        background: filterStatus === f ? "rgba(59,130,246,0.15)" : "transparent",
+                                        border: "none",
+                                        color: filterStatus === f ? "#2563eb" : "var(--text-muted)"
+                                    }}>{f === "ALL" ? "Все" : f === "ACTIVE" ? "Активные" : "Офлайн"}</button>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Server grid */}
                         {loading && servers.length === 0 ? (
-                            <div style={{ textAlign:"center", padding:"60px 0", color:"#334155" }}>Загрузка серверов...</div>
+                            <div className="empty-state" style={{ color:"var(--text-muted)", border:"2px dashed var(--border-color)" }}>Загрузка данных кластера...</div>
                         ) : (
-                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(380px,1fr))", gap:12 }}>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(380px,1fr))", gap:20 }}>
                                 {filteredServers.map(server => {
                                     const isSelected = selectedServer?.id === server.id
-                                    const loadPct = server.maxConnections > 0 ? (server.currentConnections / server.maxConnections * 100) : 0
-                                    const loadColor = loadPct > 80 ? "#ef4444" : loadPct > 50 ? "#f59e0b" : "#10b981"
 
                                     return (
-                                        <div key={server.id} onClick={() => setSelectedServer(isSelected ? null : server)} style={{
-                                            background: isSelected ? "rgba(59,130,246,0.08)" : "rgba(255,255,255,0.03)",
-                                            border: `1px solid ${isSelected ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.06)"}`,
-                                            borderRadius:16, padding:"18px 20px", cursor:"pointer",
-                                            transition:"all 0.15s"
+                                        <div key={server.id} onClick={() => setSelectedServer(isSelected ? null : server)} className="card" style={{
+                                            padding:"24px", cursor:"pointer",
+                                            borderColor: isSelected ? "#3b82f6" : "var(--border-color)",
+                                            boxShadow: isSelected ? "0 0 0 2px rgba(59,130,246,0.2), 0 10px 25px -5px rgba(0,0,0,0.1)" : undefined
                                         }}>
                                             {/* Header */}
-                                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-                                                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                                                    <div style={{ fontSize:24 }}>{FLAG[server.countryCode] || "🌐"}</div>
+                                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
+                                                <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                                                    <div style={{ fontSize:32, filter:"drop-shadow(0 2px 4px rgba(0,0,0,0.1))" }}>{FLAG[server.countryCode] || "🌐"}</div>
                                                     <div>
-                                                        <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0" }}>{server.name}</div>
-                                                        <div style={{ fontSize:12, color:"#475569" }}>{server.location}</div>
+                                                        <div style={{ fontSize:18, fontWeight:800, color:"var(--text-main)", fontFamily:"'Space Grotesk',sans-serif", letterSpacing:"-0.01em" }}>{server.name}</div>
+                                                        <div style={{ fontSize:13, color:"var(--text-muted)", fontWeight:500, marginTop:2 }}>{server.location}</div>
                                                     </div>
                                                 </div>
-                                                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
-                          <span style={{
-                              fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20,
-                              background: server.isActive ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
-                              color: server.isActive ? "#10b981" : "#ef4444"
-                          }}>{server.isActive ? "Online" : "Offline"}</span>
-                                                    <span style={{ fontSize:11, color:"#334155", fontFamily:"'DM Mono',monospace" }}>#{server.id}</span>
+                                                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8 }}>
+                                                    <span className="badge" style={{ background: server.isActive ? "#d1fae5" : "#fee2e2", color: server.isActive ? "#059669" : "#dc2626" }}>
+                                                        {server.isActive ? "Online" : "Offline"}
+                                                    </span>
+                                                    <span style={{ fontSize:12, color:"var(--text-muted)", fontWeight:600, fontFamily:"'DM Mono',monospace" }}>#{server.id}</span>
                                                 </div>
                                             </div>
 
                                             {/* IP + Port */}
-                                            <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-                        <span style={{
-                            fontSize:12, padding:"3px 10px", borderRadius:8,
-                            background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.06)",
-                            color:"#64748b", fontFamily:"'DM Mono',monospace"
-                        }}>{server.ipAddress}:{server.port}</span>
+                                            <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+                                                <span className="badge" style={{ background:"var(--bg-input)", color:"var(--text-muted)", border:"1px solid var(--border-color)", fontFamily:"'DM Mono',monospace" }}>
+                                                    {server.ipAddress}:{server.port}
+                                                </span>
                                                 {server.grpcPort && (
-                                                    <span style={{
-                                                        fontSize:12, padding:"3px 10px", borderRadius:8,
-                                                        background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.15)",
-                                                        color:"#3b82f6", fontFamily:"'DM Mono',monospace"
-                                                    }}>gRPC:{server.grpcPort}</span>
+                                                    <span className="badge" style={{ background:"rgba(59,130,246,0.15)", color:"#2563eb", border:"1px solid #bfdbfe", fontFamily:"'DM Mono',monospace" }}>
+                                                        gRPC:{server.grpcPort}
+                                                    </span>
                                                 )}
                                             </div>
 
                                             {/* Metrics */}
-                                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
-                                                <div style={{ background:"rgba(255,255,255,0.02)", borderRadius:8, padding:"8px 10px" }}>
-                                                    <div style={{ fontSize:10, color:"#475569", fontWeight:600, marginBottom:3, textTransform:"uppercase" }}>Health</div>
-                                                    <HealthDot score={server.healthScore || 0}/>
+                                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+                                                <div style={{ background:"var(--bg-input)", borderRadius:10, padding:"10px 14px", border:"1px solid var(--border-color)" }}>
+                                                    <div style={{ fontSize:11, color:"var(--text-muted)", fontWeight:700, marginBottom:4, textTransform:"uppercase", letterSpacing:"0.04em" }}>Health & Latency</div>
+                                                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                                                        <HealthDot score={server.healthScore || 0}/>
+                                                        <span style={{ color:"var(--text-muted)" }}>|</span>
+                                                        <span style={{ fontSize:15, fontWeight:800, color: server.avgLatencyMs ? (server.avgLatencyMs < 50 ? "#10b981" : server.avgLatencyMs < 150 ? "#f59e0b" : "#ef4444") : "var(--text-muted)", fontFamily:"'DM Mono',monospace" }}>
+                                                            {server.avgLatencyMs ? `${server.avgLatencyMs}ms` : "—"}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div style={{ background:"rgba(255,255,255,0.02)", borderRadius:8, padding:"8px 10px" }}>
-                                                    <div style={{ fontSize:10, color:"#475569", fontWeight:600, marginBottom:3, textTransform:"uppercase" }}>Latency</div>
-                                                    <span style={{ fontSize:14, fontWeight:800, color: server.avgLatencyMs ? (server.avgLatencyMs < 50 ? "#10b981" : server.avgLatencyMs < 150 ? "#f59e0b" : "#ef4444") : "#475569", fontFamily:"'DM Mono',monospace" }}>
-                            {server.avgLatencyMs ? `${server.avgLatencyMs}ms` : "—"}
-                          </span>
-                                                </div>
-                                                <div style={{ background:"rgba(255,255,255,0.02)", borderRadius:8, padding:"8px 10px" }}>
-                                                    <div style={{ fontSize:10, color:"#475569", fontWeight:600, marginBottom:3, textTransform:"uppercase" }}>Conns</div>
-                                                    <span style={{ fontSize:14, fontWeight:800, color:loadColor, fontFamily:"'DM Mono',monospace" }}>
-                            {server.currentConnections}
-                          </span>
+                                                <div style={{ background:"var(--bg-input)", borderRadius:10, padding:"10px 14px", border:"1px solid var(--border-color)", display:"flex", flexDirection:"column", justifyContent:"center" }}>
+                                                    <div style={{ fontSize:11, color:"var(--text-muted)", fontWeight:700, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.04em" }}>Нагрузка узла</div>
+                                                    <LoadBar current={server.currentConnections} max={server.maxConnections}/>
                                                 </div>
                                             </div>
 
-                                            {/* Load bar */}
-                                            <LoadBar current={server.currentConnections} max={server.maxConnections}/>
-
                                             {/* SNI */}
-                                            <div style={{ marginTop:10, fontSize:11, color:"#334155" }}>
-                                                SNI: <span style={{ color:"#475569", fontFamily:"'DM Mono',monospace" }}>{server.realitySni || "—"}</span>
+                                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:16, paddingTop:16, borderTop:"1px dashed var(--border-color)", fontSize:12 }}>
+                                                <div><span style={{ color:"var(--text-muted)", fontWeight:600 }}>SNI:</span> <span style={{ color:"var(--text-main)", fontFamily:"'DM Mono',monospace", fontWeight:600 }}>{server.realitySni || "—"}</span></div>
                                                 {server.lastHealthCheck && (
-                                                    <span style={{ marginLeft:12 }}>Check: <span style={{ color:"#475569" }}>{new Date(server.lastHealthCheck).toLocaleTimeString("ru-RU")}</span></span>
+                                                    <div style={{ color:"var(--text-muted)", fontWeight:500 }}>Update: <span style={{ color:"var(--text-muted)" }}>{new Date(server.lastHealthCheck).toLocaleTimeString("ru-RU", {hour:'2-digit', minute:'2-digit'})}</span></div>
                                                 )}
                                             </div>
                                         </div>
@@ -442,25 +371,30 @@ export default function Servers() {
                     </>
                 ) : (
                     /* Infrastructure view */
-                    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                            <div style={{ fontSize:14, color:"#334155" }}>
-                                Статус кластера: {" "}
-                                <span style={{
-                                    fontWeight:700, padding:"3px 12px", borderRadius:20, fontSize:13,
-                                    background: infraHealth?.status === "UP" ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
-                                    color: infraHealth?.status === "UP" ? "#10b981" : infraHealth?.status === "DEGRADED" ? "#f59e0b" : "#ef4444"
-                                }}>{infraHealth?.status || "LOADING"}</span>
+                    <div style={{ display:"flex", flexDirection:"column", gap:16, maxWidth:900 }}>
+                        <div className="card" style={{ padding:"24px", display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                            <div>
+                                <div style={{ fontSize:20, fontWeight:800, color:"var(--text-main)", marginBottom:4 }}>Ядро системы</div>
+                                <div style={{ fontSize:14, color:"var(--text-muted)", fontWeight:500 }}>Мониторинг внутренних микросервисов</div>
                             </div>
+                            <span style={{
+                                fontWeight:800, padding:"8px 16px", borderRadius:12, fontSize:15,
+                                background: infraHealth?.status === "UP" ? "#d1fae5" : infraHealth?.status === "DEGRADED" ? "#fef3c7" : "#fee2e2",
+                                color: infraHealth?.status === "UP" ? "#059669" : infraHealth?.status === "DEGRADED" ? "#d97706" : "#dc2626",
+                                border: `1px solid ${infraHealth?.status === "UP" ? "#a7f3d0" : infraHealth?.status === "DEGRADED" ? "#fde68a" : "#fecaca"}`
+                            }}>СТАТУС: {infraHealth?.status || "LOADING"}</span>
                         </div>
+
                         {loading && !infraHealth ? (
-                            <div style={{ textAlign:"center", padding:"60px 0", color:"#334155" }}>Опрос сервисов...</div>
+                            <div className="empty-state" style={{ color:"var(--text-muted)", border:"2px dashed var(--border-color)" }}>Опрос сервисов...</div>
                         ) : infraHealth?.services ? (
-                            Object.entries(infraHealth.services).map(([name, svc]) => (
-                                <ServiceHealthCard key={name} name={name} svc={svc}/>
-                            ))
+                            <div style={{ display:"grid", gap:16 }}>
+                                {Object.entries(infraHealth.services).map(([name, svc]) => (
+                                    <ServiceHealthCard key={name} name={name} svc={svc}/>
+                                ))}
+                            </div>
                         ) : (
-                            <div style={{ textAlign:"center", padding:"60px 0", color:"#334155" }}>Данные недоступны</div>
+                            <div className="empty-state" style={{ color:"var(--text-muted)", border:"2px dashed var(--border-color)" }}>Данные недоступны</div>
                         )}
                     </div>
                 )}
@@ -468,10 +402,7 @@ export default function Servers() {
 
             {/* Detail panel (slide-in) */}
             {selectedServer && (
-                <div style={{
-                    width:520, borderLeft:"1px solid rgba(255,255,255,0.06)",
-                    background:"#080f1a", overflow:"auto", flexShrink:0
-                }}>
+                <div style={{ width:560, background:"var(--bg-card)", overflow:"auto", flexShrink:0, zIndex:10, boxShadow:"-10px 0 30px rgba(0,0,0,0.05)" }}>
                     <ServerDetailsPanel
                         server={selectedServer}
                         onClose={() => setSelectedServer(null)}
@@ -480,9 +411,7 @@ export default function Servers() {
                 </div>
             )}
 
-            {showAddModal && (
-                <AddServerModal onClose={() => setShowAddModal(false)} onCreate={handleCreate}/>
-            )}
+            {showAddModal && <AddServerModal onClose={() => setShowAddModal(false)} onCreate={handleCreate}/>}
         </div>
     )
 }

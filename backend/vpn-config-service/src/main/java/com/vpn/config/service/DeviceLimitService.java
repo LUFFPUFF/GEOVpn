@@ -99,6 +99,33 @@ public class DeviceLimitService {
                 .build();
     }
 
+    @Transactional
+    public DeviceLimit ensureLimitInitialized(Long userId, String subscriptionType, LocalDateTime expiresAt) {
+        return deviceLimitRepository.findByUserId(userId)
+                .orElseGet(() -> {
+                    int devices = switch (subscriptionType) {
+                        case "BASIC" -> 1;
+                        case "STANDARD" -> 3;
+                        case "FAMILY" -> 5;
+                        case "BUSINESS" -> 10;
+                        case "UNLIMITED" -> 100;
+                        default -> 1;
+                    };
+
+                    DeviceLimit newLimit = DeviceLimit.builder()
+                            .userId(userId)
+                            .maxDevices(devices)
+                            .planName(subscriptionType)
+                            .expiresAt(expiresAt)
+                            .build();
+                    return deviceLimitRepository.save(newLimit);
+                });
+    }
+
+    public boolean isLimitExceeded(Long userId) {
+        return countActiveDevices(userId) >= getMaxDevices(userId);
+    }
+
     @lombok.Builder
     @lombok.Data
     public static class DeviceLimitStatus {

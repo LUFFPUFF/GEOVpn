@@ -6,6 +6,7 @@
         <set>
           <option value="X-User-Id" />
           <option value="X-Trace-Id" />
+          <option value="profile-update-interval" />
         </set>
       </option>
     </inspection_tool>

@@ -1,7 +1,9 @@
 package com.vpn.config.service;
 
 import com.vpn.common.dto.ConfigMetadataDto;
+import com.vpn.common.dto.response.UserResponse;
 import com.vpn.common.service.RedisCacheService;
+import com.vpn.config.client.UserServiceClient;
 import com.vpn.config.client.XUIServerApiClient;
 import com.vpn.config.domain.entity.VpnConfiguration;
 import com.vpn.common.dto.enums.ConfigStatus;
@@ -19,6 +21,7 @@ import com.vpn.config.generator.hysteria2.Hysteria2ConfigGenerator;
 import com.vpn.config.repository.VpnConfigurationRepository;
 import com.vpn.config.service.interf.ServerSelectionService;
 import com.vpn.config.service.interf.VpnConfigService;
+import com.vpn.config.service.subscription.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,6 +63,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     private final QRCodeGenerator qrCodeGenerator;
     private final ConfigMapper configMapper;
     private final RedisCacheService redisCacheService;
+    private final UserServiceClient userServiceClient;
 
     @Value("${vpn.subscription.base-url:https://api.geovpn.com}")
     private String subscriptionBaseUrl;
@@ -70,13 +74,36 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     @Override
     @Transactional
     public VpnConfigResponse createConfig(ConfigCreateRequest request) {
-        log.info("Создание подписки для пользователя: {}, устройство: {}", request.getUserId(), request.getDeviceId());
+        log.info("Начало создания конфигурации: User={}, Device={}", request.getUserId(), request.getDeviceId());
 
-        deviceLimitService.checkDeviceLimit(request.getUserId());
+        UserResponse user = userServiceClient.getUserByTelegramId(request.getUserTelegramId()).getData();
+
+        deviceLimitService.ensureLimitInitialized(
+                user.getTelegramId(),
+                user.getSubscriptionType().name(),
+                user.getSubscriptionExpiresAt()
+        );
+
+        boolean isNewDevice = configRepository
+                .findByDeviceIdAndStatus(request.getDeviceId(), ConfigStatus.ACTIVE)
+                .isEmpty();
+
+        if (isNewDevice && deviceLimitService.isLimitExceeded(request.getUserId())) {
+            log.warn("Лимит устройств превышен для User: {}. Возвращаем инструкцию.", request.getUserId());
+
+            String instructionSub = subscriptionService.generateLimitExceededSubscription(request.getUserId());
+
+            return VpnConfigResponse.builder()
+                    .userId(request.getUserId())
+                    .status("LIMIT_EXCEEDED")
+                    .subscriptionBase64(instructionSub)
+                    .selectionReason("Превышен лимит устройств. Удалите старые устройства в боте или обновите тариф.")
+                    .configs(Collections.emptyList())
+                    .availableProtocols(Collections.emptyList())
+                    .build();
+        }
 
         UUID vlessUuid = uuidGenerator.generateDeterministicUuid(request.getUserId(), request.getDeviceId());
-
-        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
 
         ServerSelectionRequest selectionRequest = ServerSelectionRequest.builder()
                 .userId(request.getUserId())
@@ -85,28 +112,36 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         ServerSelectionResult serverResult = serverSelectionService.selectBestServer(selectionRequest);
         ServerDto primaryServer = serverResult.getServer();
 
-        List<VpnConfigResponse.ServerConfig> allConfigs = buildAllServerConfigs(vlessUuid, allServers);
+        VpnConfiguration config = configRepository.findByVlessUuid(vlessUuid)
+                .orElse(VpnConfiguration.builder()
+                        .vlessUuid(vlessUuid)
+                        .userId(request.getUserId())
+                        .deviceId(request.getDeviceId())
+                        .build());
 
-        String primaryLink = allConfigs.stream()
-                .filter(c -> c.getServerId().equals(primaryServer.getId()) && !c.getIsRelay())
-                .map(VpnConfigResponse.ServerConfig::getVlessLink)
-                .findFirst()
-                .orElse(allConfigs.getFirst().getVlessLink());
+        config.setServerId(primaryServer.getId());
+        config.setStatus(ConfigStatus.ACTIVE);
 
-        VpnConfiguration config = VpnConfiguration.builder()
-                .deviceId(request.getDeviceId())
-                .userId(request.getUserId())
-                .serverId(primaryServer.getId())
-                .vlessUuid(vlessUuid)
-                .vlessLink(primaryLink)
-                .status(ConfigStatus.ACTIVE)
-                .build();
+        String primaryLink = vlessLinkBuilder.buildVlessLinkCustom(
+                vlessUuid,
+                new ServerAddress(primaryServer.getIpAddress()),
+                primaryServer.getPort(),
+                "GeoVPN | " + primaryServer.getName(),
+                primaryServer.getRealityPublicKey(),
+                primaryServer.getRealityShortId(),
+                primaryServer.getRealitySni(),
+                "chrome"
+        );
+        config.setVlessLink(primaryLink);
         config = configRepository.save(config);
+
+        String qrCodeDataUrl = qrCodeGenerator.generateQRCodeDataUrl(primaryLink);
 
         String subscriptionBase64 = subscriptionService.generateSubscription(vlessUuid);
         String subscriptionUrl = subscriptionBaseUrl + "/api/v1/subscription/" + vlessUuid;
 
-        String qrCodeDataUrl = qrCodeGenerator.generateQRCodeDataUrl(primaryLink);
+        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
+        syncWithXui(vlessUuid, allServers, 1, user.getFirstName());
 
         ConfigMetadataDto meta = ConfigMetadataDto.builder()
                 .configId(config.getId())
@@ -115,8 +150,9 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .build();
         redisCacheService.set("vpn:meta:" + vlessUuid, meta, Duration.ofDays(30));
 
-        int limitIp = deviceLimitService.getMaxDevices(request.getUserId());
-        syncWithXui(vlessUuid, allServers, limitIp);
+        List<VpnConfigResponse.ServerConfig> currentDeviceConfigs = buildAllServerConfigs(vlessUuid, allServers);
+
+        log.info("Конфигурация успешно создана/обновлена для UUID: {}", vlessUuid);
 
         return VpnConfigResponse.builder()
                 .id(config.getId())
@@ -124,13 +160,13 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .userId(request.getUserId())
                 .subscriptionUrl(subscriptionUrl)
                 .subscriptionBase64(subscriptionBase64)
-                .configs(allConfigs)
+                .configs(currentDeviceConfigs)
                 .qrCode(qrCodeDataUrl)
                 .status(ConfigStatus.ACTIVE.name())
                 .recommendedProtocol("VLESS")
                 .selectionReason(serverResult.getSelectionReason())
                 .serverScore(serverResult.getTotalScore())
-                .availableProtocols(List.of("VLESS"))
+                .availableProtocols(List.of("VLESS", "HY2"))
                 .build();
     }
 
@@ -189,18 +225,15 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
         allServers.forEach(server -> {
             try {
-                xuiClient.removeClient(server.getId(), config.getVlessUuid().toString());
+                xuiClient.removeClient(server.getIpAddress(), config.getVlessUuid().toString());
             } catch (Exception e) {
-                log.warn("Failed to remove client from server {}: {}",
-                        server.getId(), e.getMessage());
+                log.warn("Failed to remove client from server {}: {}", server.getId(), e.getMessage());
             }
         });
 
         config.revoke();
         configRepository.save(config);
-
         redisCacheService.delete("vpn:meta:" + config.getVlessUuid());
-        log.info("Config revoked for device: {}", deviceId);
     }
 
     @Override
@@ -285,7 +318,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
         for (ServerDto server : servers) {
             if (ruRelayIp != null && !ruRelayIp.isEmpty()) {
-                String relayName = "🔘 Антиглушилка #" + server.getId() + " 4G/LTE 📶";
+                String relayName = "🔘 Антиглушилка #1 4G/LTE 📶";
                 result.add(VpnConfigResponse.ServerConfig.builder()
                         .serverId(server.getId())
                         .serverName(relayName)
@@ -365,35 +398,18 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         return "STANDARD";
     }
 
-    private void syncWithXui(UUID vlessUuid, List<ServerDto> servers, int limitIp) {
-        String email = vlessUuid.toString();
-
-        servers.forEach(server -> {
+    private void syncWithXui(UUID vlessUuid, List<ServerDto> servers, int limitIp, String email) {
+        for (ServerDto server : servers) {
             try {
                 xuiClient.addClient(
-                        XUIServerApiClient.PRIMARY_SERVER_ID,
+                        server.getIpAddress(),
                         vlessUuid.toString(),
                         email,
                         limitIp
                 );
-                log.info("Synced client to NL panel, server: {}", server.getName());
+                log.info("Synced client to server: {} ({})", server.getName(), server.getIpAddress());
             } catch (Exception e) {
-                log.error("Failed to sync with NL server {}: {}",
-                        server.getName(), e.getMessage());
-            }
-        });
-
-        if (ruRelayIp != null && !ruRelayIp.isEmpty()) {
-            try {
-                xuiClient.addClient(
-                        XUIServerApiClient.RELAY_SERVER_ID,
-                        vlessUuid.toString(),
-                        email,
-                        limitIp
-                );
-                log.info("Synced client to RU relay panel");
-            } catch (Exception e) {
-                log.error("Failed to sync with RU relay panel: {}", e.getMessage());
+                log.error("Failed to sync with server {}: {}", server.getName(), e.getMessage());
             }
         }
     }

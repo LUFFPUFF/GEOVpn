@@ -2,35 +2,100 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ГЛАВНЫЙ ФОН НА ВСЁ ПРИЛОЖЕНИЕ */
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --radius: 1rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground overflow-x-hidden;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Стили структуры */
+#root {
+  max-width: 480px;
+  margin: 0 auto;
   min-height: 100vh;
-  /* Укажи здесь точное имя файла, которое у тебя в папке assets */
-  background-image: url('./assets/bg-pattern.gif') !important;
+  position: relative;
+}
+
+#root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url('./assets/gif.gif');
   background-size: cover;
   background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  background-color: #000; /* Резервный черный */
+  opacity: 0.15;
+  z-index: -1;
 }
 
-/* Эстетичные карточки GEOVpn */
-.vpn-card {
-  background: rgba(15, 15, 15, 0.75) !important;
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
+@layer components {
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl border border-border rounded-lg p-6 shadow-2xl;
+  }
+
+  .btn-primary {
+    @apply w-full py-4 bg-primary text-primary-foreground rounded-lg font-black text-[15px] uppercase tracking-wide active:scale-[0.98] transition-all;
+  }
+
+  .bottom-sheet {
+    @apply fixed bottom-0 left-0 right-0 mx-auto w-full bg-card rounded-t-[2rem] p-6 z-50 border-t border-border shadow-2xl animate-in slide-in-from-bottom-full duration-300 max-w-[480px];
+  }
 }
 
-.btn-premium {
-  background-color: #ffffff;
-  color: #000000;
-  border-radius: 16px;
-  font-weight: 700;
+/* Анимации для BottomNav */
+@layer utilities {
+  .anim-pop { animation: anim-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
+  .anim-jump { animation: anim-jump 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
+  .anim-wobble { animation: anim-wobble 0.5s ease-in-out both; }
+  .anim-spin { animation: anim-spin 0.5s cubic-bezier(0.4, 0, 0.2, 1) both; }
 }
 
-::-webkit-scrollbar { display: none; }
+@keyframes anim-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.anim-pop, .anim-jump, .anim-wobble, .anim-spin {
+  transform-origin: center;
+  display: inline-flex; /* Чтобы анимация крутилась ровно вокруг центра */
+}
+
+@keyframes anim-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-15deg); }
+  75% { transform: rotate(15deg); }
+}
+
+@keyframes anim-spin {
+  0% { transform: rotate(-180deg) scale(0.5); }
+  100% { transform: rotate(0deg) scale(1); }
+}

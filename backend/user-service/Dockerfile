@@ -1,20 +1,14 @@
-FROM eclipse-temurin:21-jre-alpine AS builder
-WORKDIR /app
-ARG JAR_FILE=target/*.jar
-COPY ${JAR_FILE} app.jar
-RUN java -Djarmode=layertools -jar app.jar extract
-
 FROM eclipse-temurin:21-jre-alpine
-WORKDIR /app
-
-COPY --from=builder /app/dependencies/ ./
-COPY --from=builder /app/spring-boot-loader/ ./
-COPY --from=builder /app/snapshot-dependencies/ ./
-COPY --from=builder /app/application/ ./
 
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
+WORKDIR /app
+
+COPY target/*.jar app.jar
+
 EXPOSE 8082
 
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=80.0", "org.springframework.boot.loader.launch.JarLauncher"]
+ENV JAVA_OPTS="-Xms256m -Xmx512m"
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

@@ -1,0 +1,18 @@
+server:
+  port: 8081 # Порт самого бота
+
+telegram:
+  bot:
+    username: "@geovp_bot" # Впиши имя без @
+    token: "8358054476:AAGXz45VMUdU9t6Il43M0pNZ74vde2NmZxg" # Впиши токен
+
+services:
+  internal-secret: "53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3"
+  user-service:
+    url: "http://localhost:8082" # Бот стучится сюда за профилем
+  vpn-config-service:
+    url: "http://localhost:8083" # Бот стучится сюда за ключами VLESS
+
+app:
+  # Сюда вставь ссылку от ngrok/serveo, которую ты получишь при запуске фронта
+  miniapp-url: " http://192.168.208.1:5176/"

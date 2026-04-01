@@ -4,19 +4,12 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5176,
-    host: '0.0.0.0',
-    // Самый мощный способ разрешить все хосты в Vite 6
-    allowedHosts: 'all',
-    // Настройки для туннелей, чтобы Vite не пугался смены протоколов
-    cors: true,
-    hmr: {
-      host: 'localhost',
-      protocol: 'ws',
-    },
-  },
-  // Отключаем строгую проверку в режиме разработки для туннелей
-  preview: {
-    allowedHosts: 'all'
+    port: 3000,
+    proxy: {
+      '/api/users': { target: 'http://localhost:8082', changeOrigin: true, rewrite: (path) => path.replace(/^\/api/, '/api/v1') },
+      '/api/devices': { target: 'http://localhost:8082', changeOrigin: true, rewrite: (path) => path.replace(/^\/api/, '/api/v1') },
+      '/api/configs': { target: 'http://localhost:8083', changeOrigin: true, rewrite: (path) => path.replace(/^\/api/, '/api/v1') },
+      '/api/servers': { target: 'http://localhost:8083', changeOrigin: true, rewrite: (path) => path.replace(/^\/api/, '/api/v1') },
+    }
   }
 })

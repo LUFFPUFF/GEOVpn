@@ -24,7 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
         "feign.client.config.vpn-config-service.url=http://localhost:8083",
         "vpn.billing.price-per-gb=600",
         "vpn.billing.collect-interval-ms=300000",
-        "spring.datasource.url=jdbc:postgresql://localhost:5432/telegram_vpn",
+        "spring.datasource.url=jdbc:postgresql://localhost:5433/telegram_vpn",
         "spring.datasource.username=admin",
         "spring.datasource.password=admin"
 })

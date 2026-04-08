@@ -3,6 +3,7 @@ package com.vpn.config.service;
 import com.vpn.config.domain.entity.DeviceLimit;
 import com.vpn.config.exception.DeviceLimitExceededException;
 import com.vpn.config.repository.DeviceLimitRepository;
+import com.vpn.config.repository.DeviceSessionRepository;
 import com.vpn.config.repository.VpnConfigurationRepository;
 import com.vpn.common.dto.enums.ConfigStatus;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +19,7 @@ import java.time.LocalDateTime;
 public class DeviceLimitService {
 
     private final DeviceLimitRepository deviceLimitRepository;
-    private final VpnConfigurationRepository configRepository;
+    private final VpnConfigurationRepository configurationRepository;
 
     private static final int DEFAULT_MAX_DEVICES = 1;
 
@@ -45,19 +46,19 @@ public class DeviceLimitService {
     /**
      * Получить текущий лимит пользователя
      */
-    public int getMaxDevices(Long userId) {
-        return deviceLimitRepository.findByUserId(userId)
+    public int getMaxDevices(Long telegramId) {
+        return deviceLimitRepository.findByUserId(telegramId)
                 .filter(DeviceLimit::isActive)
                 .map(DeviceLimit::getMaxDevices)
-                .orElse(DEFAULT_MAX_DEVICES);
+                .orElse(1);
     }
 
     /**
      * Получить количество активных устройств
      */
-    public int countActiveDevices(Long userId) {
-        return configRepository
-                .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE)
+    public int countActiveDevices(Long telegramId) {
+        return configurationRepository
+                .findByUserIdAndStatus(telegramId, ConfigStatus.ACTIVE)
                 .size();
     }
 

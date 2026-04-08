@@ -134,6 +134,16 @@ public class ServerSelectionServiceImpl implements com.vpn.config.service.interf
         }
     }
 
+    @Override
+    public ServerDto getServerById(Integer id) {
+        log.debug("Fetching server by ID: {}", id);
+        return getAllActiveServers().stream()
+                .filter(server -> server.getId().equals(id))
+                .findFirst()
+                .orElseThrow(() -> new NoAvailableServerException(
+                        "Server with ID " + id + " not found or inactive"));
+    }
+
     private double calculateLatencyScore(Integer latencyMs) {
         if (latencyMs == null || latencyMs <= 0) {
             return 50.0;

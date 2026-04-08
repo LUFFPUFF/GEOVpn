@@ -45,7 +45,11 @@ spring:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowed-origins: "http://localhost:5173"
+            allowed-origins:
+             - "http://localhost:5173"
+             - "http://localhost:3000"
+             - "https://urw-likelihood-specifications-buffer.trycloudflare.com"
+             - "https://galaxy-governments-louis-annual.trycloudflare.com"
             allowed-methods: "*"
             allowed-headers: "*"
             allow-credentials: true

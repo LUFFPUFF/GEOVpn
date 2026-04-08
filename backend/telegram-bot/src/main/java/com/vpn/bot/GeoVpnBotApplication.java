@@ -2,10 +2,11 @@ package com.vpn.bot;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
-@SpringBootApplication
-@EnableFeignClients // Включает поиск Feign-клиентов
+@SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})
+@EnableFeignClients
 public class GeoVpnBotApplication {
 
     public static void main(String[] args) {

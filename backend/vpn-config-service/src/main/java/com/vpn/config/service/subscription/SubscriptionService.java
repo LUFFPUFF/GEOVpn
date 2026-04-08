@@ -10,6 +10,7 @@ import com.vpn.config.service.subscription.SubscriptionBanner;
 import com.vpn.config.service.subscription.SubscriptionLinkFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -34,29 +35,38 @@ public class SubscriptionService {
     private final SubscriptionLinkFactory linkFactory;
     private final SubscriptionBanner banner;
 
+    @Value("${vpn.relay.ru.ip:}")
+    private String ruRelayIp;
+
     public String generateSubscription(UUID vlessUuid) {
-        VpnConfiguration currentConfig = configRepository.findByVlessUuid(vlessUuid)
-                .orElseThrow(() -> new RuntimeException("Not found"));
+        VpnConfiguration config = configRepository.findByVlessUuid(vlessUuid).orElseThrow();
+        List<VpnConfiguration> userConfigs = configRepository.findByUserIdAndStatus(config.getUserId(), ConfigStatus.ACTIVE);
 
-        List<VpnConfiguration> userConfigs = configRepository
-                .findByUserIdAndStatus(currentConfig.getUserId(), ConfigStatus.ACTIVE);
+        ServerDto nlServer = serverSelectionService.getAllActiveServers().stream()
+                .filter(s -> !s.getIpAddress().equals(ruRelayIp))
+                .findFirst().orElseThrow();
 
-        List<ServerDto> servers = serverSelectionService.getAllActiveServers();
         List<String> lines = new ArrayList<>();
 
-        lines.add("#profile-title: GeoVPN");
-        lines.add("#profile-update-interval: 1");
+        lines.add("#profile-title: base64:R2VvVlBOIHwgUHJlbWl1bQ==");
+        lines.add("#announce: base64:" + b64(banner.build(config.getUserId())));
+        lines.add("");
 
-        int deviceIdx = 1;
         for (VpnConfiguration deviceConfig : userConfigs) {
-            for (ServerDto server : servers) {
-                lines.addAll(linkFactory.buildLinksForServer(deviceConfig.getVlessUuid(), server, deviceIdx));
-            }
-            deviceIdx++;
+            UUID id = deviceConfig.getVlessUuid();
+            lines.add(linkFactory.buildRelayLink(id));
+            lines.add(linkFactory.buildDirectVlessLink(id, nlServer));
+            lines.add(linkFactory.buildHy2Link(nlServer));
         }
+
+        lines.add(linkFactory.buildPaymentLink());
 
         String raw = String.join("\n", lines);
         return Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String b64(String text) {
+        return Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateLimitExceededSubscription(Long userId) {

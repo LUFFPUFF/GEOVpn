@@ -1,6 +1,7 @@
 package com.vpn.user.service.interf;
 
 import com.vpn.common.dto.request.UserRegistrationRequest;
+import com.vpn.common.dto.response.LeaderboardEntryDto;
 import com.vpn.common.dto.response.TrafficStatsResponse;
 import com.vpn.common.dto.response.UserResponse;
 import com.vpn.common.dto.response.UserStatsResponse;
@@ -66,4 +67,8 @@ public interface UserService {
     void updateLastActive(Long telegramId);
 
     TrafficStatsResponse getTrafficStats(Long telegramId);
+
+    UserResponse purchaseSubscription(Long telegramId, String planName, int months);
+
+    List<LeaderboardEntryDto> getLeaderboard();
 }

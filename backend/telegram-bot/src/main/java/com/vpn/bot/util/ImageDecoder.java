@@ -1,4 +1,4 @@
-package com.vpn.bot.service;
+package com.vpn.bot.util;
 
 import org.springframework.stereotype.Service;
 import java.io.ByteArrayInputStream;

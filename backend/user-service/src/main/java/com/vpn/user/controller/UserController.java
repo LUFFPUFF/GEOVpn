@@ -2,6 +2,7 @@ package com.vpn.user.controller;
 
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.request.UserRegistrationRequest;
+import com.vpn.common.dto.response.LeaderboardEntryDto;
 import com.vpn.common.dto.response.TrafficStatsResponse;
 import com.vpn.common.dto.response.UserResponse;
 import com.vpn.common.dto.response.UserStatsResponse;
@@ -9,6 +10,7 @@ import com.vpn.common.dto.request.UserUpdateRequest;
 import com.vpn.common.security.UserRole;
 import com.vpn.common.security.annotations.*;
 import com.vpn.user.service.interf.UserService;
+import jakarta.validation.Path;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -40,6 +42,23 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserResponse>> getUserByTelegramId(@PathVariable Long telegramId) {
         UserResponse response = userService.getUserByTelegramId(telegramId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping("/me/subscribe")
+    @RequireUser
+    public ApiResponse<UserResponse> subscribe(
+            @RequestHeader("X-User-Id") Long telegramId,
+            @RequestParam("plan") String planName,
+            @RequestParam(value = "months", defaultValue = "1") int months) {
+
+        UserResponse response = userService.purchaseSubscription(telegramId, planName, months);
+        return ApiResponse.success(response);
+    }
+
+    @GetMapping("/leaderboard")
+    @RequireUser
+    public ResponseEntity<ApiResponse<List<LeaderboardEntryDto>>> getLeaderboard() {
+        return ResponseEntity.ok(ApiResponse.success(userService.getLeaderboard()));
     }
 
     /**

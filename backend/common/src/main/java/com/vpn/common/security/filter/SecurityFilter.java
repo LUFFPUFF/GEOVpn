@@ -57,6 +57,11 @@ public class SecurityFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException
     {
 
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         try {
             SecurityContext context = createSecurityContext(request);
 

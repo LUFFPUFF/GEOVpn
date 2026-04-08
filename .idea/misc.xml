@@ -11,6 +11,7 @@
         <option value="$PROJECT_DIR$/backend/user-service/pom.xml" />
         <option value="$PROJECT_DIR$/backend/vpn-config-service/pom.xml" />
         <option value="$PROJECT_DIR$/backend/pom.xml" />
+        <option value="$PROJECT_DIR$/telegram-bot/pom.xml" />
       </list>
     </option>
     <option name="ignoredFiles">
@@ -19,5 +20,9 @@
       </set>
     </option>
   </component>
-  <component name="ProjectRootManager" version="2" languageLevel="JDK_21" default="true" project-jdk-name="ms-21" project-jdk-type="JavaSDK" />
+  <component name="PWA">
+    <option name="enabled" value="true" />
+    <option name="wasEnabledAtLeastOnce" value="true" />
+  </component>
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_21" default="true" project-jdk-name="ms-21 (2)" project-jdk-type="JavaSDK" />
 </project>

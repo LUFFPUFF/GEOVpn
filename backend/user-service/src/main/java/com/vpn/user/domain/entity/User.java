@@ -62,7 +62,7 @@ public class User {
     }
 
     public boolean hasSufficientBalance(int amount) {
-        return this.balance < amount;
+        return this.balance >= amount;
     }
 
     public void addBalance(int amount) {
@@ -70,10 +70,19 @@ public class User {
     }
 
     public void deductBalance(int amount) {
-        if (hasSufficientBalance(amount)) {
+        if (!hasSufficientBalance(amount)) {
             throw new IllegalStateException("Insufficient balance");
         }
         this.balance -= amount;
+    }
+
+    public void extendSubscription(int months, SubscriptionType type) {
+        LocalDateTime startPoint = (subscriptionExpiresAt != null && subscriptionExpiresAt.isAfter(LocalDateTime.now()))
+                ? subscriptionExpiresAt
+                : LocalDateTime.now();
+
+        this.subscriptionExpiresAt = startPoint.plusMonths(months);
+        this.subscriptionType = type;
     }
 
 

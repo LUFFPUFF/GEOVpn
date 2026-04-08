@@ -2,6 +2,8 @@ package com.vpn.user.service;
 
 import com.vpn.common.dto.TrafficSessionDto;
 import com.vpn.common.dto.TrafficSummaryDto;
+import com.vpn.common.dto.request.ConfigCreateRequest;
+import com.vpn.common.dto.response.LeaderboardEntryDto;
 import com.vpn.common.dto.response.TrafficStatsResponse;
 import com.vpn.common.util.ValidationUtils;
 import com.vpn.common.dto.enums.SubscriptionType;
@@ -15,6 +17,7 @@ import com.vpn.user.exception.DuplicateUserException;
 import com.vpn.user.exception.InsufficientBalanceException;
 import com.vpn.user.exception.UserNotFoundException;
 import com.vpn.user.grpc.TrafficServiceClient;
+import com.vpn.user.grpc.VpnServiceClient;
 import com.vpn.user.repository.ConnectionRepository;
 import com.vpn.user.repository.DeviceRepository;
 import com.vpn.user.repository.UserRepository;
@@ -60,8 +63,11 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final ReferralService referralService;
     private final TrafficServiceClient trafficServiceClient;
+    private final VpnServiceClient vpnServiceClient;
 
     private static final int REGISTRATION_BONUS = 5000; //todo нужно ли?
+
+    private static final int MONTHLY_PLAN_COST = 5000;
 
     /**
      * Регистрация нового пользователя
@@ -327,6 +333,69 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 
+    @Override
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @CacheEvict(value = "users", key = "#telegramId")
+    public UserResponse purchaseSubscription(Long telegramId, String planName, int months) {
+        log.info("Processing subscription: user={}, plan={}, months={}", telegramId, planName, months);
+
+        ValidationUtils.validateTelegramId(telegramId);
+        if (months <= 0) throw new IllegalArgumentException("Months must be positive");
+
+        User user = userRepository.findByTelegramId(telegramId)
+                .orElseThrow(() -> new UserNotFoundException(telegramId));
+
+        int costPerMonth = getPlanCost(planName);
+        int totalCost = costPerMonth * months;
+
+        if (!user.hasSufficientBalance(totalCost)) {
+            log.warn("Purchase failed: insufficient funds. User {}, Cost {}, Balance {}",
+                    telegramId, totalCost, user.getBalance());
+            throw new InsufficientBalanceException(totalCost, user.getBalance());
+        }
+
+        user.deductBalance(totalCost);
+
+        SubscriptionType type = SubscriptionType.valueOf(planName.toUpperCase());
+        user.extendSubscription(months, type);
+        User savedUser = userRepository.save(user);
+
+        try {
+            int maxDevices = getMaxDevicesForPlan(planName);
+
+            java.util.Map<String, Object> limitRequest = java.util.Map.of(
+                    "maxDevices", maxDevices,
+                    "planName", planName.toUpperCase(),
+                    "expiresAt", savedUser.getSubscriptionExpiresAt().toString()
+            );
+
+            vpnServiceClient.setDeviceLimit(telegramId, limitRequest);
+            log.info("Device limits updated successfully via Feign for user {}", telegramId);
+        } catch (Exception e) {
+            log.error("CRITICAL: Failed to sync device limit for user {} with vpn-config-service: {}", telegramId, e.getMessage());
+        }
+
+        try {
+            ConfigCreateRequest configRequest = ConfigCreateRequest.builder()
+                    .userId(telegramId)
+                    .userTelegramId(telegramId)
+                    .deviceId(1L)
+                    .protocol("VLESS")
+                    .preferredCountry("NL")
+                    .build();
+
+            vpnServiceClient.createConfig(telegramId, configRequest);
+            log.info("Initial VPN config provisioned for user {}", telegramId);
+        } catch (Exception e) {
+            log.error("Failed to provision initial config for user {}", telegramId, e);
+        }
+
+        log.info("Subscription success: user={}, plan={}, expiresAt={}",
+                telegramId, planName, savedUser.getSubscriptionExpiresAt());
+
+        return userMapper.toResponse(savedUser);
+    }
+
     /**
      * Проверить существование пользователя
      */
@@ -367,6 +436,30 @@ public class UserServiceImpl implements UserService {
                 });
     }
 
+    @Override
+    public List<LeaderboardEntryDto> getLeaderboard() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startDate;
+        LocalDateTime endDate;
+        boolean isWinnerDay = now.getDayOfMonth() == 1;
+
+        if (isWinnerDay) {
+            startDate = now.minusMonths(1).withDayOfMonth(1).toLocalDate().atStartOfDay();
+            endDate = now.withDayOfMonth(1).toLocalDate().atStartOfDay();
+
+            List<LeaderboardEntryDto> top = userRepository.getTopReferrals(startDate, endDate, PageRequest.of(0, 1));
+            if (!top.isEmpty()) {
+                top.getFirst().setWinner(true);
+            }
+            return top;
+        } else {
+            startDate = now.withDayOfMonth(1).toLocalDate().atStartOfDay();
+            endDate = now.plusMonths(1).withDayOfMonth(1).toLocalDate().atStartOfDay();
+
+            return userRepository.getTopReferrals(startDate, endDate, PageRequest.of(0, 10));
+        }
+    }
+
     /**
      * Генерация уникального реферального кода
      */
@@ -397,5 +490,27 @@ public class UserServiceImpl implements UserService {
                 .replace("-", "")
                 .substring(0, 8)
                 .toUpperCase();
+    }
+
+    private int getPlanCost(String planName) {
+        return switch (planName.toUpperCase()) {
+            case "BASIC" -> 15000;
+            case "STANDARD" -> 40000;
+            case "FAMILY" -> 70000;
+            case "BUSINESS" -> 200000;
+            case "UNLIMITED" -> 300000;
+            default -> throw new IllegalArgumentException("Unknown subscription plan: " + planName);
+        };
+    }
+
+    private int getMaxDevicesForPlan(String planName) {
+        return switch (planName.toUpperCase()) {
+            case "BASIC" -> 1;
+            case "STANDARD" -> 3;
+            case "FAMILY" -> 5;
+            case "BUSINESS" -> 15;
+            case "UNLIMITED" -> 100;
+            default -> 1;
+        };
     }
 }

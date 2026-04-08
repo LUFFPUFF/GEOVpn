@@ -41,4 +41,6 @@ public interface ServerSelectionService {
      * Получить все активные серверы
      */
     List<ServerDto> getAllActiveServers();
+
+    ServerDto getServerById(Integer id);
 }

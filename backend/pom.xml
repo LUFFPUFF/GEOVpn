@@ -21,6 +21,7 @@
         <module>server-management-service</module>
         <module>billing-service</module>
         <module>blocked-domains-service</module>
+        <module>telegram-bot</module>
     </modules>
 
     <properties>

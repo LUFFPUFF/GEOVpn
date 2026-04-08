@@ -40,7 +40,9 @@ public class VpnConfigController {
             @RequestHeader("X-User-Id") Long telegramId,
             @Valid @RequestBody ConfigCreateRequest request) {
 
+        request.setUserTelegramId(telegramId);
         request.setUserId(telegramId);
+
         VpnConfigResponse response = vpnConfigService.createConfig(request);
 
         return ResponseEntity.status(HttpStatus.CREATED)

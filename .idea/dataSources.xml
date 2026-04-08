@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="telegram_vpn@localhost" uuid="8222fd6e-d2a9-4055-9463-3517747f8a2d">
+    <data-source source="LOCAL" name="telegram_vpn@localhost" uuid="95897a87-7ba9-454e-b671-0cf69432ca7c">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>

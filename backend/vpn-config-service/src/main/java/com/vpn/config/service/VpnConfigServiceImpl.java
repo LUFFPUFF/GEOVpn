@@ -53,7 +53,6 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
     private final VpnConfigurationRepository configRepository;
     private final ServerSelectionService serverSelectionService;
-    private final Hysteria2ConfigGenerator hysteria2ConfigGenerator;
     private final DeviceLimitService deviceLimitService;
     private final XUIServerApiClient xuiClient;
     private final SubscriptionBuilder subscriptionBuilder;
@@ -61,11 +60,10 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     private final UuidGenerator uuidGenerator;
     private final VlessLinkBuilder vlessLinkBuilder;
     private final QRCodeGenerator qrCodeGenerator;
-    private final ConfigMapper configMapper;
     private final RedisCacheService redisCacheService;
     private final UserServiceClient userServiceClient;
 
-    @Value("${vpn.subscription.base-url:https://api.geovpn.com}")
+    @Value("${vpn.subscription.base-url:https://conviction-symposium-smoking-pike.trycloudflare.com}")
     private String subscriptionBaseUrl;
 
     @Value("${vpn.relay.ru.ip:}")
@@ -76,7 +74,10 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     public VpnConfigResponse createConfig(ConfigCreateRequest request) {
         log.info("Начало создания конфигурации: User={}, Device={}", request.getUserId(), request.getDeviceId());
 
-        UserResponse user = userServiceClient.getUserByTelegramId(request.getUserTelegramId()).getData();
+        Long tgId = request.getUserTelegramId();
+
+        UserResponse user = userServiceClient.getUserByTelegramId(tgId).getData();
+        if (user == null) throw new RuntimeException("User not found in user-service");
 
         deviceLimitService.ensureLimitInitialized(
                 user.getTelegramId(),
@@ -88,7 +89,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .findByDeviceIdAndStatus(request.getDeviceId(), ConfigStatus.ACTIVE)
                 .isEmpty();
 
-        if (isNewDevice && deviceLimitService.isLimitExceeded(request.getUserId())) {
+        if (isNewDevice && deviceLimitService.isLimitExceeded(tgId)) {
             log.warn("Лимит устройств превышен для User: {}. Возвращаем инструкцию.", request.getUserId());
 
             String instructionSub = subscriptionService.generateLimitExceededSubscription(request.getUserId());
@@ -103,19 +104,20 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                     .build();
         }
 
-        UUID vlessUuid = uuidGenerator.generateDeterministicUuid(request.getUserId(), request.getDeviceId());
+        UUID vlessUuid = uuidGenerator.generateDeterministicUuid(tgId, request.getDeviceId());
 
         ServerSelectionRequest selectionRequest = ServerSelectionRequest.builder()
                 .userId(request.getUserId())
                 .userLocation(request.getUserLocation() != null ? request.getUserLocation() : "RU")
                 .build();
+
         ServerSelectionResult serverResult = serverSelectionService.selectBestServer(selectionRequest);
         ServerDto primaryServer = serverResult.getServer();
 
         VpnConfiguration config = configRepository.findByVlessUuid(vlessUuid)
                 .orElse(VpnConfiguration.builder()
                         .vlessUuid(vlessUuid)
-                        .userId(request.getUserId())
+                        .userId(tgId)
                         .deviceId(request.getDeviceId())
                         .build());
 
@@ -225,15 +227,18 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
         allServers.forEach(server -> {
             try {
-                xuiClient.removeClient(server.getIpAddress(), config.getVlessUuid().toString());
+                xuiClient.removeClient(String.valueOf(server.getId()), config.getVlessUuid().toString());
             } catch (Exception e) {
-                log.warn("Failed to remove client from server {}: {}", server.getId(), e.getMessage());
+                log.warn("Failed to remove client from server {}: {}",
+                        server.getId(), e.getMessage());
             }
         });
 
         config.revoke();
         configRepository.save(config);
+
         redisCacheService.delete("vpn:meta:" + config.getVlessUuid());
+        log.info("Config revoked for device: {}", deviceId);
     }
 
     @Override

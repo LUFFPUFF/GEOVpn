@@ -36,6 +36,54 @@ public class SubscriptionLinkFactory {
     @Value("${vpn.relay.ru.ip:}")
     private String ruRelayIp;
 
+    public String buildRelayLink(UUID uuid) {
+        String name = "Антиглушилка | Европа LTE";
+
+        String link = vlessLinkBuilder.buildVlessLinkCustom(
+                uuid,
+                new ServerAddress(ruRelayIp),
+                443,
+                name,
+                "sfyqJlJ5awfoPyFtEEuqmiywFWRJyR_nJzELeB1hckQ",
+                "b0f3f1e7a86291",
+                "eh.vk.com",
+                "chrome"
+        );
+
+        String finalLink = link + "&flow=xtls-rprx-vision&type=tcp&countryCode=EU";
+
+        return encodeName(finalLink) + "?serverDescription=" + b64("LTE | 4G Антиглушилка");
+    }
+
+    public String buildDirectVlessLink(UUID uuid, ServerDto server) {
+        String pbk = server.getRealityPublicKey() != null ? server.getRealityPublicKey() : realityGenerator.generatePublicKey();
+        String sid = server.getRealityShortId() != null ? server.getRealityShortId() : realityGenerator.generateShortId();
+
+        String directLink = "";
+        try {
+            directLink = vlessLinkBuilder.buildVlessLinkCustom(
+                    uuid, new ServerAddress(server.getIpAddress()), server.getPort(),
+                    countryEmoji(server.getCountryCode()) + " " + server.getName(),
+                    pbk, sid, server.getRealitySni(), "chrome"
+            );
+        } catch (Exception ignored) {}
+
+        return directLink;
+    }
+
+    public String buildHy2Link(ServerDto server) {
+        String hy2Link = "";
+
+        if (hysteria2Generator.isHysteria2Configured()) {
+            try {
+                String title = countryEmoji(server.getCountryCode()) + " " + server.getName() + " | HY2";
+                hy2Link = hysteria2Generator.buildHysteria2Link(server, title);
+            } catch (Exception ignored) {}
+        }
+
+        return hy2Link;
+    }
+
     public List<String> buildLinksForServer(UUID uuid, ServerDto server, int deviceIndex) {
         List<String> links = new ArrayList<>();
         String pbk = server.getRealityPublicKey() != null ? server.getRealityPublicKey() : realityGenerator.generatePublicKey();
@@ -76,6 +124,22 @@ public class SubscriptionLinkFactory {
         }
 
         return links;
+    }
+
+    private String injectParams(String link, String params) {
+        return link.replace("#", params + "#");
+    }
+
+    private String b64(String text) {
+        return Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String encodeName(String link) {
+        return link.replace("+", "%20");
+    }
+
+    public String buildPaymentLink() {
+        return "vless://000@1.1.1.1:443?encryption=none&security=none#🌐%20Личный%20кабинет%20/%20Оплата";
     }
 
     private String encodeBase64(String text) {

@@ -1,0 +1,31 @@
+server:
+  port: 8081
+
+spring:
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 5000
+            readTimeout: 5000
+
+telegram:
+  bot:
+    username: "geovpbot"
+    token: "8233214588:AAF6RWZ1n_HZ1I-Ssp7puHThY-dtVE3WVto"
+
+services:
+  internal-secret: "53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3"
+  user-service:
+    url: "http://localhost:8082"
+  vpn-config-service:
+    url: "http://localhost:8083"
+
+app:
+  miniapp-url: "https://urw-likelihood-specifications-buffer.trycloudflare.com"
+
+logging:
+  level:
+    com.vpn.bot: DEBUG
+    org.telegram: INFO

@@ -4,10 +4,12 @@ import com.vpn.common.security.annotations.RequireUser;
 import com.vpn.config.domain.entity.VpnConfiguration;
 import com.vpn.config.repository.VpnConfigurationRepository;
 import com.vpn.config.service.DeviceLimitService;
+import com.vpn.config.service.DeviceSessionService;
 import com.vpn.config.service.subscription.SubscriptionHeaderBuilder;
 import com.vpn.common.dto.enums.ConfigStatus;
 import com.vpn.config.exception.ConfigNotFoundException;
 import com.vpn.config.service.subscription.SubscriptionService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -30,33 +32,38 @@ public class SubscriptionController {
     private final SubscriptionHeaderBuilder headerBuilder;
     private final VpnConfigurationRepository configRepository;
     private final DeviceLimitService deviceLimitService;
+    private final DeviceSessionService deviceSessionService;
 
     /**
      * Эндпоинт подписки для VPN-клиентов
      * GET /api/v1/subscription/{vlessUuid}
      */
     @GetMapping("/{vlessUuid}")
-    public ResponseEntity<String> getSubscription(@PathVariable UUID vlessUuid) {
-        log.info("Subscription request: {}", vlessUuid);
+    public ResponseEntity<String> getSubscription(
+            @PathVariable UUID vlessUuid,
+            HttpServletRequest httpRequest) {
+
+        log.info("Subscription request for UUID: {}", vlessUuid);
 
         VpnConfiguration config = configRepository.findByVlessUuid(vlessUuid)
                 .filter(c -> c.getStatus() == ConfigStatus.ACTIVE)
-                .orElseThrow(() -> new ConfigNotFoundException("Active config not found: " + vlessUuid));
+                .orElseThrow(() -> new ConfigNotFoundException("Active config not found"));
 
         Long userId = config.getUserId();
+
+        boolean isAllowed = deviceSessionService.checkAndRegisterDevice(userId, vlessUuid, httpRequest);
+
         String subscriptionContent;
+        HttpHeaders headers;
 
-        int max = deviceLimitService.getMaxDevices(userId);
-        int active = deviceLimitService.countActiveDevices(userId);
-
-        if (active > max) {
-            log.warn("User {} is over limit ({} > {}). Sending block subscription.", userId, active, max);
+        if (!isAllowed) {
+            log.warn("Device session blocked: user {} over physical limit", userId);
             subscriptionContent = subscriptionService.generateLimitExceededSubscription(userId);
+            headers = headerBuilder.buildLimitExceeded(userId);
         } else {
             subscriptionContent = subscriptionService.generateSubscription(vlessUuid);
+            headers = headerBuilder.build(userId);
         }
-
-        HttpHeaders headers = headerBuilder.build(userId);
 
         return ResponseEntity.ok()
                 .headers(headers)

@@ -22,14 +22,12 @@ api.interceptors.request.use(config => {
 });
 
 export const adminApi = {
-    // Dashboard & Общее
     getDashboard: (): Promise<AdminDashboardResponse> =>
         api.get('/admin/dashboard').then(res => res.data.data),
 
     getInfrastructureHealth: (): Promise<SystemHealthDto> =>
         api.get('/servers/infrastructure/health').then(res => res.data.data),
 
-    // Пользователи
     getUsers: (page = 0, size = 50): Promise<UserResponse[]> =>
         api.get(`/admin/users?page=${page}&size=${size}`).then(res => res.data.data),
 
@@ -42,7 +40,6 @@ export const adminApi = {
     deactivateUser: (telegramId: number): Promise<void> =>
         api.post(`/admin/users/${telegramId}/deactivate`).then(res => res.data.data),
 
-    // Устройства и Лимиты
     getUserDevices: (telegramId: number): Promise<DeviceResponse[]> =>
         api.get(`/admin/users/${telegramId}/devices`).then(res => res.data.data),
 
@@ -55,7 +52,6 @@ export const adminApi = {
     changePlan: (userId: number, planName: string): Promise<DeviceLimitStatus> =>
         api.put(`/admin/device-limits/${userId}/plan`, { planName }).then(res => res.data.data),
 
-    // Серверы (Fleet)
     getServers: (): Promise<ServerDto[]> =>
         api.get('/servers').then(res => res.data.data),
 
@@ -71,7 +67,6 @@ export const adminApi = {
     deleteServer: (id: number): Promise<void> =>
         api.delete(`/servers/${id}`).then(res => res.data.data),
 
-    // Трафик и Xray (Live)
     getServerUsers: (serverId: number): Promise<XrayUserStat[]> =>
         api.get(`/servers/${serverId}/users`).then(res => res.data.data),
 
@@ -81,7 +76,6 @@ export const adminApi = {
     kickUser: (serverId: number, email: string): Promise<boolean> =>
         api.post(`/servers/${serverId}/users/${email}/kick`).then(res => res.data.data),
 
-    // Конфиги
     getDeviceConfig: (deviceId: number): Promise<any> =>
         api.get(`/admin/devices/${deviceId}/config`).then(res => res.data.data),
 

@@ -1,36 +1,105 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* ГЛАВНЫЙ ФОН НА ВСЁ ПРИЛОЖЕНИЕ */
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
+@theme {
+  --color-background: hsl(222.2 84% 4.9%);
+  --color-foreground: hsl(210 40% 98%);
+  --color-card: hsl(222.2 84% 4.9%);
+  --color-card-foreground: hsl(210 40% 98%);
+  --color-primary: hsl(210 40% 98%);
+  --color-primary-foreground: hsl(222.2 47.4% 11.2%);
+  --color-secondary: hsl(217.2 32.6% 17.5%);
+  --color-secondary-foreground: hsl(210 40% 98%);
+  --color-muted: hsl(217.2 32.6% 17.5%);
+  --color-muted-foreground: hsl(215 20.2% 65.1%);
+  --color-border: hsl(217.2 32.6% 17.5%);
+  --color-destructive: hsl(0 62.8% 30.6%);
+  --radius-lg: 1rem;
+}
+
+@keyframes fade-in-keyframes        { from { opacity: 0 }        to { opacity: 1 } }
+@keyframes zoom-in-95-keyframes     { from { opacity: 0; transform: scale(.95) } to { opacity: 1; transform: scale(1) } }
+@keyframes slide-bottom-keyframes   { from { transform: translateY(100%) }        to { transform: translateY(0) } }
+@keyframes slide-left-keyframes     { from { transform: translateX(-1rem); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
+@keyframes slide-right-keyframes    { from { transform: translateX(1rem);  opacity: 0 } to { transform: translateX(0); opacity: 1 } }
+
+@utility animate-in           { animation-fill-mode: both; }
+@utility fade-in               { animation-name: fade-in-keyframes; }
+@utility zoom-in-95            { animation-name: zoom-in-95-keyframes; animation-duration: .5s; }
+@utility slide-in-from-bottom-full { animation-name: slide-bottom-keyframes; }
+@utility slide-in-from-left-4  { animation-name: slide-left-keyframes;  animation-duration: .3s; }
+@utility slide-in-from-right-4 { animation-name: slide-right-keyframes; animation-duration: .3s; }
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground overflow-x-hidden;
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+  }
+}
+
+/* ── Root container ── */
+#root {
+  max-width: 480px;
+  margin: 0 auto;
   min-height: 100vh;
-  /* Укажи здесь точное имя файла, которое у тебя в папке assets */
-  background-image: url('./assets/bg-pattern.gif') !important;
+  position: relative;
+  background: #000;
+}
+
+/*
+ * Фоновый GIF — псевдоэлемент на #root
+ * Файл должен лежать по пути: src/assets/gif.gif
+ * Vite обрабатывает import, поэтому используем url() относительно CSS-файла
+ */
+#root::before {
+  content: "";
+  position: fixed;          /* fixed чтобы не скролился вместе со страницей */
+  inset: 0;
+  background-image: url('./assets/gif.gif');
   background-size: cover;
   background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  background-color: #000; /* Резервный черный */
+  opacity: 0.12;
+  z-index: 0;
+  pointer-events: none;
 }
 
-/* Эстетичные карточки GEOVpn */
-.vpn-card {
-  background: rgba(15, 15, 15, 0.75) !important;
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
+/* Весь контент выше фона */
+#root > * {
+  position: relative;
+  z-index: 1;
 }
 
-.btn-premium {
-  background-color: #ffffff;
-  color: #000000;
-  border-radius: 16px;
-  font-weight: 700;
+@layer components {
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl border border-border rounded-[2rem] p-6 shadow-2xl;
+  }
+
+  .btn-primary {
+    @apply w-full py-4 bg-primary text-primary-foreground rounded-2xl font-black text-[15px] uppercase tracking-wide active:scale-[0.98] transition-all flex items-center justify-center;
+  }
+
+  .bottom-sheet {
+    @apply fixed bottom-0 left-0 right-0 mx-auto w-full bg-card rounded-t-[2.5rem] p-8 z-50 border-t border-border shadow-[0_-20px_60px_rgba(0,0,0,0.8)] max-w-[480px];
+  }
+
+  .custom-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .custom-scrollbar::-webkit-scrollbar { display: none; }
 }
 
-::-webkit-scrollbar { display: none; }
+@layer utilities {
+  .anim-pop     { animation: anim-pop     .4s cubic-bezier(.175,.885,.32,1.275) both; }
+  .anim-jump    { animation: anim-jump    .4s cubic-bezier(.175,.885,.32,1.275) both; }
+  .anim-wobble  { animation: anim-wobble  .5s ease-in-out both; }
+  .anim-spin    { animation: anim-spin    .5s cubic-bezier(.4,0,.2,1) both; }
+}
+
+@keyframes anim-pop    { 0%{transform:scale(.6);opacity:0} 50%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+@keyframes anim-jump   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+@keyframes anim-wobble { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-15deg)} 75%{transform:rotate(15deg)} }
+@keyframes anim-spin   { 0%{transform:rotate(-180deg) scale(.5)} 100%{transform:rotate(0) scale(1)} }
+
+.anim-pop,.anim-jump,.anim-wobble,.anim-spin { transform-origin: center; display: inline-flex; }

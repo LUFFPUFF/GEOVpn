@@ -163,8 +163,8 @@ export default function Subscriptions() {
                         {[
                             { s: '1', t: 'Нажмите кнопку «Скопировать ссылку» выше.' },
                             { s: '2', t: `Откройте установленное приложение ${platform.app}.` },
-                            { s: '3', t: 'Найдите раздел "Из буфера" и нажмите на него.' },
-                            { s: '4', t: 'Разрешите вставку и ваша подписка будет активирована.' }
+                            { s: '3', t: 'Найдите раздел «Add Subscription» или иконку «+».' },
+                            { s: '4', t: 'Вставьте ссылку из буфера обмена и сохраните.' }
                         ].map((item, idx) => (
                             <div key={idx} className="flex items-start gap-4">
                                 <div className="w-5 h-5 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-black text-white/40 shrink-0 mt-0.5">
@@ -177,7 +177,7 @@ export default function Subscriptions() {
 
                     <div className="mt-6 pt-5 border-t border-white/5 flex items-center gap-3">
                         <Info size={14} className="text-white/20" />
-                        <p className="text-[11px] text-white/30 italic">Авто-подключение на данный момент не работает, пожалуйста, самомстоятельно скопируйте и вставьте ссылку.</p>
+                        <p className="text-[11px] text-white/30 italic">Авто-подключение не работает, пожалуйста используйте ссылку для вставки.</p>
                     </div>
                 </div>
             )}

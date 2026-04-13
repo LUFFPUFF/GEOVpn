@@ -8,6 +8,26 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
       </profile>
+      <profile name="Annotation profile for Telegram VPN Backend" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/mapstruct/mapstruct-processor/1.5.5.Final/mapstruct-processor-1.5.5.Final.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/mapstruct/mapstruct/1.5.5.Final/mapstruct-1.5.5.Final.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/mapstruct/mapstruct-processor/1.5.5.Final/mapstruct-processor-1.5.5.Final.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/mapstruct/mapstruct/1.5.5.Final/mapstruct-1.5.5.Final.jar" />
+        </processorPath>
+        <module name="server-management-service" />
+        <module name="common" />
+        <module name="api-gateway" />
+        <module name="blocked-domains-service" />
+        <module name="user-service" />
+        <module name="vpn-config-service" />
+        <module name="billing-service" />
+      </profile>
       <profile name="Annotation profile for telegram-bot" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
@@ -19,23 +39,6 @@
         </processorPath>
         <module name="telegram-bot" />
       </profile>
-      <profile name="Annotation profile for Telegram VPN Backend" enabled="true">
-        <sourceOutputDir name="target/generated-sources/annotations" />
-        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
-        <outputRelativeToContentRoot value="true" />
-        <processorPath useClasspath="false">
-          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
-          <entry name="$MAVEN_REPOSITORY$/org/mapstruct/mapstruct-processor/1.5.5.Final/mapstruct-processor-1.5.5.Final.jar" />
-        </processorPath>
-        <module name="server-management-service" />
-        <module name="common" />
-        <module name="user-service (1)" />
-        <module name="api-gateway" />
-        <module name="blocked-domains-service" />
-        <module name="user-service" />
-        <module name="vpn-config-service" />
-        <module name="billing-service" />
-      </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
@@ -46,10 +49,9 @@
       <module name="blocked-domains-service" options="-parameters -parameters" />
       <module name="common" options="-parameters" />
       <module name="server-management-service" options="-parameters" />
-      <module name="telegram-bot" options="-parameters" />
+      <module name="telegram-bot" options="-parameters -parameters" />
       <module name="telegram-vpn-backend" options="" />
       <module name="user-service" options="-parameters -parameters" />
-      <module name="user-service (1)" options="-parameters -parameters" />
       <module name="vpn-config-service" options="-parameters" />
     </option>
   </component>

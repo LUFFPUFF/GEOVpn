@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUserStore } from '../../store/userStore';
-import { Zap, Crown, CheckCircle2, Globe2, Smartphone, Users, Briefcase, Infinity } from 'lucide-react';
+import { Zap, Globe2, Smartphone, Users, Briefcase, Infinity } from 'lucide-react';
 
 interface Tariff {
     id: string;
@@ -19,6 +19,15 @@ export default function Payments() {
     const { user, t, purchaseSubscription, setActiveTab } = useUserStore();
     const [selectedTariff, setSelectedTariff] = useState<Tariff | null>(null);
     const realBalance = user?.balance ? (user.balance / 100).toFixed(0) : '0';
+
+    // Блокируем вертикальный свайп TG когда шторка открыта
+    useEffect(() => {
+        if (selectedTariff) {
+            window.Telegram?.WebApp?.disableVerticalSwipes?.();
+        } else {
+            window.Telegram?.WebApp?.enableVerticalSwipes?.();
+        }
+    }, [selectedTariff]);
 
     const handlePay = async () => {
         if (!selectedTariff) return;
@@ -93,9 +102,7 @@ export default function Payments() {
                             ? 'bg-gradient-to-r from-emerald-500/10 to-[#0a0a0f] border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
                             : 'bg-[#12141d] border-white/5 hover:border-white/10 shadow-lg'}`}
                     >
-                        {/* Неоновый блик слева */}
                         <div className={`absolute top-0 left-0 w-1 h-full ${tariff.bgGlow} opacity-50`} />
-
                         <div className="flex items-center gap-4 relative z-10">
                             <div className={`w-12 h-12 rounded-[1rem] flex items-center justify-center border border-white/5 ${tariff.bgGlow}`}>
                                 <tariff.icon size={24} className={tariff.color} />
@@ -127,17 +134,24 @@ export default function Payments() {
                         <motion.div
                             initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.05}
-                            onDragEnd={(event, info) => {
-                                if (info.offset.y > 100 || info.velocity.y > 500) setSelectedTariff(null);
+                            drag="y"
+                            dragConstraints={{ top: 0, bottom: 0 }}
+                            dragElastic={{ top: 0, bottom: 0.3 }}
+                            onDragEnd={(_, info) => {
+                                if (info.offset.y > 80 || info.velocity.y > 400) setSelectedTariff(null);
                             }}
                             className="fixed bottom-0 left-0 right-0 z-[160] mx-auto w-full max-w-[480px] bg-[#0a0a0f] border-t border-white/10 rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.8)] touch-none"
                         >
-                            <div className="w-full pt-4 pb-6 flex justify-center">
-                                <div className="w-12 h-1.5 bg-white/10 rounded-full" />
+                            {/* Полоска-индикатор свайпа */}
+                            <div className="w-full pt-4 pb-2 flex justify-center">
+                                <motion.div
+                                    animate={{ scaleX: [1, 1.4, 1], opacity: [0.3, 0.9, 0.3] }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                    className="w-12 h-1.5 bg-white rounded-full"
+                                />
                             </div>
 
-                            <div className="px-8 pb-12">
+                            <div className="px-8 pb-4 overflow-y-auto max-h-[80vh] custom-scrollbar">
                                 <div className="flex flex-col items-center mb-8 text-center">
                                     <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center border border-white/5 ${selectedTariff.bgGlow} mb-5 relative`}>
                                         <div className={`absolute inset-0 blur-xl opacity-50 ${selectedTariff.bgGlow} rounded-[2rem]`} />
@@ -168,11 +182,13 @@ export default function Payments() {
 
                                 <button
                                     onClick={() => { handlePay(); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('heavy'); }}
-                                    className="w-full bg-white text-black h-[70px] rounded-2xl flex items-center justify-between px-8 active:scale-[0.97] transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)] mb-6"
+                                    className="w-full bg-white text-black h-[70px] rounded-2xl flex items-center justify-between px-8 active:scale-[0.97] transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)] mb-4"
                                 >
                                     <span className="font-black italic uppercase text-[15px] tracking-wider">Оплатить</span>
                                     <span className="font-black text-[22px]">{selectedTariff.price} ₽</span>
                                 </button>
+
+                                <div className="h-24" />
                             </div>
                         </motion.div>
                     </>

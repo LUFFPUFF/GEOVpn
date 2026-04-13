@@ -22,40 +22,60 @@
 @keyframes slide-left-keyframes     { from { transform: translateX(-1rem); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
 @keyframes slide-right-keyframes    { from { transform: translateX(1rem);  opacity: 0 } to { transform: translateX(0); opacity: 1 } }
 
-@utility animate-in           { animation-fill-mode: both; }
-@utility fade-in               { animation-name: fade-in-keyframes; }
-@utility zoom-in-95            { animation-name: zoom-in-95-keyframes; animation-duration: .5s; }
-@utility slide-in-from-bottom-full { animation-name: slide-bottom-keyframes; }
-@utility slide-in-from-left-4  { animation-name: slide-left-keyframes;  animation-duration: .3s; }
-@utility slide-in-from-right-4 { animation-name: slide-right-keyframes; animation-duration: .3s; }
+@utility animate-in                 { animation-fill-mode: both; }
+@utility fade-in                    { animation-name: fade-in-keyframes; }
+@utility zoom-in-95                 { animation-name: zoom-in-95-keyframes; animation-duration: .5s; }
+@utility slide-in-from-bottom-full  { animation-name: slide-bottom-keyframes; }
+@utility slide-in-from-left-4       { animation-name: slide-left-keyframes;  animation-duration: .3s; }
+@utility slide-in-from-right-4      { animation-name: slide-right-keyframes; animation-duration: .3s; }
 
 @layer base {
-  * { @apply border-border; }
+  *, *::before, *::after {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    height: 100%;
+    width: 100%;
+  }
+
   body {
     @apply bg-background text-foreground overflow-x-hidden;
     font-family: 'Inter', sans-serif;
     margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
 /* ── Root container ── */
 #root {
+  width: 100%;
   max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
   background: #000;
+  overflow-x: hidden;
 }
 
-/*
- * Фоновый GIF — псевдоэлемент на #root
- * Файл должен лежать по пути: src/assets/gif.gif
- * Vite обрабатывает import, поэтому используем url() относительно CSS-файла
- */
+/* Фоновый GIF */
 #root::before {
   content: "";
-  position: fixed;          /* fixed чтобы не скролился вместе со страницей */
-  inset: 0;
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
   background-image: url('./assets/gif.gif');
   background-size: cover;
   background-position: center;
@@ -77,10 +97,13 @@
 
   .btn-primary {
     @apply w-full py-4 bg-primary text-primary-foreground rounded-2xl font-black text-[15px] uppercase tracking-wide active:scale-[0.98] transition-all flex items-center justify-center;
+    /* Минимальная высота тапа 44px для iOS */
+    min-height: 44px;
   }
 
   .bottom-sheet {
     @apply fixed bottom-0 left-0 right-0 mx-auto w-full bg-card rounded-t-[2.5rem] p-8 z-50 border-t border-border shadow-[0_-20px_60px_rgba(0,0,0,0.8)] max-w-[480px];
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
   }
 
   .custom-scrollbar {
@@ -88,6 +111,15 @@
     scrollbar-width: none;
   }
   .custom-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+/* Safe area утилиты для iPhone с чёлкой */
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.mb-safe { margin-bottom: env(safe-area-inset-bottom, 0px); }
+
+.bottom-nav-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @layer utilities {

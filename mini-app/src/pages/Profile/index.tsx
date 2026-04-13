@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useUserStore } from '../../store/userStore';
 import {
-    Smartphone, Laptop, Plus, Trash2, Copy, Share2,
+    Smartphone, Laptop, Plus, Trash2, Share2,
     ChevronRight, Newspaper, Headphones, BookOpen,
-    ShieldAlert, Mail, Gift, User, ShieldCheck, Fingerprint,
-    Crown, CheckCircle2, ArrowLeft, Info, HelpCircle
+    ShieldAlert, User, ShieldCheck, Fingerprint,
+    Crown, CheckCircle2, ArrowLeft
 } from 'lucide-react';
 
 export default function Profile() {
@@ -34,13 +34,14 @@ export default function Profile() {
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
     };
 
+    // ─── Реферальная страница ───────────────────────────────────────────────
     if (subPage === 'referral') {
         const progress = 3;
         const goal = 10;
         const percent = (progress / goal) * 100;
 
         return (
-            <div className="flex flex-col h-[78vh] animate-in fade-in duration-300 overflow-y-auto custom-scrollbar pb-24 pt-2 px-1">
+            <div className="flex flex-col animate-in fade-in duration-300 overflow-y-auto custom-scrollbar pb-28 pt-2 px-1">
                 <button onClick={handleBack} className="flex items-center gap-2 text-white/40 mb-4 font-black text-[10px] uppercase tracking-widest px-2">
                     <ArrowLeft size={14} /> Назад
                 </button>
@@ -85,7 +86,10 @@ export default function Profile() {
                         </div>
                     </div>
 
-                    <button onClick={() => copyAction(inviteLink, 'Ссылка скопирована')} className="w-full py-4 bg-emerald-500 text-white rounded-xl font-black text-[13px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                    <button
+                        onClick={() => copyAction(inviteLink, 'Ссылка скопирована')}
+                        className="w-full py-4 bg-emerald-500 text-white rounded-xl font-black text-[13px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    >
                         <Share2 size={16} /> Пригласить
                     </button>
                 </div>
@@ -93,15 +97,16 @@ export default function Profile() {
         );
     }
 
+    // ─── Страница инструкций ────────────────────────────────────────────────
     if (subPage === 'instructions') {
         const platforms = [
-            { id: 'ios', name: 'iOS', icon: Smartphone, desc: 'iPhone и iPad' },
+            { id: 'ios',     name: 'iOS',     icon: Smartphone, desc: 'iPhone и iPad' },
             { id: 'android', name: 'Android', icon: Smartphone, desc: 'Samsung, Xiaomi и др.' },
-            { id: 'windows', name: 'Windows', icon: Laptop, desc: 'ПК и ноутбуки' }
+            { id: 'windows', name: 'Windows', icon: Laptop,     desc: 'ПК и ноутбуки' }
         ];
 
         return (
-            <div className="flex flex-col h-[78vh] animate-in fade-in duration-300 overflow-y-auto custom-scrollbar pb-24 pt-2 px-1">
+            <div className="flex flex-col animate-in fade-in duration-300 overflow-y-auto custom-scrollbar pb-28 pt-2 px-1">
                 <button onClick={handleBack} className="flex items-center gap-2 text-white/40 mb-4 font-black text-[10px] uppercase tracking-widest px-2">
                     <ArrowLeft size={14} /> Назад
                 </button>
@@ -110,7 +115,11 @@ export default function Profile() {
                     <div className="space-y-2 px-1">
                         <h2 className="text-[22px] font-black text-white uppercase italic mb-4">Инструкции</h2>
                         {platforms.map(p => (
-                            <button key={p.id} onClick={() => { setActiveInstruction(p.id as any); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }} className="w-full flex items-center justify-between bg-[#12141d] border border-white/10 p-4 rounded-2xl active:bg-white/5 transition-all group">
+                            <button
+                                key={p.id}
+                                onClick={() => { setActiveInstruction(p.id as any); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }}
+                                className="w-full flex items-center justify-between bg-[#12141d] border border-white/10 p-4 rounded-2xl active:bg-white/5 transition-all"
+                            >
                                 <div className="flex items-center gap-4">
                                     <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shrink-0">
                                         <p.icon size={18} className="text-white/80" />
@@ -120,7 +129,7 @@ export default function Profile() {
                                         <p className="text-[10px] text-white/40 font-medium uppercase">{p.desc}</p>
                                     </div>
                                 </div>
-                                <Plus size={16} className="text-white/20" />
+                                <ChevronRight size={16} className="text-white/20" />
                             </button>
                         ))}
                     </div>
@@ -128,20 +137,18 @@ export default function Profile() {
                     <div className="px-2 animate-in slide-in-from-right-4 duration-300">
                         <h2 className="text-[20px] font-black text-white uppercase italic mb-5">Настройка {activeInstruction.toUpperCase()}</h2>
                         <div className="space-y-4">
-                            <div className="bg-[#12141d] border border-white/10 rounded-2xl p-5">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center font-black text-sm">1</div>
-                                    <p className="text-sm font-bold text-white">Скачайте Happ</p>
+                            {[
+                                { step: 1, title: 'Скачайте Happ' },
+                                { step: 2, title: 'Импорт ключа' }
+                            ].map(s => (
+                                <div key={s.step} className="bg-[#12141d] border border-white/10 rounded-2xl p-5">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center font-black text-sm">{s.step}</div>
+                                        <p className="text-sm font-bold text-white">{s.title}</p>
+                                    </div>
+                                    <div className="w-full aspect-video bg-black/40 rounded-xl border border-white/5" />
                                 </div>
-                                <div className="w-full aspect-video bg-black/40 rounded-xl border border-white/5" />
-                            </div>
-                            <div className="bg-[#12141d] border border-white/10 rounded-2xl p-5">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center font-black text-sm">2</div>
-                                    <p className="text-sm font-bold text-white">Импорт ключа</p>
-                                </div>
-                                <div className="w-full aspect-video bg-black/40 rounded-xl border border-white/5" />
-                            </div>
+                            ))}
                         </div>
                     </div>
                 )}
@@ -149,13 +156,13 @@ export default function Profile() {
         );
     }
 
+    // ─── Главная страница профиля ───────────────────────────────────────────
     return (
-        <div className="flex flex-col h-[78vh] relative overflow-y-auto custom-scrollbar pb-24 pt-2 px-1 animate-in fade-in duration-500">
+        <div className="flex flex-col overflow-y-auto custom-scrollbar pb-28 pt-2 px-1 animate-in fade-in duration-500">
 
-            {/* ШАПКА ПРОФИЛЯ */}
+            {/* ШАПКА */}
             <div className="bg-[#12141d] border border-white/10 rounded-[2rem] p-5 mb-3 shadow-xl relative overflow-hidden shrink-0">
                 <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-emerald-500/50 to-transparent" />
-
                 <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
                         {avatarUrl ? (
@@ -173,13 +180,11 @@ export default function Profile() {
                             </div>
                         </div>
                     </div>
-
                     <div className="w-10 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center relative overflow-hidden shrink-0">
                         <div className="absolute top-0 left-0 w-full h-[1px] bg-emerald-500 animate-[slide-in-from-bottom-full_2s_infinite_alternate]" />
                         <Fingerprint size={20} className="text-white/20" />
                     </div>
                 </div>
-
                 <div className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-white/5">
                     <div className="flex items-center gap-2 text-white/40">
                         <User size={14} />
@@ -198,7 +203,6 @@ export default function Profile() {
                         <span className="text-emerald-500 text-sm font-bold">₽</span>
                     </div>
                 </div>
-
                 <div className="bg-[#12141d] border border-white/10 rounded-2xl p-4 shadow-lg">
                     <p className="text-white/40 text-[9px] font-black uppercase tracking-widest mb-1">Статус</p>
                     <h3 className={`text-[15px] font-black uppercase italic leading-none mt-1 truncate ${user?.hasActiveSubscription ? 'text-amber-400' : 'text-white/60'}`}>
@@ -207,9 +211,9 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* РЕФЕРАЛКА КНОПКА */}
+            {/* ПАРТНЕРКА */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-1 shadow-xl mb-3 shrink-0">
-                <button onClick={() => setSubPage('referral')} className="w-full flex justify-between items-center p-4 active:bg-white/5 transition-all group">
+                <button onClick={() => setSubPage('referral')} className="w-full flex justify-between items-center p-4 active:bg-white/5 transition-all">
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
                             <Crown size={18} className="text-emerald-500" />
@@ -226,12 +230,16 @@ export default function Profile() {
             {/* МЕНЮ */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-1 shadow-xl mb-3 shrink-0">
                 {[
-                    { label: 'Новости', icon: Newspaper, action: () => window.Telegram?.WebApp?.openTelegramLink('https://t.me/geovpn_news') },
-                    { label: 'Инструкции', icon: BookOpen, action: () => setSubPage('instructions') },
-                    { label: 'Поддержка', icon: Headphones, action: () => window.Telegram?.WebApp?.openTelegramLink('https://t.me/geovpn_support') },
-                    { label: 'Правила', icon: ShieldAlert, action: () => window.Telegram?.WebApp?.showAlert('Правила GeoVPN: Используйте честно.') }
+                    { label: 'Новости',     icon: Newspaper,   action: () => window.Telegram?.WebApp?.openTelegramLink('https://t.me/geovpn_news') },
+                    { label: 'Инструкции', icon: BookOpen,     action: () => setSubPage('instructions') },
+                    { label: 'Поддержка',  icon: Headphones,   action: () => window.Telegram?.WebApp?.openTelegramLink('https://t.me/geovpn_support') },
+                    { label: 'Правила',    icon: ShieldAlert,  action: () => window.Telegram?.WebApp?.showAlert('Правила GeoVPN: Используйте честно.') }
                 ].map((item, idx, arr) => (
-                    <button key={idx} onClick={item.action} className={`w-full flex justify-between items-center p-4 active:bg-white/5 transition-all group ${idx !== arr.length-1 ? 'border-b border-white/5' : ''}`}>
+                    <button
+                        key={idx}
+                        onClick={item.action}
+                        className={`w-full flex justify-between items-center p-4 active:bg-white/5 transition-all ${idx !== arr.length - 1 ? 'border-b border-white/5' : ''}`}
+                    >
                         <div className="flex items-center gap-3">
                             <item.icon size={18} className="text-white/40 shrink-0" />
                             <span className="text-[14px] font-bold text-white/80">{item.label}</span>
@@ -242,19 +250,21 @@ export default function Profile() {
             </div>
 
             {/* УСТРОЙСТВА */}
-            <div className="bg-[#12141d] border border-white/10 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+            <div className="bg-[#12141d] border border-white/10 rounded-2xl p-5 shadow-xl relative overflow-hidden shrink-0">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-[14px] font-black text-white uppercase italic">Мои устройства</h3>
-                    <button onClick={() => setShowDeviceModal(true)} className="w-7 h-7 bg-white/10 rounded-lg flex items-center justify-center active:scale-90 transition-all text-white">
+                    <button
+                        onClick={() => setShowDeviceModal(true)}
+                        className="w-7 h-7 bg-white/10 rounded-lg flex items-center justify-center active:scale-90 transition-all text-white"
+                    >
                         <Plus size={16} />
                     </button>
                 </div>
-
                 <div className="space-y-2">
                     {devices.length === 0 ? (
                         <p className="text-white/20 text-center text-[11px] font-medium py-2">Устройств нет</p>
                     ) : (
-                        devices.map((dev) => (
+                        devices.map(dev => (
                             <div key={dev.id} className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-white/5">
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 shrink-0">
@@ -274,20 +284,52 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* МОДАЛКА */}
+            {/* МОДАЛКА ДОБАВЛЕНИЯ УСТРОЙСТВА */}
             {showDeviceModal && (
                 <>
-                    <div className="fixed inset-0 z-[130] bg-black/90 backdrop-blur-sm" onClick={() => setShowDeviceModal(false)} />
-                    <div className="bottom-sheet z-[140] bg-[#0a0a0f] border-t border-white/10">
+                    {/* Оверлей */}
+                    <div
+                        className="fixed inset-0 z-[130] bg-black/90 backdrop-blur-sm"
+                        onClick={() => setShowDeviceModal(false)}
+                    />
+
+                    {/* Шит — поднимается выше BottomNav */}
+                    <div
+                        className="fixed left-0 right-0 mx-auto z-[140] bg-[#0a0a0f] border-t border-white/10 rounded-t-[2.5rem] px-8 pt-6 max-w-[480px] animate-in slide-in-from-bottom-full duration-300"
+                        style={{
+                            bottom: 0,
+                            paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))'
+                        }}
+                    >
                         <div className="w-12 h-1 bg-white/10 rounded-full mx-auto mb-6" />
                         <h2 className="text-[20px] font-black mb-6 text-center text-white uppercase italic">Новое устройство</h2>
-                        <input type="text" placeholder="Имя устройства..." value={devName} onChange={(e) => setDevName(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm outline-none mb-4" />
+
+                        <input
+                            type="text"
+                            placeholder="Имя устройства..."
+                            value={devName}
+                            onChange={e => setDevName(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm outline-none mb-4"
+                        />
+
                         <div className="grid grid-cols-3 gap-2 mb-6">
                             {['IOS', 'ANDROID', 'WINDOWS'].map(type => (
-                                <button key={type} onClick={() => setDevType(type)} className={`py-3 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${devType === type ? 'bg-white text-black border-white' : 'bg-white/5 text-white/40 border-white/10'}`}>{type}</button>
+                                <button
+                                    key={type}
+                                    onClick={() => setDevType(type)}
+                                    className={`py-3 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${devType === type ? 'bg-white text-black border-white' : 'bg-white/5 text-white/40 border-white/10'}`}
+                                >
+                                    {type}
+                                </button>
                             ))}
                         </div>
-                        <button onClick={() => { addDevice(devName, devType); setShowDeviceModal(false); }} className="w-full py-4 bg-white text-black rounded-xl font-black text-sm uppercase tracking-widest active:scale-[0.98]">Сохранить</button>
+
+                        <button
+                            onClick={() => { addDevice(devName, devType); setShowDeviceModal(false); setDevName(''); }}
+                            className="w-full py-4 bg-white text-black rounded-xl font-black text-sm uppercase tracking-widest active:scale-[0.98] transition-all"
+                        >
+                            Сохранить
+                        </button>
                     </div>
                 </>
             )}

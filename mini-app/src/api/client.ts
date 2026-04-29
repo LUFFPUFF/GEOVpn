@@ -5,17 +5,14 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    const tg = window.Telegram?.WebApp;
+    const userId = tg?.initDataUnsafe?.user?.id || "858441917";
 
-    config.headers['X-User-Id'] = tgUser?.id?.toString() || '858441917';
+    if (userId) {
+        config.headers['X-User-Id'] = userId.toString();
+        config.headers['Authorization'] = `Bearer ${tg?.initData}`;
+    }
 
-    config.headers['X-Internal-Secret'] = '53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3';
-
-    const tgInitData = window.Telegram?.WebApp?.initData;
-
-    // if (tgInitData) {
-    //     config.headers['Authorization'] = `tma ${tgInitData}`;
-    // }
-
+    console.log('Sending headers:', config.headers);
     return config;
 });

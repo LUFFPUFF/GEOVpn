@@ -12,10 +12,15 @@ export const userApi = {
     getStats: (): Promise<UserStatsResponse> =>
         apiClient.get<ApiResponse<UserStatsResponse>>('/users/me/stats').then(r => r.data.data),
 
-    purchaseSubscription: (plan: string, months = 1): Promise<UserResponse> =>
-        apiClient.post<ApiResponse<UserResponse>>('/users/me/subscribe', null, {
-            params: { plan: plan.toUpperCase(), months }
-        }).then(r => r.data.data),
+    purchaseSubscription: (plan: string, months = 1, promo = false): Promise<UserResponse> => {
+        return apiClient.post<ApiResponse<UserResponse>>('/users/me/subscribe', null, {
+            params: {
+                plan: plan.toUpperCase(),
+                months: months,
+                promo: promo
+            }
+        }).then(r => r.data.data);
+    },
 
     /* Devices */
     getDevices: (): Promise<DeviceResponse[]> =>
@@ -29,7 +34,7 @@ export const userApi = {
         apiClient.delete(`/devices/${deviceId}`).then(() => undefined),
 
     getDeviceLimit: (): Promise<DeviceLimitStatus> =>
-        apiClient.get<ApiResponse<DeviceLimitStatus>>('/devices/limit').then(r => r.data.data),
+        apiClient.get<ApiResponse<DeviceLimitStatus>>('/configs/limits/me').then(r => r.data.data),
 
     getConfigs: (): Promise<VpnConfigResponse[]> =>
         apiClient.get<ApiResponse<VpnConfigResponse[]>>('/configs/configs').then(r => r.data.data),
@@ -50,4 +55,12 @@ export const userApi = {
 
     getLeaderboard: (): Promise<LeaderboardEntry[]> =>
         apiClient.get<ApiResponse<LeaderboardEntry[]>>('/users/leaderboard').then(r => r.data.data),
+
+    syncDevice: (platform: string): Promise<DeviceResponse> => {
+        const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+        return apiClient.post<ApiResponse<DeviceResponse>>('/devices/sync',
+            { platform },
+            { headers: { 'X-User-Id': tgId } }
+        ).then(r => r.data.data);
+    }
 };

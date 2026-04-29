@@ -23,29 +23,28 @@ public class SubscriptionBanner {
     public String build(Long userId) {
         Optional<DeviceLimit> limitOpt = deviceLimitRepository.findByUserId(userId);
 
-        String plan     = limitOpt.map(DeviceLimit::getPlanName).orElse("BASIC");
-        int    maxDev   = limitOpt.map(DeviceLimit::getMaxDevices).orElse(1);
-        String expires  = limitOpt
+        String planName = limitOpt.map(DeviceLimit::getPlanName).orElse("BASIC");
+        String expires = limitOpt
                 .flatMap(l -> Optional.ofNullable(l.getExpiresAt()))
                 .map(d -> d.toLocalDate().toString())
-                .orElse("∞");
+                .orElse("Unlimited");
 
         return String.join("\n",
-                "         Благодарим за приобретение GeoVPN",
-                "📋 Тариф: " + formatPlan(plan),
-                "📱 Устройств: " + maxDev,
-                "📶 Глушат мобильный → Авто LTE (вверху списка)",
-                "🌍 WiFi / не глушат → обычные локации"
+                "🚀 GeoVPN Premium — Активен",
+                "💳 Тариф: " + formatPlan(planName),
+                "📅 Истекает: " + expires,
+                "✨ Поддержка 24/7 в Telegram",
+                "🛡️ Защита данных включена"
         );
     }
 
     private String formatPlan(String plan) {
         return switch (plan) {
-            case "BASIC"     -> "Базовый · 1 устройство";
-            case "STANDARD"  -> "Стандартный · 3 устройства";
-            case "FAMILY"    -> "Семейный · 5 устройств";
-            case "BUSINESS"  -> "Бизнес · 10 устройств";
-            case "UNLIMITED" -> "Безлимит ∞";
+            case "BASIC"     -> "Base 1/1";
+            case "STANDARD"  -> "Standard 3/3";
+            case "FAMILY"    -> "Family 5/5";
+            case "BUSINESS"  -> "Business 10/10";
+            case "UNLIMITED" -> "Unlimited ∞";
             default          -> plan;
         };
     }

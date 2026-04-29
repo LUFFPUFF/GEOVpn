@@ -13,7 +13,7 @@ spring:
 telegram:
   bot:
     username: "geovpbot"
-    token: "8233214588:AAF6RWZ1n_HZ1I-Ssp7puHThY-dtVE3WVto"
+    token: "8233214588:AAGOdYT22W_1uDPOthYln2AnOprgVTSsugo"
 
 services:
   internal-secret: "53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3"
@@ -23,7 +23,7 @@ services:
     url: "http://localhost:8083"
 
 app:
-  miniapp-url: "https://urw-likelihood-specifications-buffer.trycloudflare.com"
+  miniapp-url: "https://directly-bali-permissions-ellen.trycloudflare.com"
 
 logging:
   level:

@@ -11,6 +11,5 @@ public class GeoVpnBotApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(GeoVpnBotApplication.class, args);
-        System.out.println("✅ Telegram-Bot запущен");
     }
 }

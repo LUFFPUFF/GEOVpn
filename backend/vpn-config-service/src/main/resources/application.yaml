@@ -93,13 +93,13 @@ vpn:
       password: "nikita090504"
       inbound-id: 1
   panel:
-    url: "https://193.104.33.209:38736/bWEny6FV17ImG46K42"
-    username: "Nikita"
-    password: "nikita090504"
-    inbound-id: 3
+    url: "http://138.124.25.157:8080/KYXGHDe0daDDp5cZsb"
+    username: "abe5y0JzJj"
+    password: "cnyaqUnhVv"
+    inbound-id: 1
   config:
     vless:
-      default-sni: "mega.nz"
+      default-sni: "www.microsoft.com"
       default-fingerprint: "chrome"
       flow: "xtls-rprx-vision"
       network-type: "tcp"
@@ -108,18 +108,12 @@ vpn:
 
     hysteria2:
       enabled: true
-
-      port: 36712
-
-      password: "28XYMyHYOGqJrU5V+nyv8T9qyvITI6WMC+gyqJxx96g="
-
+      port: 15594
+      password: "25bfe47e"
+      sni: "www.bing.com"
       obfs:
         type: salamander
-
-        password: "+H5yF9LA5QGoDK0LzpPHPA=="
-
-      sni: discord.com
-
+        password: ""
       tls:
         insecure: true
 

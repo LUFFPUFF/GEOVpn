@@ -30,4 +30,9 @@ public class ConfigCreateRequest {
     private String userLocation;
     @Builder.Default
     private String protocol = "VLESS";
+
+    private String deviceName;
+    private String deviceOs;
+
+
 }

@@ -93,7 +93,8 @@ public class SecurityFilter extends OncePerRequestFilter {
         boolean isInternal = false;
 
         String internalSecretHeader = request.getHeader(HEADER_INTERNAL_SECRET);
-        if (internalSecretHeader != null && internalSecretHeader.equals(internalSecret)) {
+        if (internalSecretHeader != null && !internalSecretHeader.isBlank()
+                && internalSecretHeader.equals(internalSecret)) {
             roles.add(UserRole.SERVICE);
             isInternal = true;
         }

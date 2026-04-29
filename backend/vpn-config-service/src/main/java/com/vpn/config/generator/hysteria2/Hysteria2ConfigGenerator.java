@@ -1,6 +1,7 @@
 package com.vpn.config.generator.hysteria2;
 
 import com.vpn.common.dto.ServerDto;
+import com.vpn.config.config.VpnConfigProperties;
 import com.vpn.config.domain.entity.VpnConfiguration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +44,8 @@ public class Hysteria2ConfigGenerator {
 
     @Value("${vpn.config.hysteria2.tls.insecure}")
     private Boolean tlsInsecure;
+
+    private final VpnConfigProperties properties;
 
     /**
      * Генерирует Hysteria2 конфигурацию
@@ -97,30 +100,33 @@ public class Hysteria2ConfigGenerator {
      * Строит Hysteria2 URI
      */
     public String buildHysteria2Link(ServerDto server, String name) {
+        var hy2 = properties.getHysteria2();
+
         StringBuilder uri = new StringBuilder();
         uri.append("hysteria2://");
-        uri.append(urlEncode(hysteria2Password));
+        uri.append(urlEncode(hy2.getPassword()));
         uri.append("@");
-        uri.append(server.getIpAddress()).append(":").append(hysteria2Port);
-        uri.append("?");
+        uri.append(server.getIpAddress()).append(":").append(hy2.getPort());
 
-        if (obfsPassword != null && !obfsPassword.isEmpty()) {
-            uri.append("obfs=").append(obfsType);
-            uri.append("&obfs-password=").append(urlEncode(obfsPassword));
+        uri.append("/?");
+
+        uri.append("insecure=").append(hy2.getTls().isInsecure() ? "1" : "0");
+
+        uri.append("&sni=").append(urlEncode(hy2.getSni()));
+
+        if (hy2.getObfs() != null && hy2.getObfs().getPassword() != null && !hy2.getObfs().getPassword().isEmpty()) {
+            uri.append("&obfs=").append(urlEncode(hy2.getObfs().getType()));
+            uri.append("&obfs-password=").append(urlEncode(hy2.getObfs().getPassword()));
         }
 
-        uri.append("&sni=").append(sni);
+        uri.append("#").append(urlEncode(name != null ? name : "HY2"));
 
-        if (tlsInsecure) {
-            uri.append("&insecure=1");
-        }
-
-        uri.append("#").append(urlEncode(name != null ? name : "LTE-Hysteria2"));
         return uri.toString();
     }
 
     public boolean isHysteria2Configured() {
-        return hysteria2Password != null && !hysteria2Password.isEmpty();
+        return properties.getHysteria2().isEnabled() &&
+                properties.getHysteria2().getPassword() != null;
     }
 
     public Map<String, Object> getHysteria2Info() {

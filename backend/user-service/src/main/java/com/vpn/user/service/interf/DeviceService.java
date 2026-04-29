@@ -40,4 +40,6 @@ public interface DeviceService {
      * Проверить принадлежность устройства пользователю
      */
     boolean isDeviceOwnedByUser(UUID deviceUuid, Long telegramId);
+
+    DeviceResponse syncDeviceWithPlatform(Long userId, String platform);
 }

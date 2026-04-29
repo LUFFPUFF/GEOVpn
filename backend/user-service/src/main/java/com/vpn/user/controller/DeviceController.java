@@ -15,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -39,6 +40,19 @@ public class DeviceController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response));
+    }
+
+    @PostMapping("/sync")
+    @RequireUser
+    public ResponseEntity<ApiResponse<DeviceResponse>> syncDevice(
+            @RequestHeader("X-User-Id") Long telegramId,
+            @RequestBody Map<String, String> payload) {
+
+        String platform = payload.get("platform");
+
+        DeviceResponse response = deviceService.syncDeviceWithPlatform(telegramId, platform);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     /**

@@ -22,18 +22,16 @@ public class XrayGrpcClient {
         private int numGoroutine;
     }
 
-    /**
-     * Получить системные метрики Xray
-     */
-    public SysMetrics getSysMetrics(String ipAddress, int grpcPort) {
+    public SysMetrics getSysMetrics(String ipAddress, int grpcPort) throws InterruptedException {
         ManagedChannel channel = null;
         try {
             channel = ManagedChannelBuilder.forAddress(ipAddress, grpcPort)
                     .usePlaintext()
+                    .keepAliveTime(10, TimeUnit.SECONDS)
                     .build();
 
             StatsServiceGrpc.StatsServiceBlockingStub stub = StatsServiceGrpc.newBlockingStub(channel)
-                    .withDeadlineAfter(3, TimeUnit.SECONDS);
+                    .withDeadlineAfter(10, TimeUnit.SECONDS);
 
             SysStatsResponse response = stub.getSysStats(SysStatsRequest.newBuilder().build());
 
@@ -43,17 +41,15 @@ public class XrayGrpcClient {
                     .build();
 
         } catch (Exception e) {
-            log.error("Failed to fetch sys stats from {}: {}", ipAddress, e.getMessage());
+            log.error("Failed to fetch sys stats from {}:{}: {}", ipAddress, grpcPort, e.getMessage());
             return null;
         } finally {
-            if (channel != null) channel.shutdown();
+            if (channel != null) {
+                channel.shutdown().awaitTermination(1, TimeUnit.SECONDS);
+            }
         }
     }
 
-    /**
-     * Получает суммарный исходящий трафик (Downlink) для всего сервера
-     * Для этого опрашивается специальная метрика Xray
-     */
     public long getServerTotalDownlink(String ipAddress, int grpcPort) {
         ManagedChannel channel = null;
         try {
@@ -62,7 +58,7 @@ public class XrayGrpcClient {
                     .build();
 
             StatsServiceGrpc.StatsServiceBlockingStub stub = StatsServiceGrpc.newBlockingStub(channel)
-                    .withDeadlineAfter(3, TimeUnit.SECONDS);
+                    .withDeadlineAfter(10, TimeUnit.SECONDS); // Увеличили до 10
 
             QueryStatsRequest request = QueryStatsRequest.newBuilder()
                     .setPattern("outbound>>>direct>>>traffic>>>downlink")
@@ -75,84 +71,18 @@ public class XrayGrpcClient {
                     .mapToLong(Stat::getValue)
                     .sum();
         } catch (Exception e) {
-            log.error("Failed to connect to Xray gRPC API at {}:{}. Error: {}", ipAddress, grpcPort, e.getMessage());
+            log.error("Failed to get total downlink from {}:{}: {}", ipAddress, grpcPort, e.getMessage());
             return -1;
-        } finally {
-            if (channel != null && !channel.isShutdown()) {
-                channel.shutdown();
-            }
-        }
-    }
-
-    /**
-     * Проверка на работоспобность Xray (Health check)
-     */
-    public boolean isXrayAlive(String ipAddress, int grpcPort) {
-        ManagedChannel channel = null;
-        try {
-            channel = ManagedChannelBuilder.forAddress(ipAddress, grpcPort)
-                    .usePlaintext()
-                    .build();
-
-            StatsServiceGrpc.StatsServiceBlockingStub stub = StatsServiceGrpc.newBlockingStub(channel)
-                    .withDeadlineAfter(10, TimeUnit.SECONDS);
-
-            System.out.println("Отправка GetSysStats на " + ipAddress + ":" + grpcPort + "...");
-            SysStatsResponse response = stub.getSysStats(SysStatsRequest.newBuilder().build());
-
-            System.out.println("Ответ получен! Uptime: " + response.getUptime());
-            return true;
-
-        } catch (Exception e) {
-            System.err.println("ОШИБКА gRPC ПРИ ПРОВЕРКЕ: " + e.toString());
-            if (e.getCause() != null) {
-                System.err.println("ПРИЧИНА: " + e.getCause().toString());
-            }
-            return false;
-        } finally {
-            if (channel != null && !channel.isShutdown()) {
-                channel.shutdown();
-            }
-        }
-    }
-
-    /**
-     * Получить суммарный трафик пользователя (Uplink + Downlink) в байтах
-     */
-    public long getUserTraffic(String ipAddress, int grpcPort, String uuidOrEmail) {
-        ManagedChannel channel = null;
-        try {
-            channel = ManagedChannelBuilder.forAddress(ipAddress, grpcPort)
-                    .usePlaintext()
-                    .build();
-
-            StatsServiceGrpc.StatsServiceBlockingStub stub = StatsServiceGrpc.newBlockingStub(channel)
-                    .withDeadlineAfter(5, TimeUnit.SECONDS);
-
-            QueryStatsRequest request = QueryStatsRequest.newBuilder()
-                    .setPattern("user>>>" + uuidOrEmail)
-                    .setReset(false)
-                    .build();
-
-            QueryStatsResponse response = stub.queryStats(request);
-
-            return response.getStatList().stream()
-                    .mapToLong(Stat::getValue)
-                    .sum();
-
-        } catch (Exception e) {
-            log.error("Failed to get traffic for user {} at {}: {}", uuidOrEmail, ipAddress, e.getMessage());
-            return 0;
         } finally {
             if (channel != null) channel.shutdown();
         }
     }
 
     public List<Stat> getAllStatistics(String ipAddress, int grpcPort) {
+        if (grpcPort <= 0) grpcPort = 62789;
+
         ManagedChannel channel = ManagedChannelBuilder.forAddress(ipAddress, grpcPort)
                 .usePlaintext()
-                .keepAliveTime(5, TimeUnit.SECONDS)
-                .keepAliveTimeout(2, TimeUnit.SECONDS)
                 .build();
         try {
             StatsServiceGrpc.StatsServiceBlockingStub stub = StatsServiceGrpc.newBlockingStub(channel)
@@ -165,7 +95,7 @@ public class XrayGrpcClient {
 
             return response.getStatList();
         } catch (Exception e) {
-            log.error("Failed to query stats from {}: {}", ipAddress, e.getMessage());
+            log.error("Failed to query stats from {}:{}: {}", ipAddress, grpcPort, e.getMessage());
             return List.of();
         } finally {
             channel.shutdown();
@@ -180,7 +110,7 @@ public class XrayGrpcClient {
                     .build();
 
             HandlerServiceGrpc.HandlerServiceBlockingStub stub = HandlerServiceGrpc.newBlockingStub(channel)
-                    .withDeadlineAfter(5, TimeUnit.SECONDS);
+                    .withDeadlineAfter(10, TimeUnit.SECONDS);
 
             RemoveClientRequest request = RemoveClientRequest.newBuilder()
                     .setInboundTag(inboundTag)

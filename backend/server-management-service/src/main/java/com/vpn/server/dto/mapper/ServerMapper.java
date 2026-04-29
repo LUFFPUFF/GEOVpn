@@ -31,10 +31,24 @@ public class ServerMapper {
                 .avgLatencyMs(server.getAvgLatencyMs())
                 .healthScore(server.getHealthScore())
                 .lastHealthCheck(server.getLastHealthCheck())
+                .grpcPort(server.getGrpcPort())
+                .isRelay(server.getIsRelay())
+                .relayPriority(server.getRelayPriority())
+                .relaySni(server.getRelaySni())
+                .relayPublicKey(server.getRelayPublicKey())
+                .relayShortId(server.getRelayShortId())
+                .panelUsername(server.getPanelUsername())
+                .panelPassword(server.getPanelPassword())
+                .panelInboundId(server.getPanelInboundId())
+                .panelPath(server.getPanelPath())
+                .panelPort(server.getPanelPort())
                 .build();
     }
 
     public List<ServerDto> toDtoList(List<Server> servers) {
+        if (servers == null) {
+            return List.of();
+        }
         return servers.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());

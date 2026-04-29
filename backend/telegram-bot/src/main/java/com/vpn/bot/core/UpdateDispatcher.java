@@ -1,11 +1,14 @@
 package com.vpn.bot.core;
 
+import com.vpn.bot.handler.OsSelectionCallbackHandler;
+import com.vpn.bot.handler.TelegramStartHandler;
 import com.vpn.bot.service.BotBusinessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
 @Slf4j
@@ -15,6 +18,8 @@ public class UpdateDispatcher {
 
     private final BotBusinessService businessService;
     private final MessageSender sender;
+    private final TelegramStartHandler startHandler;
+    private final OsSelectionCallbackHandler osSelectionCallbackHandler;
 
     @Async("botTaskExecutor")
     public void dispatch(Update update) {
@@ -32,14 +37,15 @@ public class UpdateDispatcher {
     private void handleTextMessage(Update update) {
         long chatId = update.getMessage().getChatId();
         String text = update.getMessage().getText();
-        String firstName = update.getMessage().getFrom().getFirstName();
-        String username = update.getMessage().getFrom().getUserName();
 
         if (text.startsWith("/start")) {
-            businessService.processStartCommand(chatId, firstName, username);
-        } else if (text.equals("💎 Купить")) {
+            SendMessage response = startHandler.handle(update);
+            sender.execute(response);
+        }
+        else if (text.equals("💎 Купить")) {
             businessService.sendSubscriptionOptions(chatId);
-        } else if (text.equals("🏆 Рефералы")) {
+        }
+        else if (text.equals("🏆 Рефералы")) {
             businessService.sendReferralStats(chatId);
         } else if (text.equals("📰 Новости")) {
             businessService.sendNews(chatId);
@@ -54,6 +60,13 @@ public class UpdateDispatcher {
 
     private void handleCallback(Update update) {
         String callbackId = update.getCallbackQuery().getId();
+        String data = update.getCallbackQuery().getData();
+
         sender.execute(new AnswerCallbackQuery(callbackId));
+
+        if (data != null && data.startsWith("os_select:")) {
+            SendMessage response = osSelectionCallbackHandler.handle(update);
+            sender.execute(response);
+        }
     }
 }

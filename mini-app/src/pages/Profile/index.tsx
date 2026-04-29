@@ -7,8 +7,17 @@ import {
     Crown, CheckCircle2, ArrowLeft
 } from 'lucide-react';
 
+// Вспомогательная функция для надежного открытия ссылок
+const handleLink = (url: string) => {
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+        window.Telegram.WebApp.openTelegramLink(url);
+    } else {
+        window.open(url, '_blank');
+    }
+};
+
 export default function Profile() {
-    const { user, devices, addDevice, deleteDevice } = useUserStore();
+    const { user, devices, addDevice, deleteDevice, t } = useUserStore();
     const [subPage, setSubPage] = useState<'main' | 'referral' | 'instructions' | 'rules'>('main');
     const [showDeviceModal, setShowDeviceModal] = useState(false);
     const [devName, setDevName] = useState('');
@@ -43,42 +52,42 @@ export default function Profile() {
         return (
             <div className="flex flex-col animate-in fade-in duration-300 overflow-y-auto custom-scrollbar pb-28 pt-2 px-1">
                 <button onClick={handleBack} className="flex items-center gap-2 text-white/40 mb-4 font-black text-[10px] uppercase tracking-widest px-2">
-                    <ArrowLeft size={14} /> Назад
+                    <ArrowLeft size={14} /> {t.back}
                 </button>
 
                 <div className="bg-[#12141d] border border-white/10 rounded-[2rem] p-6 mb-6 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[50px] rounded-full pointer-events-none" />
-                    <h2 className="text-[22px] font-black text-white uppercase italic mb-5">Партнерка</h2>
+                    <h2 className="text-[22px] font-black text-white uppercase italic mb-5">{t.referral_title}</h2>
 
                     <div className="space-y-4 mb-6">
                         <div className="flex items-start gap-3">
                             <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
                                 <CheckCircle2 size={12} className="text-emerald-500" />
                             </div>
-                            <p className="text-[13px] text-white/70 leading-snug">Получайте <span className="text-white font-black">50₽</span> за друга после покупки подписки.</p>
+                            <p className="text-[13px] text-white/70 leading-snug">{t.referral_per_friend} <span className="text-white font-black">50₽</span> {t.referral_per_friend2}</p>
                         </div>
                         <div className="flex items-start gap-3">
                             <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
                                 <CheckCircle2 size={12} className="text-emerald-500" />
                             </div>
-                            <p className="text-[13px] text-white/70 leading-snug">Пригласите 10 друзей и заберите <span className="text-emerald-500 font-black">500₽</span>.</p>
+                            <p className="text-[13px] text-white/70 leading-snug">{t.referral_bonus} <span className="text-emerald-500 font-black">500₽</span>.</p>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mb-6">
                         <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
-                            <p className="text-[9px] text-white/30 font-black uppercase mb-1">Перешли</p>
+                            <p className="text-[9px] text-white/30 font-black uppercase mb-1">{t.referral_clicked}</p>
                             <p className="text-[20px] font-black text-white">12</p>
                         </div>
                         <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
-                            <p className="text-[9px] text-white/30 font-black uppercase mb-1">Купили</p>
+                            <p className="text-[9px] text-white/30 font-black uppercase mb-1">{t.referral_bought}</p>
                             <p className="text-[20px] font-black text-white">{progress}</p>
                         </div>
                     </div>
 
                     <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-6">
                         <div className="flex justify-between items-end mb-2.5">
-                            <p className="text-[11px] font-black text-white uppercase italic">Прогресс бонуса</p>
+                            <p className="text-[11px] font-black text-white uppercase italic">{t.referral_progress}</p>
                             <p className="text-[11px] font-black text-emerald-500">{progress}/{goal}</p>
                         </div>
                         <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 p-0.5">
@@ -87,10 +96,10 @@ export default function Profile() {
                     </div>
 
                     <button
-                        onClick={() => copyAction(inviteLink, 'Ссылка скопирована')}
+                        onClick={() => copyAction(inviteLink, t.link_copied)}
                         className="w-full py-4 bg-emerald-500 text-white rounded-xl font-black text-[13px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                     >
-                        <Share2 size={16} /> Пригласить
+                        <Share2 size={16} /> {t.referral_invite}
                     </button>
                 </div>
             </div>
@@ -100,20 +109,20 @@ export default function Profile() {
     // ─── Страница инструкций ────────────────────────────────────────────────
     if (subPage === 'instructions') {
         const platforms = [
-            { id: 'ios',     name: 'iOS',     icon: Smartphone, desc: 'iPhone и iPad' },
-            { id: 'android', name: 'Android', icon: Smartphone, desc: 'Samsung, Xiaomi и др.' },
-            { id: 'windows', name: 'Windows', icon: Laptop,     desc: 'ПК и ноутбуки' }
+            { id: 'ios',     name: 'iOS',     icon: Smartphone, desc: t.ios_desc },
+            { id: 'android', name: 'Android', icon: Smartphone, desc: t.android_desc },
+            { id: 'windows', name: 'Windows', icon: Laptop,     desc: t.windows_desc }
         ];
 
         return (
             <div className="flex flex-col animate-in fade-in duration-300 overflow-y-auto custom-scrollbar pb-28 pt-2 px-1">
                 <button onClick={handleBack} className="flex items-center gap-2 text-white/40 mb-4 font-black text-[10px] uppercase tracking-widest px-2">
-                    <ArrowLeft size={14} /> Назад
+                    <ArrowLeft size={14} /> {t.back}
                 </button>
 
                 {!activeInstruction ? (
                     <div className="space-y-2 px-1">
-                        <h2 className="text-[22px] font-black text-white uppercase italic mb-4">Инструкции</h2>
+                        <h2 className="text-[22px] font-black text-white uppercase italic mb-4">{t.instructions_title}</h2>
                         {platforms.map(p => (
                             <button
                                 key={p.id}
@@ -135,11 +144,11 @@ export default function Profile() {
                     </div>
                 ) : (
                     <div className="px-2 animate-in slide-in-from-right-4 duration-300">
-                        <h2 className="text-[20px] font-black text-white uppercase italic mb-5">Настройка {activeInstruction.toUpperCase()}</h2>
+                        <h2 className="text-[20px] font-black text-white uppercase italic mb-5">{t.setup_title} {activeInstruction.toUpperCase()}</h2>
                         <div className="space-y-4">
                             {[
-                                { step: 1, title: 'Скачайте Happ' },
-                                { step: 2, title: 'Импорт ключа' }
+                                { step: 1, title: t.step_download },
+                                { step: 2, title: t.step_import }
                             ].map(s => (
                                 <div key={s.step} className="bg-[#12141d] border border-white/10 rounded-2xl p-5">
                                     <div className="flex items-center gap-3 mb-4">
@@ -176,7 +185,7 @@ export default function Profile() {
                             <h2 className="text-[18px] font-black text-white leading-tight">{user?.firstName}</h2>
                             <div className="flex items-center gap-1.5 mt-0.5">
                                 <ShieldCheck size={12} className="text-emerald-500" />
-                                <span className="text-emerald-500 text-[9px] font-black uppercase tracking-widest">Защита 100%</span>
+                                <span className="text-emerald-500 text-[9px] font-black uppercase tracking-widest">{t.protection_100}</span>
                             </div>
                         </div>
                     </div>
@@ -197,14 +206,14 @@ export default function Profile() {
             {/* БАЛАНС И СТАТУС */}
             <div className="grid grid-cols-2 gap-2 mb-3 shrink-0">
                 <div className="bg-[#12141d] border border-white/10 rounded-2xl p-4 shadow-lg">
-                    <p className="text-white/40 text-[9px] font-black uppercase tracking-widest mb-1">Баланс</p>
+                    <p className="text-white/40 text-[9px] font-black uppercase tracking-widest mb-1">{t.balance_label}</p>
                     <div className="flex items-baseline gap-1">
                         <h3 className="text-[22px] font-black text-white leading-none">{realBalance}</h3>
                         <span className="text-emerald-500 text-sm font-bold">₽</span>
                     </div>
                 </div>
                 <div className="bg-[#12141d] border border-white/10 rounded-2xl p-4 shadow-lg">
-                    <p className="text-white/40 text-[9px] font-black uppercase tracking-widest mb-1">Статус</p>
+                    <p className="text-white/40 text-[9px] font-black uppercase tracking-widest mb-1">{t.status}</p>
                     <h3 className={`text-[15px] font-black uppercase italic leading-none mt-1 truncate ${user?.hasActiveSubscription ? 'text-amber-400' : 'text-white/60'}`}>
                         {user?.hasActiveSubscription ? user.subscriptionType : 'INACTIVE'}
                     </h3>
@@ -219,8 +228,8 @@ export default function Profile() {
                             <Crown size={18} className="text-emerald-500" />
                         </div>
                         <div className="text-left">
-                            <span className="block text-[14px] font-bold text-white leading-tight">Партнерка</span>
-                            <span className="block text-[9px] text-white/30 font-bold uppercase mt-0.5">Заработать бонусы</span>
+                            <span className="block text-[14px] font-bold text-white leading-tight">{t.partner_title}</span>
+                            <span className="block text-[9px] text-white/30 font-bold uppercase mt-0.5">{t.partner_subtitle}</span>
                         </div>
                     </div>
                     <ChevronRight size={16} className="text-white/20" />
@@ -230,10 +239,28 @@ export default function Profile() {
             {/* МЕНЮ */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-1 shadow-xl mb-3 shrink-0">
                 {[
-                    { label: 'Новости',     icon: Newspaper,   action: () => window.Telegram?.WebApp?.openTelegramLink('https://t.me/geovpn_news') },
-                    { label: 'Инструкции', icon: BookOpen,     action: () => setSubPage('instructions') },
-                    { label: 'Поддержка',  icon: Headphones,   action: () => window.Telegram?.WebApp?.openTelegramLink('https://t.me/geovpn_support') },
-                    { label: 'Правила',    icon: ShieldAlert,  action: () => window.Telegram?.WebApp?.showAlert('Правила GeoVPN: Используйте честно.') }
+                    {
+                        label: t.news,
+                        icon: Newspaper,
+                        // СЮДА ВСТАВЬ ССЫЛКУ НА НОВОСТИ
+                        action: () => handleLink('https://t.me/ССЫЛКА_НА_НОВОСТИ')
+                    },
+                    {
+                        label: t.instructions,
+                        icon: BookOpen,
+                        action: () => setSubPage('instructions')
+                    },
+                    {
+                        label: t.support,
+                        icon: Headphones,
+                        // ПРИВЯЗАНО К ТЕБЕ
+                        action: () => handleLink('https://t.me/knyazheskyy')
+                    },
+                    {
+                        label: t.rules,
+                        icon: ShieldAlert,
+                        action: () => window.Telegram?.WebApp?.showAlert(t.rules_text)
+                    }
                 ].map((item, idx, arr) => (
                     <button
                         key={idx}
@@ -252,7 +279,7 @@ export default function Profile() {
             {/* УСТРОЙСТВА */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-5 shadow-xl relative overflow-hidden shrink-0">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-[14px] font-black text-white uppercase italic">Мои устройства</h3>
+                    <h3 className="text-[14px] font-black text-white uppercase italic">{t.my_devices}</h3>
                     <button
                         onClick={() => setShowDeviceModal(true)}
                         className="w-7 h-7 bg-white/10 rounded-lg flex items-center justify-center active:scale-90 transition-all text-white"
@@ -262,7 +289,7 @@ export default function Profile() {
                 </div>
                 <div className="space-y-2">
                     {devices.length === 0 ? (
-                        <p className="text-white/20 text-center text-[11px] font-medium py-2">Устройств нет</p>
+                        <p className="text-white/20 text-center text-[11px] font-medium py-2">{t.no_devices}</p>
                     ) : (
                         devices.map(dev => (
                             <div key={dev.id} className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-white/5">
@@ -284,29 +311,20 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* МОДАЛКА ДОБАВЛЕНИЯ УСТРОЙСТВА */}
+            {/* МОДАЛКА */}
             {showDeviceModal && (
                 <>
-                    {/* Оверлей */}
-                    <div
-                        className="fixed inset-0 z-[130] bg-black/90 backdrop-blur-sm"
-                        onClick={() => setShowDeviceModal(false)}
-                    />
-
-                    {/* Шит — поднимается выше BottomNav */}
+                    <div className="fixed inset-0 z-[130] bg-black/90 backdrop-blur-sm" onClick={() => setShowDeviceModal(false)} />
                     <div
                         className="fixed left-0 right-0 mx-auto z-[140] bg-[#0a0a0f] border-t border-white/10 rounded-t-[2.5rem] px-8 pt-6 max-w-[480px] animate-in slide-in-from-bottom-full duration-300"
-                        style={{
-                            bottom: 0,
-                            paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))'
-                        }}
+                        style={{ bottom: 0, paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
                     >
                         <div className="w-12 h-1 bg-white/10 rounded-full mx-auto mb-6" />
-                        <h2 className="text-[20px] font-black mb-6 text-center text-white uppercase italic">Новое устройство</h2>
+                        <h2 className="text-[20px] font-black mb-6 text-center text-white uppercase italic">{t.new_device}</h2>
 
                         <input
                             type="text"
-                            placeholder="Имя устройства..."
+                            placeholder={t.device_name_placeholder}
                             value={devName}
                             onChange={e => setDevName(e.target.value)}
                             className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm outline-none mb-4"
@@ -328,7 +346,7 @@ export default function Profile() {
                             onClick={() => { addDevice(devName, devType); setShowDeviceModal(false); setDevName(''); }}
                             className="w-full py-4 bg-white text-black rounded-xl font-black text-sm uppercase tracking-widest active:scale-[0.98] transition-all"
                         >
-                            Сохранить
+                            {t.save}
                         </button>
                     </div>
                 </>

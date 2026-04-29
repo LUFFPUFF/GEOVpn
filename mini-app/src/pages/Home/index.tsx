@@ -24,20 +24,19 @@ export default function Home() {
     const maxDevs = deviceLimit?.maxDevices ?? 5;
 
     const stats = [
-        { icon: Zap, val: "∞", label: "ТРАФИК" },
-        { icon: MonitorSmartphone, val: `${activeDevs}/${maxDevs}`, label: "УСТРОЙСТВА" },
-        { icon: Globe2, val: "ВСЕ", label: "ЛОКАЦИИ" }
+        { icon: Zap,               val: "∞",                  label: t.traffic },
+        { icon: MonitorSmartphone, val: `${activeDevs}/${maxDevs}`, label: t.devices },
+        { icon: Globe2,            val: t.all_locations,       label: t.locations },
     ];
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => { pointerStart.current = e.clientX; };
     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
         if (pointerStart.current === null) return;
         const distance = pointerStart.current - e.clientX;
-        const threshold = 50;
-        if (distance > threshold && activeSlide < totalSlides - 1) {
+        if (distance > 50 && activeSlide < totalSlides - 1) {
             setActiveSlide(prev => prev + 1);
             window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
-        } else if (distance < -threshold && activeSlide > 0) {
+        } else if (distance < -50 && activeSlide > 0) {
             setActiveSlide(prev => prev - 1);
             window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
         }
@@ -45,7 +44,6 @@ export default function Home() {
     };
 
     return (
-        // Изменили жесткую высоту на max-h-[80vh] и добавили скролл
         <div className="flex flex-col h-[82vh] max-h-[85vh] relative pt-2 pb-6 select-none overflow-x-hidden overflow-y-auto custom-scrollbar"
              style={{ touchAction: 'pan-y' }}
              onPointerDown={handlePointerDown}
@@ -75,7 +73,7 @@ export default function Home() {
                                     </div>
                                 </div>
                                 <div className="text-right mt-1 shrink-0">
-                                    <p className="text-white/40 text-[9px] font-black uppercase tracking-[0.2em] mb-1.5">До даты</p>
+                                    <p className="text-white/40 text-[9px] font-black uppercase tracking-[0.2em] mb-1.5">{t.until_date}</p>
                                     <p className="font-bold text-[13px] text-white/90 bg-white/5 px-2.5 py-1 rounded-md border border-white/5 whitespace-nowrap">{expireDateFormatted}</p>
                                 </div>
                             </div>
@@ -107,7 +105,7 @@ export default function Home() {
                                         <Globe2 size={14} className="text-blue-400" />
                                     </div>
                                     <div>
-                                        <p className="text-[9px] text-white/40 font-black uppercase tracking-widest">Канал</p>
+                                        <p className="text-[9px] text-white/40 font-black uppercase tracking-widest">{t.channel}</p>
                                         <p className="text-[14px] font-black text-white font-mono">1 <span className="text-[10px] text-white/50">Gbit/s</span></p>
                                     </div>
                                 </div>
@@ -125,13 +123,12 @@ export default function Home() {
 
                             <div className="space-y-3 relative z-10 mt-5">
                                 <div className="flex gap-3">
-                                    <button onClick={() => { setActiveTab('payments'); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }} className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-black text-[12px] text-white/80 uppercase tracking-widest active:scale-[0.98] transition-all">Продлить</button>
-                                    <button onClick={() => { setActiveTab('profile'); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }} className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-black text-[12px] text-white/80 uppercase tracking-widest active:scale-[0.98] transition-all">Профиль</button>
+                                    <button onClick={() => { setActiveTab('payments'); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }} className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-black text-[12px] text-white/80 uppercase tracking-widest active:scale-[0.98] transition-all">{t.renew}</button>
+                                    <button onClick={() => { setActiveTab('profile'); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }} className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-black text-[12px] text-white/80 uppercase tracking-widest active:scale-[0.98] transition-all">{t.profile}</button>
                                 </div>
-
                                 <button onClick={() => { setActiveTab('subscriptions'); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium'); }} className="w-full py-4 bg-white text-black rounded-2xl font-black text-[14px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
                                     <ArrowRight size={20} className="animate-pulse" />
-                                    Установить подписку
+                                    {t.setup_subscription}
                                 </button>
                             </div>
                         </div>
@@ -147,15 +144,15 @@ export default function Home() {
                                 <Plus size={44} strokeWidth={2.5} />
                             </div>
                             <h2 className="text-[38px] font-black leading-[0.9] mb-5 tracking-tighter uppercase italic text-white">
-                                Добавить<br/>подписку
+                                {t.add_subscription}
                             </h2>
                             <p className="text-white/40 text-[15px] font-medium leading-relaxed max-w-[260px] mx-auto">
-                                Получите доступ к премиальным локациям и максимальной скорости
+                                {t.add_subscription_desc}
                             </p>
                         </div>
 
                         <button onClick={() => { setActiveTab('payments'); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium'); }} className="w-full py-5 bg-white text-black rounded-2xl font-black text-[14px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-3 relative z-10 mt-auto">
-                            <span>Оформить доступ</span>
+                            <span>{t.get_access}</span>
                             <ChevronRight size={22} />
                         </button>
                     </div>

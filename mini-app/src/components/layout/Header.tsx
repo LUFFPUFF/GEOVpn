@@ -5,6 +5,15 @@ import { Lang } from '../../utils/translations';
 
 type MenuView = 'main' | 'lang';
 
+// Вспомогательная функция для надежного открытия ссылок
+const handleLink = (url: string) => {
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+        window.Telegram.WebApp.openTelegramLink(url);
+    } else {
+        window.open(url, '_blank');
+    }
+};
+
 export default function Header() {
     const { lang, setLanguage } = useUserStore();
     const [open, setOpen] = useState(false);
@@ -14,7 +23,7 @@ export default function Header() {
         { id: 'ru', label: 'Русский' },
         { id: 'tg', label: 'Тоҷикӣ' },
         { id: 'uz', label: "O'zbek" },
-        { id: 'fa', label: 'فارسی' }
+        { id: 'fa', label: 'فарсия' }
     ];
 
     const handleOpen = () => {
@@ -78,7 +87,11 @@ export default function Header() {
 
                                             {/* Инструкция */}
                                             <button
-                                                onClick={() => { /* открыть инструкцию */ handleClose(); }}
+                                                onClick={() => {
+                                                    // СЮДА ВСТАВЬ ССЫЛКУ НА ПОСТ С ИНСТРУКЦИЕЙ
+                                                    handleLink('https://t.me/ССЫЛКА_НА_ИНСТРУКЦИЮ');
+                                                    handleClose();
+                                                }}
                                                 className="w-full px-4 py-3.5 flex items-center gap-3 border-b border-border active:bg-muted transition-colors hover:bg-muted/50"
                                             >
                                                 <BookOpen size={15} className="text-muted-foreground" />
@@ -87,7 +100,11 @@ export default function Header() {
 
                                             {/* Поддержка */}
                                             <button
-                                                onClick={() => { window.Telegram?.WebApp?.openTelegramLink('https://t.me/geovpn_support'); handleClose(); }}
+                                                onClick={() => {
+                                                    // ПРИВЯЗАНО К ТЕБЕ
+                                                    handleLink('https://t.me/knyazheskyy');
+                                                    handleClose();
+                                                }}
                                                 className="w-full px-4 py-3.5 flex items-center gap-3 active:bg-muted transition-colors hover:bg-muted/50"
                                             >
                                                 <Headphones size={15} className="text-muted-foreground" />

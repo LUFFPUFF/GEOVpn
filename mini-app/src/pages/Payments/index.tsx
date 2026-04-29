@@ -20,7 +20,6 @@ export default function Payments() {
     const [selectedTariff, setSelectedTariff] = useState<Tariff | null>(null);
     const realBalance = user?.balance ? (user.balance / 100).toFixed(0) : '0';
 
-    // Блокируем вертикальный свайп TG когда шторка открыта
     useEffect(() => {
         if (selectedTariff) {
             window.Telegram?.WebApp?.disableVerticalSwipes?.();
@@ -31,49 +30,27 @@ export default function Payments() {
 
     const handlePay = async () => {
         if (!selectedTariff) return;
-
         const success = await purchaseSubscription(selectedTariff.id, selectedTariff.price);
-
         if (success) {
             setSelectedTariff(null);
-            window.Telegram?.WebApp?.showConfirm("Подписка успешно оформлена! Перейти на главную?", (ok) => {
+            window.Telegram?.WebApp?.showConfirm(t.subscription_success, (ok) => {
                 if (ok) setActiveTab('home');
             });
         }
     };
 
     const tariffs: Tariff[] = [
-        {
-            id: 'BASIC', name: 'Стандарт', devicesLabel: '1 устройство', price: 150,
-            icon: Smartphone, color: 'text-gray-300', bgGlow: 'bg-gray-500/10',
-            description: 'Базовый доступ к заблокированным ресурсам без потери скорости.'
-        },
-        {
-            id: 'STANDARD', name: 'Оптима', devicesLabel: '3 устройства', price: 400,
-            icon: Zap, color: 'text-blue-400', bgGlow: 'bg-blue-500/10',
-            description: 'Отличный выбор для смартфона, планшета и ПК.'
-        },
-        {
-            id: 'FAMILY', name: 'Семья', devicesLabel: '5 устройств', price: 700, isHit: true,
-            icon: Users, color: 'text-emerald-400', bgGlow: 'bg-emerald-500/10',
-            description: 'Идеально для защиты всех гаджетов в вашей семье.'
-        },
-        {
-            id: 'BUSINESS', name: 'Бизнес', devicesLabel: '15 устройств', price: 2000,
-            icon: Briefcase, color: 'text-purple-400', bgGlow: 'bg-purple-500/10',
-            description: 'Коллективный доступ для небольшой команды или офиса.'
-        },
-        {
-            id: 'UNLIMITED', name: 'Безлимит', devicesLabel: '∞ устройств', price: 3000,
-            icon: Infinity, color: 'text-amber-400', bgGlow: 'bg-amber-500/10',
-            description: 'Максимальный уровень свободы. Подключайте всё, что угодно.'
-        }
+        { id: 'BASIC',     name: t.tariff_basic_name,    devicesLabel: t.device_1,   price: 150,  icon: Smartphone, color: 'text-gray-300',   bgGlow: 'bg-gray-500/10',   description: t.tariff_basic_desc },
+        { id: 'STANDARD',  name: t.tariff_standard_name, devicesLabel: t.device_3,   price: 400,  icon: Zap,        color: 'text-blue-400',    bgGlow: 'bg-blue-500/10',   description: t.tariff_standard_desc },
+        { id: 'FAMILY',    name: t.tariff_family_name,   devicesLabel: t.device_5,   price: 700,  icon: Users,      color: 'text-emerald-400', bgGlow: 'bg-emerald-500/10', description: t.tariff_family_desc, isHit: true },
+        { id: 'BUSINESS',  name: t.tariff_business_name, devicesLabel: t.device_15,  price: 2000, icon: Briefcase,  color: 'text-purple-400',  bgGlow: 'bg-purple-500/10', description: t.tariff_business_desc },
+        { id: 'UNLIMITED', name: t.tariff_unlimited_name, devicesLabel: t.device_inf, price: 3000, icon: Infinity,   color: 'text-amber-400',   bgGlow: 'bg-amber-500/10',  description: t.tariff_unlimited_desc },
     ];
 
     return (
         <div className="space-y-6 pt-2 pb-24 relative select-none overflow-y-auto custom-scrollbar h-[85vh]">
 
-            {/* БЛОК БАЛАНСА */}
+            {/* БАЛАНС */}
             <div className="bg-gradient-to-br from-[#12141d] to-[#0a0a0f] border border-white/10 rounded-[2rem] p-7 shadow-2xl flex justify-between items-center relative overflow-hidden mx-1">
                 <div className="absolute top-[-50%] right-[-10%] w-[100px] h-[100px] bg-primary/20 blur-[50px] rounded-full pointer-events-none" />
                 <div className="relative z-10">
@@ -83,15 +60,15 @@ export default function Payments() {
                     </h2>
                 </div>
                 <button className="bg-white text-black px-6 py-4 rounded-2xl font-black text-[13px] uppercase active:scale-95 transition-transform shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                    Пополнить
+                    {t.top_up}
                 </button>
             </div>
 
             <h3 className="text-[20px] font-black px-2 mt-8 mb-2 text-white uppercase tracking-tighter italic leading-none">
-                Выберите тариф
+                {t.choose_tariff}
             </h3>
 
-            {/* СПИСОК ТАРИФОВ */}
+            {/* ТАРИФЫ */}
             <div className="space-y-3 px-1">
                 {tariffs.map((tariff) => (
                     <div
@@ -122,7 +99,7 @@ export default function Payments() {
                 ))}
             </div>
 
-            {/* ШТОРКА ОПЛАТЫ */}
+            {/* ШТОРКА */}
             <AnimatePresence>
                 {selectedTariff && (
                     <>
@@ -134,15 +111,10 @@ export default function Payments() {
                         <motion.div
                             initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            drag="y"
-                            dragConstraints={{ top: 0, bottom: 0 }}
-                            dragElastic={{ top: 0, bottom: 0.3 }}
-                            onDragEnd={(_, info) => {
-                                if (info.offset.y > 80 || info.velocity.y > 400) setSelectedTariff(null);
-                            }}
+                            drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.3 }}
+                            onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) setSelectedTariff(null); }}
                             className="fixed bottom-0 left-0 right-0 z-[160] mx-auto w-full max-w-[480px] bg-[#0a0a0f] border-t border-white/10 rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.8)] touch-none"
                         >
-                            {/* Полоска-индикатор свайпа */}
                             <div className="w-full pt-4 pb-2 flex justify-center">
                                 <motion.div
                                     animate={{ scaleX: [1, 1.4, 1], opacity: [0.3, 0.9, 0.3] }}
@@ -168,15 +140,15 @@ export default function Payments() {
                                 <div className="bg-white/5 border border-white/5 rounded-[2rem] p-6 mb-8 space-y-4">
                                     <div className="flex items-center gap-4">
                                         <selectedTariff.icon size={18} className={selectedTariff.color} />
-                                        <span className="text-white font-bold text-[15px]">Лимит: {selectedTariff.devicesLabel}</span>
+                                        <span className="text-white font-bold text-[15px]">{t.device_limit}: {selectedTariff.devicesLabel}</span>
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <Zap size={18} className="text-white/60" />
-                                        <span className="text-white font-bold text-[15px]">Безлимитный трафик</span>
+                                        <span className="text-white font-bold text-[15px]">{t.unlimited_traffic}</span>
                                     </div>
                                     <div className="flex items-center gap-4 pt-4 border-t border-white/10">
                                         <Globe2 size={18} className="text-white/60" />
-                                        <span className="text-white font-bold text-[15px]">Все локации открыты</span>
+                                        <span className="text-white font-bold text-[15px]">{t.all_locations_open}</span>
                                     </div>
                                 </div>
 
@@ -184,7 +156,7 @@ export default function Payments() {
                                     onClick={() => { handlePay(); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('heavy'); }}
                                     className="w-full bg-white text-black h-[70px] rounded-2xl flex items-center justify-between px-8 active:scale-[0.97] transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)] mb-4"
                                 >
-                                    <span className="font-black italic uppercase text-[15px] tracking-wider">Оплатить</span>
+                                    <span className="font-black italic uppercase text-[15px] tracking-wider">{t.pay}</span>
                                     <span className="font-black text-[22px]">{selectedTariff.price} ₽</span>
                                 </button>
 

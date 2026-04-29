@@ -2,20 +2,14 @@ import React from 'react';
 import { LayoutDashboard, ShoppingBag, UserCircle2, Trophy } from 'lucide-react';
 import { useUserStore } from '../../store/userStore';
 
-interface TabItem {
-    id: 'home' | 'profile' | 'payments' | 'subscriptions' | 'leaderboard';
-    label: string;
-    Icon: React.ElementType;
-}
-
 export default function BottomNav() {
     const { activeTab, setActiveTab, t } = useUserStore();
 
-    const tabs: TabItem[] = [
-        { id: 'home',        label: 'VPN',      Icon: LayoutDashboard },
-        { id: 'leaderboard', label: 'Топ',      Icon: Trophy },
-        { id: 'payments',    label: 'Тарифы',   Icon: ShoppingBag },
-        { id: 'profile',     label: 'Профиль',  Icon: UserCircle2 },
+    const tabs = [
+        { id: 'home'        as const, label: t.nav_vpn,     Icon: LayoutDashboard },
+        { id: 'leaderboard' as const, label: t.nav_top,     Icon: Trophy },
+        { id: 'payments'    as const, label: t.nav_tariffs, Icon: ShoppingBag },
+        { id: 'profile'     as const, label: t.nav_profile, Icon: UserCircle2 },
     ];
 
     const handleTabChange = (id: 'home' | 'profile' | 'payments' | 'subscriptions') => {
@@ -28,7 +22,6 @@ export default function BottomNav() {
             <div className="glass-card !py-3 !px-4 flex justify-around items-center border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
                 {tabs.map(({ id, label, Icon }) => {
                     const isActive = activeTab === id || (id === 'home' && activeTab === 'subscriptions');
-
                     return (
                         <button
                             key={id}
@@ -43,15 +36,11 @@ export default function BottomNav() {
                                     strokeWidth={isActive ? 2.5 : 2}
                                     className={isActive ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : ''}
                                 />
-
                                 {isActive && (
                                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-primary rounded-full shadow-[0_0_10px_#fff]" />
                                 )}
                             </div>
-
-                            <span className={`text-[10px] font-black uppercase tracking-widest transition-opacity duration-300 ${
-                                isActive ? 'opacity-100' : 'opacity-40'
-                            }`}>
+                            <span className={`text-[10px] font-black uppercase tracking-widest transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-40'}`}>
                                 {label}
                             </span>
                         </button>

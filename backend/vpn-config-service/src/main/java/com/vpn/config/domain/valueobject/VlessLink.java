@@ -34,28 +34,37 @@ public class VlessLink {
      * Построить полную VLESS ссылку
      */
     public String toVlessUrl() {
-        return String.format(
+        StringBuilder sb = new StringBuilder();
 
-                "vless://%s@%s:%d?type=%s&encryption=none&security=reality&pbk=%s&fp=%s&sni=%s&sid=%s&spx=%%2F&flow=%s#%s",
-                uuid,
-                serverAddress,
-                serverPort,
-                networkType,
-                publicKey,
-                fingerprint,
-                sni,
-                shortId,
-                flow,
-                urlEncode(serverName)
-        );
+        sb.append("vless://").append(uuid)
+                .append("@").append(serverAddress)
+                .append(":").append(serverPort)
+                .append("?type=").append(networkType)
+                .append("&encryption=none")
+                .append("&security=reality")
+                .append("&pbk=").append(publicKey)
+                .append("&fp=").append(fingerprint)
+                .append("&sni=").append(sni)
+                .append("&sid=").append(shortId)
+                .append("&spx=%2F");
+
+        if (flow != null && !flow.isBlank() && !"null".equalsIgnoreCase(flow)) {
+            sb.append("&flow=").append(flow);
+        }
+
+        sb.append("#").append(urlEncode(serverName));
+
+        return sb.toString();
     }
 
     /**
      * URL encode для имени сервера
      */
     private String urlEncode(String value) {
+        if (value == null) return "";
         try {
-            return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
+            return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8)
+                    .replace("+", "%20");
         } catch (Exception e) {
             return value;
         }

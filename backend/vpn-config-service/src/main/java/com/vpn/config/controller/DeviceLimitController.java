@@ -124,7 +124,7 @@ public class DeviceLimitController {
                         .build()));
     }
 
-    @GetMapping("/api/v1/devices/limit")
+    @GetMapping("/api/v1/configs/limits/me")
     @RequireUser
     public ResponseEntity<ApiResponse<DeviceLimitStatus>> getMyLimit(
             @RequestHeader("X-User-Id") Long telegramId) {

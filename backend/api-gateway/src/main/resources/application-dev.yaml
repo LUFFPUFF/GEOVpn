@@ -17,8 +17,8 @@ ID_ROUTES_VPN_CONFIG_SERVICE: vpn-config-service
 ID_ROUTES_SERVER_MGM_SERVICE: server-management-service
 ID_ROUTES_BILLING_SERVICE: billing-service
 
-PATH_USER_SERVICE: "/api/v1/users/**,/api/v1/admin/dashboard/**,/api/v1/admin/users/**"
-PATH_VPN_CONFIG_SERVICE: "/api/v1/configs/**,/api/v1/devices/**,/api/v1/admin/device-limits/**,/api/v1/subscription/**"
+PATH_USER_SERVICE: "/api/v1/users/**, /api/v1/devices/**, /api/v1/admin/dashboard/**, /api/v1/admin/users/**"
+PATH_VPN_CONFIG_SERVICE: "/api/v1/configs/**, /api/v1/admin/device-limits/**, /api/v1/subscription/**"
 PATH_SERVER_MGM_SERVICE: "/api/v1/servers/**,/api/v1/traffic/**"
 PATH_BILLING_SERVICE: "/api/v1/billing/**,/api/v1/transactions/**"
 

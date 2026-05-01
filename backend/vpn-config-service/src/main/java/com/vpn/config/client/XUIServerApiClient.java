@@ -1,107 +1,144 @@
 package com.vpn.config.client;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
+import com.vpn.common.dto.ServerDto;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Collections;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Клиент для взаимодействия с 3x-UI панелью.
- *
- * Поддерживает несколько серверов через реестр панелей.
- * Каждый сервер имеет свою сессию (cookie).
- *
- * Конфиг серверов задаётся через:
- *   vpn.panels[0].url / username / password / inboundId
- *   vpn.panels[1].url / username / password / inboundId
- */
 @Service
 @Slf4j
 public class XUIServerApiClient {
 
-    @Value("${vpn.panel.url}") private String nlUrl;
-    @Value("${vpn.panel.username}") private String nlUser;
-    @Value("${vpn.panel.password}") private String nlPass;
-    @Value("${vpn.panel.inbound-id}") private int nlInbound;
-
-    @Value("${vpn.relay.panel.url}") private String ruUrl;
-    @Value("${vpn.relay.panel.username}") private String ruUser;
-    @Value("${vpn.relay.panel.password}") private String ruPass;
-    @Value("${vpn.relay.panel.inbound-id}") private int ruInbound;
-
-    @Value("${vpn.relay.ru.ip}") private String ruIp;
-
     private final ConcurrentHashMap<String, String> sessionCookies = new ConcurrentHashMap<>();
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
-    public void addClient(String serverIp, String uuid, String email, int limitIp) {
-        PanelConfig panel = getPanelConfigByIp(serverIp);
-        ensureAuthenticated(serverIp, panel);
+    public XUIServerApiClient(RestTemplateBuilder builder) {
+        this.restTemplate = builder
+                .setConnectTimeout(Duration.ofSeconds(5))
+                .setReadTimeout(Duration.ofSeconds(10))
+                .build();
+    }
 
-        String url = panel.url + "/panel/api/inbounds/addClient";
+    private String buildBaseUrl(ServerDto server) {
+        int port = (server.getPanelPort() != null && server.getPanelPort() != 0) ? server.getPanelPort() : 8080;
+        String path = server.getPanelPath();
+        String ip = server.getIpAddress();
+
+        StringBuilder sb = new StringBuilder("http://").append(ip).append(":").append(port);
+
+        if (path != null && !path.isBlank() && !path.equalsIgnoreCase("null") && !path.equalsIgnoreCase("<null>")) {
+            if (!path.startsWith("/")) sb.append("/");
+            sb.append(path);
+        }
+
+        String url = sb.toString();
+        if (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        return url;
+    }
+
+    /**
+     * Проверяет, что у сервера заполнены все поля, необходимые для работы с панелью.
+     * Бросает IllegalStateException с понятным сообщением если что-то отсутствует.
+     */
+    private void validatePanelCredentials(ServerDto server) {
+        if (server.getPanelUsername() == null || server.getPanelUsername().isBlank()) {
+            throw new IllegalStateException(
+                    "Server '" + server.getName() + "' (id=" + server.getId() + ") has no panelUsername configured in DB"
+            );
+        }
+        if (server.getPanelPassword() == null || server.getPanelPassword().isBlank()) {
+            throw new IllegalStateException(
+                    "Server '" + server.getName() + "' (id=" + server.getId() + ") has no panelPassword configured in DB"
+            );
+        }
+        if (server.getPanelInboundId() == null) {
+            throw new IllegalStateException(
+                    "Server '" + server.getName() + "' (id=" + server.getId() + ") has no panelInboundId configured in DB"
+            );
+        }
+    }
+
+    public void addClient(ServerDto server, String uuid, String email, int limitIp, String flow) {
+        validatePanelCredentials(server);
+
+        String baseUrl = buildBaseUrl(server);
+        ensureAuthenticated(server, baseUrl);
+
+        String url = baseUrl + "/panel/api/inbounds/addClient";
+
+        String effectiveFlow = (flow == null) ? "" : flow;
+
         String clientJson = String.format(
-                "{\"id\": \"%s\", \"email\": \"%s\", \"flow\": \"xtls-rprx-vision\", \"limitIp\": %d, \"enable\": true}",
-                uuid, email, limitIp
+                "{\"id\": \"%s\", \"email\": \"%s\", \"flow\": \"%s\", \"limitIp\": %d, \"enable\": true}",
+                uuid, email, effectiveFlow, limitIp
         );
 
         Map<String, Object> body = new HashMap<>();
-        body.put("id", panel.inboundId);
+        body.put("id", server.getPanelInboundId());
         body.put("settings", "{\"clients\": [" + clientJson + "]}");
 
-        executeWithRetry(serverIp, panel, url, body);
+        executeWithRetry(server, baseUrl, url, body);
     }
 
-    public void removeClient(String serverIp, String uuid) {
-        PanelConfig panel = getPanelConfigByIp(serverIp);
-        ensureAuthenticated(serverIp, panel);
-        String url = String.format("%s/panel/api/inbounds/%d/delClient/%s", panel.url, panel.inboundId, uuid);
-        executeWithRetry(serverIp, panel, url, null);
+    private void ensureAuthenticated(ServerDto server, String baseUrl) {
+        if (!sessionCookies.containsKey(server.getIpAddress())) {
+            login(server, baseUrl);
+        }
     }
 
-    private void ensureAuthenticated(String ip, PanelConfig panel) {
-        if (!sessionCookies.containsKey(ip)) login(ip, panel);
-    }
+    private void login(ServerDto server, String baseUrl) {
+        String loginUrl = baseUrl + "/login";
+        log.info(">>>> [XUI LOGIN] Server: {}, URL: {}, User: {}", server.getName(), loginUrl, server.getPanelUsername());
 
-    private void login(String ip, PanelConfig panel) {
-        String loginUrl = panel.url + "/login";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("username", panel.username);
-        form.add("password", panel.password);
+        form.add("username", server.getPanelUsername());
+        form.add("password", server.getPanelPassword());
 
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(loginUrl, new HttpEntity<>(form, headers), String.class);
             String cookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
-            if (cookie == null) throw new RuntimeException("No cookie");
-            sessionCookies.put(ip, cookie);
+
+            if (cookie == null) throw new RuntimeException("No cookie returned from " + server.getIpAddress());
+
+            sessionCookies.put(server.getIpAddress(), cookie);
+            log.info("<<<< [XUI LOGIN] SUCCESS for {}", server.getName());
         } catch (Exception e) {
-            log.error("XUI Login failed for {}: {}", ip, e.getMessage());
-            throw new RuntimeException("Login failed");
+            log.error("!!!! [XUI LOGIN] FAILED for {}: {}", server.getName(), e.getMessage());
+            throw new RuntimeException("Login failed: " + e.getMessage());
         }
     }
 
-    private void executeWithRetry(String ip, PanelConfig panel, String url, Object body) {
+    public void removeClient(ServerDto server, String uuid) {
+        validatePanelCredentials(server);
+
+        String baseUrl = buildBaseUrl(server);
+        ensureAuthenticated(server, baseUrl);
+        String url = String.format("%s/panel/api/inbounds/%d/delClient/%s",
+                baseUrl, server.getPanelInboundId(), uuid);
+        executeWithRetry(server, baseUrl, url, null);
+    }
+
+    private void executeWithRetry(ServerDto server, String baseUrl, String url, Object body) {
         try {
-            sendRequest(ip, url, body);
+            sendRequest(server.getIpAddress(), url, body);
         } catch (HttpClientErrorException.Unauthorized e) {
-            sessionCookies.remove(ip);
-            login(ip, panel);
-            sendRequest(ip, url, body);
+            sessionCookies.remove(server.getIpAddress());
+            login(server, baseUrl);
+            sendRequest(server.getIpAddress(), url, body);
         }
     }
 
@@ -111,11 +148,4 @@ public class XUIServerApiClient {
         headers.add(HttpHeaders.COOKIE, sessionCookies.get(ip));
         restTemplate.postForEntity(url, new HttpEntity<>(body, headers), String.class);
     }
-
-    private PanelConfig getPanelConfigByIp(String ip) {
-        if (ip.equals(ruIp)) return new PanelConfig(ruUrl, ruUser, ruPass, ruInbound);
-        return new PanelConfig(nlUrl, nlUser, nlPass, nlInbound);
-    }
-
-    private record PanelConfig(String url, String username, String password, int inboundId) {}
 }

@@ -48,8 +48,7 @@ spring:
             allowed-origins:
              - "http://localhost:5173"
              - "http://localhost:3000"
-             - "https://urw-likelihood-specifications-buffer.trycloudflare.com"
-             - "https://galaxy-governments-louis-annual.trycloudflare.com"
+             - "https://directly-bali-permissions-ellen.trycloudflare.com"
             allowed-methods: "*"
             allowed-headers: "*"
             allow-credentials: true

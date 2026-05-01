@@ -1,6 +1,7 @@
 package com.vpn.user.service;
 
 import com.vpn.common.constant.AppConstants;
+import com.vpn.common.dto.enums.DeviceType;
 import com.vpn.common.util.ValidationUtils;
 import com.vpn.user.domain.entity.Device;
 import com.vpn.user.dto.mapper.DeviceMapper;
@@ -145,5 +146,33 @@ public class DeviceServiceImpl implements DeviceService {
         return deviceRepository.findByUuid(deviceUuid)
                 .map(device -> device.getUserId().equals(telegramId))
                 .orElse(false);
+    }
+
+    @Transactional
+    public DeviceResponse syncDeviceWithPlatform(Long userId, String platform) {
+        DeviceType type = mapPlatformToDeviceType(platform);
+
+        return deviceRepository.findByUserIdAndDeviceTypeAndIsActiveTrue(userId, type)
+                .map(deviceMapper::toResponse)
+                .orElseGet(() -> {
+                    DeviceCreateRequest request = DeviceCreateRequest.builder()
+                            .userId(userId)
+                            .deviceName(type.name() + " Device")
+                            .deviceType(type)
+                            .build();
+                    return createDevice(request);
+                });
+    }
+
+    private DeviceType mapPlatformToDeviceType(String platform) {
+        if (platform == null) return DeviceType.OTHER;
+        return switch (platform.toLowerCase()) {
+            case "ios" -> DeviceType.IOS;
+            case "android" -> DeviceType.ANDROID;
+            case "macos" -> DeviceType.MACOS;
+            case "tdesktop", "windows" -> DeviceType.WINDOWS;
+            case "linux" -> DeviceType.LINUX;
+            default -> DeviceType.OTHER;
+        };
     }
 }

@@ -4,6 +4,7 @@ import com.vpn.common.constant.ErrorCode;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ErrorResponse;
 import com.vpn.common.security.UserRole;
+import com.vpn.common.security.annotations.Public;
 import com.vpn.common.security.annotations.RequireAnyRole;
 import com.vpn.common.security.annotations.RequireUser;
 import com.vpn.common.util.StringUtils;
@@ -34,7 +35,7 @@ public class VpnConfigController {
     /**
      * Создать новую VPN подписку (набор серверов) для устройства.
      */
-    @PostMapping()
+    @PostMapping
     @RequireAnyRole({UserRole.USER, UserRole.SERVICE})
     public ResponseEntity<ApiResponse<VpnConfigResponse>> createConfig(
             @RequestHeader("X-User-Id") Long telegramId,
@@ -121,6 +122,44 @@ public class VpnConfigController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+
+    @GetMapping(value = "/import-happ/{uuid}", produces = MediaType.TEXT_HTML_VALUE)
+    @Public
+    public ResponseEntity<String> redirectHapp(@PathVariable("uuid") UUID vlessUuid) {
+
+        String baseUrl = "https://ctrl-requirement-authentic-technician.trycloudflare.com";
+        String subscriptionUrl = baseUrl + "/api/v1/configs/subscription/" + vlessUuid;
+
+        String encodedUrl = java.net.URLEncoder.encode(subscriptionUrl, java.nio.charset.StandardCharsets.UTF_8);
+        String deepLink = "happ://add-subscription?url=" + encodedUrl;
+
+        String html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>GeoVPN Import</title>
+            </head>
+            <body style="background: #0a0a0f; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; margin: 0;">
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 50px; margin-bottom: 20px;">🚀</div>
+                    <h2 style="margin-bottom: 10px;">Открываем Happ Proxy...</h2>
+                    <p style="color: #888; font-size: 14px;">Если приложение не открылось автоматически,<br>нажмите на кнопку ниже:</p>
+                    <a href="%s" style="display: inline-block; margin-top: 20px; padding: 15px 30px; background: #ed8936; color: white; text-decoration: none; border-radius: 12px; font-weight: bold;">ОТКРЫТЬ HAPP</a>
+                    <script>
+                        // Пробуем открыть сразу
+                        window.location.href = "%s";
+                        // Если не сработало, пробуем еще раз через секунду
+                        setTimeout(function() { window.location.href = "%s"; }, 1000);
+                    </script>
+                </div>
+            </body>
+            </html>
+            """.formatted(deepLink, deepLink, deepLink);
+
+        return ResponseEntity.ok(html);
+    }
+
     private ResponseEntity<ApiResponse<VpnConfigResponse>> buildConfigNotFoundResponse() {
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .code(ErrorCode.CONFIG_GENERATION_FAILED.getCode())
@@ -130,4 +169,6 @@ public class VpnConfigController {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(errorResponse));
     }
+
+
 }

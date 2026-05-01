@@ -9,12 +9,14 @@ import com.vpn.server.dto.UpdateServerRequest;
 import com.vpn.server.dto.mapper.ServerMapper;
 import com.vpn.server.repository.ServerRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -87,7 +89,9 @@ public class ServerService {
     }
 
     public List<ServerDto> getAllActiveServers() {
-        return serverMapper.toDtoList(serverRepository.findByIsActiveTrue());
+        List<Server> servers = serverRepository.findAll();
+        log.info("Returning {} servers regardless of their active status", servers.size());
+        return serverMapper.toDtoList(servers);
     }
 
     public ServerDto getServerById(Integer id) {

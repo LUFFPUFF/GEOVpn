@@ -7,10 +7,10 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
-    allowedHosts: ['urw-likelihood-specifications-buffer.trycloudflare.com'],
+    allowedHosts: ['directly-bali-permissions-ellen.trycloudflare.com'],
     proxy: {
       '/api': {
-        target: 'https://conviction-symposium-smoking-pike.trycloudflare.com',
+        target: 'https://convertible-filed-combo-marble.trycloudflare.com',
         changeOrigin: true,
         secure: false,
         configure: (proxy, _options) => {

@@ -26,6 +26,7 @@ public class VpnConfigProperties {
     private VlessProperties vless = new VlessProperties();
     private QrCodeProperties qrCode = new QrCodeProperties();
     private SelectionProperties selection = new SelectionProperties();
+    private Hysteria2Properties hysteria2 = new Hysteria2Properties();
 
     @PostConstruct
     public void validate() {
@@ -97,6 +98,27 @@ public class VpnConfigProperties {
 
         @NotEmpty
         private String format = "PNG";
+    }
+
+    @Data
+    public static class Hysteria2Properties {
+        private boolean enabled = true;
+        private Integer port;
+        private String password;
+        private ObfsProperties obfs = new ObfsProperties();
+        private String sni;
+        private TlsProperties tls = new TlsProperties();
+
+        @Data
+        public static class ObfsProperties {
+            private String type;
+            private String password;
+        }
+
+        @Data
+        public static class TlsProperties {
+            private boolean insecure = true;
+        }
     }
 
     @Data

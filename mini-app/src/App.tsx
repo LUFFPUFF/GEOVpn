@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import './index.css';
 import { useTelegram } from './hooks/useTelegram';
 import { useUserStore } from './store/userStore';
+import { userApi } from './api/user'; // Импортируем твой API сервис
 import Header from './components/layout/Header';
 import BottomNav from './components/layout/BottomNav';
 import Home from './pages/Home';
@@ -22,7 +23,16 @@ export default function App() {
         tg.setHeaderColor?.('#000000');
         tg.setBackgroundColor?.('#000000');
 
-        // Реальная высота viewport → CSS-переменная
+        if (tg.platform) {
+            userApi.syncDevice(tg.platform)
+                .then(device => {
+                    console.log('[App] Device synced successfully:', device.deviceType);
+                })
+                .catch(err => {
+                    console.error('[App] Device sync failed:', err);
+                });
+        }
+
         const setHeight = () => {
             const h = tg.viewportStableHeight || window.innerHeight;
             document.documentElement.style.setProperty('--tg-height', `${h}px`);
@@ -34,7 +44,10 @@ export default function App() {
         return () => tg.offEvent('viewportChanged', setHeight);
     }, [tg, expand]);
 
-    useEffect(() => { fetchAll(); }, [fetchAll]);
+    useEffect(() => {
+        fetchAll();
+    }, [fetchAll]);
+
 
     return (
         <div
@@ -42,6 +55,7 @@ export default function App() {
             style={{ height: 'var(--tg-height, 100dvh)' }}
         >
             <Header />
+
             <main className="relative z-10 flex-1 overflow-y-auto px-4 custom-scrollbar pb-safe">
                 {activeTab === 'home'          && <Home />}
                 {activeTab === 'profile'       && <Profile />}
@@ -49,6 +63,7 @@ export default function App() {
                 {activeTab === 'subscriptions' && <Subscriptions />}
                 {activeTab === 'leaderboard'   && <Leaderboard />}
             </main>
+
             <BottomNav />
         </div>
     );

@@ -23,3 +23,7 @@ local-dev.yaml
 
 .env
 *.log
+
+backend/.env
+
+admin-panel/.env

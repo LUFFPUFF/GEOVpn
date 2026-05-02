@@ -7,14 +7,18 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    allowedHosts: ['galaxy-governments-louis-annual.trycloudflare.com'],
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8080',
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
       }
     }
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    minify: 'terser',
   },
   resolve: {
     alias: {

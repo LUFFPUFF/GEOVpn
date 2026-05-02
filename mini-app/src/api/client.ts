@@ -6,13 +6,15 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
     const tg = window.Telegram?.WebApp;
-    const userId = tg?.initDataUnsafe?.user?.id || "858441917";
+
+    const userId = tg?.initDataUnsafe?.user?.id;
 
     if (userId) {
         config.headers['X-User-Id'] = userId.toString();
         config.headers['Authorization'] = `Bearer ${tg?.initData}`;
+    } else {
+        config.headers['X-User-Id'] = "858441917";
     }
 
-    console.log('Sending headers:', config.headers);
     return config;
 });

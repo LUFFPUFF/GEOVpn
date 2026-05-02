@@ -40,12 +40,9 @@ export const userApi = {
         apiClient.get<ApiResponse<VpnConfigResponse[]>>('/configs/configs').then(r => r.data.data),
 
     createConfig: (deviceId: number, countryCode = 'NL'): Promise<VpnConfigResponse> => {
-        const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 858441917;
         return apiClient.post<ApiResponse<VpnConfigResponse>>('/configs', {
             deviceId,
-            countryCode,
-            userId: tgId,
-            userTelegramId: tgId.toString()
+            countryCode
         }).then(r => r.data.data);
     },
 

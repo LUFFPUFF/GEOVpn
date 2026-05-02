@@ -6,138 +6,42 @@ server:
 spring:
   application:
     name: api-gateway
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
-
   cloud:
     gateway:
-      default-filters:
-        - name: RequestRateLimiter
-          args:
-            redis-rate-limiter.replenishRate: 10
-            redis-rate-limiter.burstCapacity: 20
-            redis-rate-limiter.requestedTokens: 1
-            key-resolver: "#{@userKeyResolver}"
-        - name: Retry
-          args:
-            retries: 3
-            statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
-            methods: GET,POST
-            backoff:
-              firstBackoff: 50ms
-              maxBackoff: 500ms
-              factor: 2
-              basedOnPreviousValue: false
-        - name: CircuitBreaker
-          args:
-            name: defaultCircuitBreaker
-            fallbackUri: forward:/fallback
-
-      httpclient:
-        connect-timeout: 5000
-        response-timeout: 10s
-        pool:
-          type: ELASTIC
-          max-idle-time: 15s
-          max-life-time: 60s
-
       globalcors:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowed-origins:
-             - "http://localhost:5173"
-             - "http://localhost:3000"
-             - "https://directly-bali-permissions-ellen.trycloudflare.com"
+            allowed-origins: ${ALLOWED_ORIGINS}
             allowed-methods: "*"
             allowed-headers: "*"
             allow-credentials: true
-
       routes:
-        - id: ${ID_ROUTES_USER_SERVICE}
+        - id: user-service
           uri: ${USER_SERVICE_URL}
           predicates:
-            - Path=${PATH_USER_SERVICE}
-          filters:
-            - StripPrefix=0
-
-        - id: ${ID_ROUTES_VPN_CONFIG_SERVICE}
+            - Path=/api/v1/users/**, /api/v1/devices/**, /api/v1/admin/dashboard/**, /api/v1/admin/users/**
+        - id: vpn-config-service
           uri: ${VPN_CONFIG_SERVICE_URL}
           predicates:
-            - Path=${PATH_VPN_CONFIG_SERVICE}
-          filters:
-               StripPrefix=0
-
-        - id: ${ID_ROUTES_SERVER_MGM_SERVICE}
+            - Path=/api/v1/configs/**, /api/v1/admin/device-limits/**, /api/v1/subscription/**
+        - id: server-management-service
           uri: ${SERVER_MGM_SERVICE_URL}
           predicates:
-            - Path=${PATH_SERVER_MGM_SERVICE}
-          filters:
-            - StripPrefix=0
-
-        - id: ${ID_ROUTES_BILLING_SERVICE}
+            - Path=/api/v1/servers/**, /api/v1/traffic/**
+        - id: billing-service
           uri: ${BILLING_SERVICE_URL}
           predicates:
-            - Path=${PATH_BILLING_SERVICE}
-          filters: [StripPrefix=0]
+            - Path=/api/v1/billing/**, /api/v1/transactions/**
 
   data:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
-      password: ${REDIS_PASSWORD:}
-      timeout: 2000ms
+      password: ${REDIS_PASSWORD}
 
 service:
   jwt:
     secret: ${JWT_SECRET}
-    expiration: ${JWT_EXPIRATION}
-    refresh-expiration: ${JWT_REFRESH_EXPIRATION}
-
   security:
-    open-endpoints: "/api/v1/auth/**,/api/v1/webhooks/**,/actuator/**,/fallback,/api/v1/users/register"
-    internal-secret: "53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3"
-
-resilience4j:
-  circuitbreaker:
-    instances:
-      defaultCircuitBreaker:
-        sliding-window-size: 10
-        permitted-number-of-calls-in-half-open-state: 3
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 10s
-        register-health-indicator: true
-
-  timelimiter:
-    instances:
-      defaultCircuitBreaker:
-        timeout-duration: 10s
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: ${MONITORING_ENDPOINTS}
-  endpoint:
-    health:
-      show-details: always
-      probes:
-        enabled: true
-    gateway:
-      enabled: true
-  metrics:
-    tags:
-      application: ${spring.application.name}
-  prometheus:
-    metrics:
-      export:
-        enabled: true
-
-logging:
-  level:
-    root: INFO
-    com.vpn.gateway: DEBUG
-    org.springframework.cloud.gateway: DEBUG
-    reactor.netty: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    internal-secret: ${INTERNAL_SECRET}

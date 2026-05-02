@@ -1,7 +1,9 @@
 server:
-  port: 8081
+  port: ${BOT_PORT}
 
 spring:
+  application:
+    name: telegram-bot
   cloud:
     openfeign:
       client:
@@ -12,22 +14,22 @@ spring:
 
 telegram:
   bot:
-    username: "geovpbot"
-    token: "8233214588:AAGOdYT22W_1uDPOthYln2AnOprgVTSsugo"
-    channel-id: -1003882298925
-    channel-url: https://t.me/+yuKUzLhYdJVjOWRi
+    username: ${TELEGRAM_BOT_USERNAME}
+    token: ${TELEGRAM_BOT_TOKEN}
+    channel-id: ${TELEGRAM_CHANNEL_ID}
+    channel-url: ${TELEGRAM_CHANNEL_URL}
 
 services:
-  internal-secret: "53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3"
+  internal-secret: ${INTERNAL_SECRET}
   user-service:
-    url: "http://localhost:8082"
+    url: ${USER_SERVICE_URL}
   vpn-config-service:
-    url: "http://localhost:8083"
+    url: ${VPN_CONFIG_SERVICE_URL}
 
 app:
-  miniapp-url: "https://directly-bali-permissions-ellen.trycloudflare.com"
+  miniapp-url: ${MINIAPP_URL}
 
 logging:
   level:
-    com.vpn.bot: DEBUG
+    com.vpn.bot: INFO
     org.telegram: INFO

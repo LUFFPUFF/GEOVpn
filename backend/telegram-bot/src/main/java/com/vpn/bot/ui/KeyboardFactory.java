@@ -45,7 +45,7 @@ public class KeyboardFactory {
 
     public InlineKeyboardMarkup getReferralKeyboard() {
         InlineKeyboardButton share = new InlineKeyboardButton("📩 Поделиться");
-        share.setSwitchInlineQuery("\nЗабирай лучший VPN! Летает даже 4K видео 🚀");
+        share.setSwitchInlineQuery("\nПопробуй GeoVPN — быстро, стабильно, на любом устройстве 🚀");
         return new InlineKeyboardMarkup(List.of(List.of(share)));
     }
 }

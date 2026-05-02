@@ -57,6 +57,9 @@ public class UpdateDispatcher {
         String text = update.getMessage().getText();
 
         if (text.startsWith("/start")) {
+            String firstName = update.getMessage().getFrom().getFirstName();
+            String username = update.getMessage().getFrom().getUserName();
+            businessService.processStartCommand(chatId, firstName, username);
             SendMessage response = startHandler.handle(update);
             sender.execute(response);
         }
@@ -89,7 +92,22 @@ public class UpdateDispatcher {
         }
         else if (data.equals("check_subscription")) {
             long chatId = update.getCallbackQuery().getMessage().getChatId();
-            SendMessage response = startHandler.handle(update);
+            org.telegram.telegrambots.meta.api.objects.User tgUser = update.getCallbackQuery().getFrom();
+            InlineKeyboardMarkup keyboard = InlineKeyboardMarkup.builder()
+                    .keyboardRow(List.of(
+                            InlineKeyboardButton.builder().text("📱 iOS").callbackData("os_select:iOS").build(),
+                            InlineKeyboardButton.builder().text("🤖 Android").callbackData("os_select:Android").build()
+                    ))
+                    .keyboardRow(List.of(
+                            InlineKeyboardButton.builder().text("🪟 Windows").callbackData("os_select:Windows").build(),
+                            InlineKeyboardButton.builder().text("🍏 macOS").callbackData("os_select:macOS").build()
+                    ))
+                    .build();
+            SendMessage response = SendMessage.builder()
+                    .chatId(chatId)
+                    .text("👋 Привет, " + tgUser.getFirstName() + "!\n\nДля настройки выбери свою ОС:")
+                    .replyMarkup(keyboard)
+                    .build();
             sender.execute(response);
         }
     }

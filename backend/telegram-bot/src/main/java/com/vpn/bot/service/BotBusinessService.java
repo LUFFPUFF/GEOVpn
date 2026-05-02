@@ -37,10 +37,10 @@ public class BotBusinessService {
 
         String text = "🛡 <b>GeoVPN — Ваш проводник в свободный интернет</b>\n\n" +
                 "Рады видеть вас, <b>" + firstName + "</b>! 🤝\n\n" +
-                "Мы используем передовые технологии обхода блокировок, которые работают стабильно и не садят батарею:\n\n" +
-                "⚡️ <b>VLESS</b> — маскирует VPN под обычный веб-серфинг. Надежно и безопасно.\n" +
+                "Мы используем передовые протоколы, которые работают стабильно и не садят батарею:\\n\\n" +
+                "⚡️ <b>VLESS</b> — Стабильный VPN под обычный веб-серфинг. Надежно и безопасно.\n" +
                 "🚀 <b>Hysteria2 (HY2)</b> — турбо-скорость даже на слабом интернете. Идеально для 4K-видео и игр.\n" +
-                "🛡 <b>Антиглушилка (Anti-DPI)</b> — защита от любых блокировок провайдеров.\n\n" +
+                "🛡 <b>Smart Shield</b> — стабильное соединение в любых сетевых условиях.\n\n" +
                 "<b>Почему выбирают нас:</b>\n" +
                 "• Установка в 2 клика\n" +
                 "• Безлимитный трафик\n" +
@@ -48,7 +48,7 @@ public class BotBusinessService {
                 "• Первый месяц — бесплатно 🎁\n\n" +
                 "<i>👇 Выберите действие в меню ниже, чтобы начать:</i>";
 
-        InputStream img = getClass().getResourceAsStream("/header2.png");
+        InputStream img = getClass().getResourceAsStream("/header1.png");
         if (img != null) {
             SendPhoto photo = new SendPhoto(String.valueOf(chatId), new InputFile(img, "header.png"));
             photo.setCaption(text);
@@ -73,7 +73,7 @@ public class BotBusinessService {
                 "🟡 <b>Безлимит</b> — 3 000 ₽\n" +
                 "└ ∞ устройств | Полная свобода\n\n" +
                 "🌟 <b>В каждый тариф включено:</b>\n" +
-                "✓ Свободный доступ к YouTube, Instagram и TikTok\n" +
+                "✓ Доступ к YouTube, Instagram и TikTok\n" +
                 "✓ Минимальный пинг и стабильность\n" +
                 "✓ 30+ премиум-локаций по всему миру";
 

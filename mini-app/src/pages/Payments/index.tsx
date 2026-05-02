@@ -112,7 +112,7 @@ export default function Payments() {
         {
             id: 'BASIC', name: 'Стандарт', devicesLabel: '1 устройство', price: 150,
             icon: Smartphone, color: 'text-gray-300', bgGlow: 'bg-gray-500/10',
-            description: 'Базовый доступ к заблокированным ресурсам без потери скорости.'
+            description: 'Стабильное соединение на одном устройстве. Скорость без ограничений.'
         },
         {
             id: 'STANDARD', name: 'Стандарт+', devicesLabel: '3 устройства', price: 400,

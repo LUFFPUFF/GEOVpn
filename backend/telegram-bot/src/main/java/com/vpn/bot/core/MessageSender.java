@@ -36,4 +36,8 @@ public class MessageSender {
             log.error("Photo Error: {}", e.getMessage());
         }
     }
+
+    public AbsSender getAbsSender() {
+        return sender;
+    }
 }

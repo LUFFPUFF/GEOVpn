@@ -14,6 +14,8 @@ telegram:
   bot:
     username: "geovpbot"
     token: "8233214588:AAGOdYT22W_1uDPOthYln2AnOprgVTSsugo"
+    channel-id: -1003882298925
+    channel-url: https://t.me/+yuKUzLhYdJVjOWRi
 
 services:
   internal-secret: "53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3"

@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * Feign-клиент для получения статистики трафика из server-service.
  */
-@FeignClient(name = "server-management-service", url = "http://localhost:8084", configuration = FeignClientConfiguration.class)
+@FeignClient(name = "server-management-service", url = "${SERVER_MGM_SERVICE_URL}", configuration = FeignClientConfiguration.class)
 public interface TrafficServiceClient {
 
     @GetMapping("/api/v1/traffic/users/{userId}/summary")

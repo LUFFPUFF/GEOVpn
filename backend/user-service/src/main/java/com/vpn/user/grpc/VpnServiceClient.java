@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-@FeignClient(name = "vpn-config-service", url = "http://localhost:8083", configuration = FeignClientConfiguration.class)
+@FeignClient(name = "vpn-config-service", url = "${VPN_CONFIG_SERVICE_URL}", configuration = FeignClientConfiguration.class)
 public interface VpnServiceClient {
 
     @PostMapping("/api/v1/configs")

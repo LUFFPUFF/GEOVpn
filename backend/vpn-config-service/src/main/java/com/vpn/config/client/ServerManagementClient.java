@@ -13,7 +13,7 @@ import java.util.List;
  */
 @FeignClient(
         name = "server-management-service",
-        url = "${feign.client.config.server-management-service.url}",
+        url = "${SERVER_MGM_SERVICE_URL}",
         configuration = com.vpn.common.config.FeignClientConfiguration.class
 )
 public interface ServerManagementClient {

@@ -20,17 +20,17 @@ function detectDeviceType(): string {
 
 interface UserStore {
     user:    UserResponse | null;
-    stats:   UserStatsResponse | null;
     devices: DeviceResponse[];
     configs: VpnConfigResponse[];
     leaderboard: LeaderboardEntry[];
     deviceLimit: DeviceLimitStatus | null;
-
     activeTab: TabId;
     loading:   boolean;
     error:     string | null;
 
-    t: typeof RU;
+    lang: Lang;
+    t: typeof TRANSLATIONS.ru;
+    setLanguage: (lang: Lang) => void;
 
     fetchAll:            () => Promise<void>;
     setActiveTab:        (tab: TabId) => void;
@@ -41,53 +41,45 @@ interface UserStore {
     fetchLeaderboard:    () => Promise<void>;
 }
 
-const RU = {
-    dashboard: 'Дашборд',
-    shop:      'Магазин',
-    settings:  'Настройки',
-    balance:   'Баланс',
-    active:    'Активна',
-    inactive:  'Неактивна',
-    remains:   'Осталось',
-    days:      'дней',
-};
-
 export const useUserStore = create<UserStore>((set, get) => ({
     user:      null,
-    stats:     null,
     devices:   [],
     configs:   [],
+    leaderboard: [],
+    deviceLimit: null,
     activeTab: 'home',
     loading:   false,
     error:     null,
-    t:         RU,
-    deviceLimit: null,
-    leaderboard: [],
+
+    lang: 'ru',
+    t: TRANSLATIONS.ru,
+
+    setLanguage: (newLang: Lang) => {
+        set({
+            lang: newLang,
+            t: TRANSLATIONS[newLang]
+        });
+        window.Telegram?.WebApp?.CloudStorage.setItem('lang', newLang);
+    },
 
     setActiveTab: (tab) => set({ activeTab: tab }),
 
     fetchAll: async () => {
         set({ loading: true, error: null });
         try {
-            const profilePromise = userApi.getProfile().catch(e => { console.error('Profile error:', e); return null; });
-            const devicesPromise = userApi.getDevices().catch(e => { console.error('Devices error:', e); return []; });
-            const configsPromise = userApi.getConfigs().catch(e => { console.error('Configs error:', e); return []; });
-            const limitPromise = userApi.getDeviceLimit().catch(e => { console.error('Limit error:', e); return null; });
-
             const [profile, devices, configs, limit] = await Promise.all([
-                profilePromise,
-                devicesPromise,
-                configsPromise,
-                limitPromise
+                userApi.getProfile().catch(() => null),
+                userApi.getDevices().catch(() => []),
+                userApi.getConfigs().catch(() => []),
+                userApi.getDeviceLimit().catch(() => null)
             ]);
 
             if (profile) {
                 set({ user: profile, devices, configs, deviceLimit: limit, loading: false });
             } else {
-                set({ error: "Не удалось загрузить профиль", loading: false });
+                set({ error: "Profile not loaded", loading: false });
             }
         } catch (error: any) {
-            console.error("Critical fetchAll error:", error);
             set({ error: error.message, loading: false });
         }
     },
@@ -102,84 +94,31 @@ export const useUserStore = create<UserStore>((set, get) => ({
     },
 
     purchaseSubscription: async (planId: string, months = 1, promo = false) => {
-        set({ loading: true, error: null });
+        set({ loading: true });
         try {
             const updatedUser = await userApi.purchaseSubscription(planId, months, promo);
-
-            // Если мы просили промо, сервер вернул статус 200, но тип остался PAYG — значит акция уже использована
-            if (promo && updatedUser.subscriptionType === 'PAYG') {
-                set({ loading: false });
-                return false;
-            }
-
-            set({ user: updatedUser });
-
-            let { devices } = get();
-            if (devices.length === 0) {
-                const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-                const deviceName = tgUser?.first_name
-                    ? `${tgUser.first_name}'s Device`
-                    : 'My Device';
-                const deviceType = detectDeviceType();
-
-                try {
-                    const newDevice = await userApi.registerDevice(deviceName, deviceType);
-                    devices = [newDevice];
-                    set({ devices });
-                } catch (e) {
-                    console.warn('Device registration failed', e);
-                }
-            }
-
-            const { configs } = get();
-            if (configs.length === 0 && devices.length > 0) {
-                try {
-                    const newConfig = await userApi.createConfig(devices[0].id);
-                    set({ configs: [newConfig] });
-                } catch (e) {
-                    console.warn('Config creation failed', e);
-                }
-            }
-
-            set({ loading: false });
+            set({ user: updatedUser, loading: false });
             return true;
-
-        } catch (e: any) {
-            const msg = e?.response?.data?.error?.message || 'Ошибка сервера при оплате';
-            set({ error: msg, loading: false });
-            console.error('Purchase failed:', e);
-            // Пробрасываем ошибку дальше, чтобы компонент знал, что произошла ошибка сети/бэкенда, а не отказ в акции
+        } catch (e) {
+            set({ loading: false });
             throw e;
         }
     },
 
     addDevice: async (name, type) => {
-        try {
-            const device = await userApi.registerDevice(name, type);
-            set(s => ({ devices: [...s.devices, device] }));
-        } catch (e) {
-            console.error('addDevice failed', e);
-        }
+        const device = await userApi.registerDevice(name, type);
+        set(s => ({ devices: [...s.devices, device] }));
     },
 
     deleteDevice: async (uuid) => {
-        const { devices } = get();
-        const dev = devices.find(d => d.uuid === uuid);
+        const dev = get().devices.find(d => d.uuid === uuid);
         if (!dev) return;
-        try {
-            await userApi.deleteDevice(dev.id);
-            set(s => ({ devices: s.devices.filter(d => d.uuid !== uuid) }));
-        } catch (e) {
-            console.error('deleteDevice failed', e);
-        }
+        await userApi.deleteDevice(dev.id);
+        set(s => ({ devices: s.devices.filter(d => d.uuid !== uuid) }));
     },
 
     createConfig: async (deviceId, country = 'NL') => {
-        try {
-            const config = await userApi.createConfig(deviceId, country);
-            set(s => ({ configs: [...s.configs, config] }));
-        } catch (e) {
-            console.error('createConfig failed', e);
-        }
+        const config = await userApi.createConfig(deviceId, country);
+        set(s => ({ configs: [...s.configs, config] }));
     },
 }));

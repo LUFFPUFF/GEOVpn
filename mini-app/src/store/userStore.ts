@@ -8,8 +8,9 @@ import {
     DeviceLimitStatus,
     LeaderboardEntry
 } from '../types/api';
+import { TRANSLATIONS, Lang, Translations } from '../utils/translations';
 
-export type TabId = 'home' | 'payments' | 'profile' | 'subscriptions';
+export type TabId = 'home' | 'payments' | 'profile' | 'subscriptions' | 'leaderboard';
 
 function detectDeviceType(): string {
     const ua = navigator.userAgent.toLowerCase();
@@ -18,11 +19,23 @@ function detectDeviceType(): string {
     return 'WINDOWS';
 }
 
+function detectLang(): Lang {
+    const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
+    // Расширенный список определения языков
+    if (tgLang === 'tg') return 'tg';
+    if (tgLang === 'uz') return 'uz';
+    if (tgLang === 'fa') return 'fa';
+    if (tgLang === 'ar') return 'ar';
+    if (tgLang === 'en') return 'en';
+    if (tgLang === 'tt') return 'tt';
+    return 'ru';
+}
+
 interface UserStore {
-    user:    UserResponse | null;
-    stats:   UserStatsResponse | null;
-    devices: DeviceResponse[];
-    configs: VpnConfigResponse[];
+    user:        UserResponse | null;
+    stats:       UserStatsResponse | null;
+    devices:     DeviceResponse[];
+    configs:     VpnConfigResponse[];
     leaderboard: LeaderboardEntry[];
     deviceLimit: DeviceLimitStatus | null;
 
@@ -30,64 +43,59 @@ interface UserStore {
     loading:   boolean;
     error:     string | null;
 
-    t: typeof RU;
+    lang: Lang;
+    t:    Translations;
 
-    fetchAll:            () => Promise<void>;
-    setActiveTab:        (tab: TabId) => void;
+    setLanguage:          (lang: Lang) => void;
+    fetchAll:             () => Promise<void>;
+    setActiveTab:         (tab: TabId) => void;
     purchaseSubscription: (planId: string, months?: number, promo?: boolean) => Promise<boolean>;
-    addDevice:           (name: string, type: string) => Promise<void>;
-    deleteDevice:        (uuid: string) => Promise<void>;
-    createConfig:        (deviceId: number, country?: string) => Promise<void>;
-    fetchLeaderboard:    () => Promise<void>;
+    addDevice:            (name: string, type: string) => Promise<void>;
+    deleteDevice:         (uuid: string) => Promise<void>;
+    createConfig:         (deviceId: number, country?: string) => Promise<void>;
+    fetchLeaderboard:     () => Promise<void>;
 }
 
-const RU = {
-    dashboard: 'Дашборд',
-    shop:      'Магазин',
-    settings:  'Настройки',
-    balance:   'Баланс',
-    active:    'Активна',
-    inactive:  'Неактивна',
-    remains:   'Осталось',
-    days:      'дней',
-};
+const initialLang: Lang = (() => {
+    try { return detectLang(); } catch { return 'ru'; }
+})();
 
 export const useUserStore = create<UserStore>((set, get) => ({
-    user:      null,
-    stats:     null,
-    devices:   [],
-    configs:   [],
-    activeTab: 'home',
-    loading:   false,
-    error:     null,
-    t:         RU,
+    user:        null,
+    stats:       null,
+    devices:     [],
+    configs:     [],
+    activeTab:   'home',
+    loading:     false,
+    error:       null,
+    lang:        initialLang,
+    t:           TRANSLATIONS[initialLang],
     deviceLimit: null,
     leaderboard: [],
+
+    setLanguage: (lang: Lang) => {
+        set({ lang, t: TRANSLATIONS[lang] });
+    },
 
     setActiveTab: (tab) => set({ activeTab: tab }),
 
     fetchAll: async () => {
         set({ loading: true, error: null });
         try {
-            const profilePromise = userApi.getProfile().catch(e => { console.error('Profile error:', e); return null; });
-            const devicesPromise = userApi.getDevices().catch(e => { console.error('Devices error:', e); return []; });
-            const configsPromise = userApi.getConfigs().catch(e => { console.error('Configs error:', e); return []; });
-            const limitPromise = userApi.getDeviceLimit().catch(e => { console.error('Limit error:', e); return null; });
-
             const [profile, devices, configs, limit] = await Promise.all([
-                profilePromise,
-                devicesPromise,
-                configsPromise,
-                limitPromise
+                userApi.getProfile().catch(e => { console.error('Profile error:', e); return null; }),
+                userApi.getDevices().catch(e => { console.error('Devices error:', e); return []; }),
+                userApi.getConfigs().catch(e => { console.error('Configs error:', e); return []; }),
+                userApi.getDeviceLimit().catch(e => { console.error('Limit error:', e); return null; }),
             ]);
 
             if (profile) {
                 set({ user: profile, devices, configs, deviceLimit: limit, loading: false });
             } else {
-                set({ error: "Не удалось загрузить профиль", loading: false });
+                set({ error: 'Не удалось загрузить профиль', loading: false });
             }
         } catch (error: any) {
-            console.error("Critical fetchAll error:", error);
+            console.error('Critical fetchAll error:', error);
             set({ error: error.message, loading: false });
         }
     },
@@ -106,7 +114,6 @@ export const useUserStore = create<UserStore>((set, get) => ({
         try {
             const updatedUser = await userApi.purchaseSubscription(planId, months, promo);
 
-            // Если мы просили промо, сервер вернул статус 200, но тип остался PAYG — значит акция уже использована
             if (promo && updatedUser.subscriptionType === 'PAYG') {
                 set({ loading: false });
                 return false;
@@ -121,7 +128,6 @@ export const useUserStore = create<UserStore>((set, get) => ({
                     ? `${tgUser.first_name}'s Device`
                     : 'My Device';
                 const deviceType = detectDeviceType();
-
                 try {
                     const newDevice = await userApi.registerDevice(deviceName, deviceType);
                     devices = [newDevice];
@@ -143,12 +149,10 @@ export const useUserStore = create<UserStore>((set, get) => ({
 
             set({ loading: false });
             return true;
-
         } catch (e: any) {
             const msg = e?.response?.data?.error?.message || 'Ошибка сервера при оплате';
             set({ error: msg, loading: false });
             console.error('Purchase failed:', e);
-            // Пробрасываем ошибку дальше, чтобы компонент знал, что произошла ошибка сети/бэкенда, а не отказ в акции
             throw e;
         }
     },

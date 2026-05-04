@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import './index.css';
 import { useTelegram } from './hooks/useTelegram';
 import { useUserStore } from './store/userStore';
-import { userApi } from './api/user'; // Импортируем твой API сервис
+import { userApi } from './api/user';
 import Header from './components/layout/Header';
 import BottomNav from './components/layout/BottomNav';
 import Home from './pages/Home';
@@ -19,18 +19,16 @@ export default function App() {
         if (!tg) return;
 
         expand();
-
         tg.setHeaderColor?.('#000000');
         tg.setBackgroundColor?.('#000000');
 
+        // Отключаем нативный свайп-закрыть в TMA
+        tg.disableVerticalSwipes?.();
+
         if (tg.platform) {
             userApi.syncDevice(tg.platform)
-                .then(device => {
-                    console.log('[App] Device synced successfully:', device.deviceType);
-                })
-                .catch(err => {
-                    console.error('[App] Device sync failed:', err);
-                });
+                .then(device => console.log('[App] Device synced:', device.deviceType))
+                .catch(err  => console.error('[App] Device sync failed:', err));
         }
 
         const setHeight = () => {
@@ -40,7 +38,6 @@ export default function App() {
 
         setHeight();
         tg.onEvent('viewportChanged', setHeight);
-
         return () => tg.offEvent('viewportChanged', setHeight);
     }, [tg, expand]);
 
@@ -48,15 +45,16 @@ export default function App() {
         fetchAll();
     }, [fetchAll]);
 
-
     return (
         <div
-            className="text-white relative flex flex-col overflow-hidden"
-            style={{ height: 'var(--tg-height, 100dvh)' }}
+            className="text-white flex flex-col relative"
+            style={{ height: 'var(--tg-height, 100dvh)', overflow: 'hidden' }}
         >
+            {/* Хедер — фиксированная высота сверху */}
             <Header />
 
-            <main className="relative z-10 flex-1 overflow-y-auto px-4 custom-scrollbar pb-safe">
+            {/* Контент страниц — скроллится внутри, отступ под навбар встроен в page-scroll */}
+            <main className="page-scroll px-4 relative z-10 custom-scrollbar">
                 {activeTab === 'home'          && <Home />}
                 {activeTab === 'profile'       && <Profile />}
                 {activeTab === 'payments'      && <Payments />}
@@ -64,6 +62,7 @@ export default function App() {
                 {activeTab === 'leaderboard'   && <Leaderboard />}
             </main>
 
+            {/* Нижняя навигация */}
             <BottomNav />
         </div>
     );

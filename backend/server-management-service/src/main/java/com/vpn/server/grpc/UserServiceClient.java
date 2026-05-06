@@ -10,7 +10,7 @@ import com.vpn.common.dto.response.UserResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "user-service", url = "http://localhost:8082", configuration = FeignClientConfiguration.class)
+@FeignClient(name = "user-service", url = "${USER_SERVICE_URL}", configuration = FeignClientConfiguration.class)
 public interface UserServiceClient {
 
     @PostMapping("/api/v1/users/register")

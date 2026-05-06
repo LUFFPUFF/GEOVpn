@@ -1,27 +1,29 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
     host: true,
-    allowedHosts: ['directly-bali-permissions-ellen.trycloudflare.com'],
     proxy: {
       '/api': {
-        target: 'https://convertible-filed-combo-marble.trycloudflare.com',
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Sending Request to the Target:', req.method, req.url);
-          });
-        },
       }
     }
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    outDir: 'dist',
+    minify: 'terser',
+    sourcemap: false
   }
 })

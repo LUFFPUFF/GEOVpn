@@ -13,13 +13,20 @@ import {
     ApiResponse
 } from '../types/api';
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const INTERNAL_SECRET = import.meta.env.VITE_INTERNAL_SECRET;
+const DEFAULT_ADMIN_ID = import.meta.env.VITE_DEFAULT_ADMIN_ID;
+
 export const apiClient = axios.create({
-    baseURL: '/api/v1',
+    baseURL: BASE_URL,
 });
 
 apiClient.interceptors.request.use((config) => {
-    config.headers['X-Internal-Secret'] = '53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3';
-    config.headers['X-User-Id'] = '858441917';
+    config.headers['X-Internal-Secret'] = INTERNAL_SECRET;
+
+    if (!config.headers['X-User-Id']) {
+        config.headers['X-User-Id'] = DEFAULT_ADMIN_ID;
+    }
     return config;
 });
 

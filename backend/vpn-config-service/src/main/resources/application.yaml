@@ -5,12 +5,12 @@ spring:
   application:
     name: vpn-config-service
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    active: ${SPRING_PROFILES_ACTIVE:prod}
 
   datasource:
-    url: jdbc:postgresql://${PRODUCTION_DB_HOST}:${PRODUCTION_DB_PORT}/${PRODUCTION_DB_NAME}
-    username: ${PRODUCTION_DB_USER}
-    password: ${PRODUCTION_DB_PASSWORD}
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -20,37 +20,29 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO}
-    show-sql: true
+    show-sql: ${SHOW_SQL}
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        jdbc:
-          batch_size: 20
-        order_inserts: true
-        order_updates: true
 
   flyway:
-    enabled: true
+    enabled: ${FLYWAY_ENABLED}
     baseline-on-migrate: true
     locations: classpath:db/migration
-    validate-on-migrate: true
-
 
   data:
     redis:
-      host: ${PRODUCTION_REDIS_HOST}
-      port: ${PRODUCTION_REDIS_PORT:}
-      password: ${PRODUCTION_REDIS_PASSWORD}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
       timeout: 2000ms
-
 
   cache:
     type: redis
     redis:
       time-to-live: ${CACHE_TTL}
-
 
 feign:
   client:
@@ -58,59 +50,51 @@ feign:
       default:
         connectTimeout: 5000
         readTimeout: 10000
-        loggerLevel: basic
       server-management-service:
-        url: ${SERVER_MANAGEMENT_URL}
-
+        url: ${SERVER_MGM_SERVICE_URL}
 
 resilience4j:
   circuitbreaker:
     instances:
       serverManagement:
         sliding-window-size: 10
-        minimum-number-of-calls: 5
         failure-rate-threshold: 50
         wait-duration-in-open-state: 30s
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
-
   retry:
     instances:
       serverManagement:
         max-attempts: 3
         wait-duration: 1s
-        enable-exponential-backoff: true
-        exponential-backoff-multiplier: 2
-
 
 vpn:
   relay:
     ru:
-      ip: "158.160.42.244"
+      ip: ${VPN_RELAY_IP}
     panel:
-      url: "http://158.160.42.244:2053"
-      username: "Nikita"
-      password: "nikita090504"
-      inbound-id: 1
+      url: ${VPN_RELAY_PANEL_URL}
+      username: ${VPN_RELAY_USER}
+      password: ${VPN_RELAY_PASS}
+      inbound-id: ${VPN_RELAY_INBOUND_ID}
   panel:
-    url: "http://138.124.25.157:8080/KYXGHDe0daDDp5cZsb"
-    username: "abe5y0JzJj"
-    password: "cnyaqUnhVv"
-    inbound-id: 1
+    url: ${VPN_MAIN_PANEL_URL}
+    username: ${VPN_MAIN_PANEL_USER}
+    password: ${VPN_MAIN_PANEL_PASS}
+    inbound-id: ${VPN_MAIN_INBOUND_ID}
+
   config:
     vless:
       default-sni: "www.microsoft.com"
       default-fingerprint: "chrome"
       flow: "xtls-rprx-vision"
       network-type: "tcp"
-      relay-server-address: http://158.160.42.244:2053/
+      relay-server-address: "http://${VPN_RELAY_IP}:2053/"
       relay-server-port: 443
 
     hysteria2:
       enabled: true
-      port: 15594
-      password: "25bfe47e"
-      sni: "www.bing.com"
+      port: ${HY2_PORT}
+      password: ${HY2_PASS}
+      sni: ${HY2_SNI}
       obfs:
         type: salamander
         password: ""
@@ -124,54 +108,40 @@ vpn:
 
     selection:
       weights:
-        latency: 0.30      # 30% - Скорость отклика
-        load: 0.20         # 20% - Загрузка сервера
-        geography: 0.25    # 25% - Географическая близость
-        health: 0.15       # 15% - Состояние сервера
-        protocol: 0.10     # 10% - Поддержка протокола
-
-        # Географические бонусы по странам
+        latency: 0.30
+        load: 0.20
+        geography: 0.25
+        health: 0.15
+        protocol: 0.10
       geography-bonus:
         default:
-          LV: 25  # Latvia - ближайшая
-          FI: 20  # Finland - очень близко
-          NL: 15  # Netherlands - хорошее соединение
-          DE: 12  # Germany
-          PL: 10  # Poland
-          EE: 18  # Estonia
-          SE: 17  # Sweden
-
-        # Для европейских пользователей
+          LV: 25
+          FI: 20
+          NL: 15
+          DE: 12
+          PL: 10
+          EE: 18
+          SE: 17
         EU:
-          NL: 25  # Netherlands - центр Европы
-          DE: 23  # Germany
-          FR: 20  # France
-          UK: 18  # United Kingdom
-          PL: 15  # Poland
-
-        # Для азиатских пользователей
+          NL: 25
+          DE: 23
+          FR: 20
+          UK: 18
+          PL: 15
         ASIA:
-          SG: 25  # Singapore
-          JP: 23  # Japan
-          HK: 20  # Hong Kong
-          KR: 18  # South Korea
+          SG: 25
+          JP: 23
+          HK: 20
+          KR: 18
 
     latency:
       multiplier: 0.5
       max-acceptable-ms: 200
-      excellent-threshold: 20
-      good-threshold: 50
-
-
-    load:
-      critical-threshold: 90.0
-      warning-threshold: 70.0
-      optimal-threshold: 50.0
 
 service:
   security:
     internal-secret: ${INTERNAL_SECRET}
-    admin-token: YRqDAzgXLn29n/LcBnYYu7tQzgYEEikl0X5TYHrrwyiWgo+lBtlaJSD5MGp2j3YLB9u/xZu3jgK+540nyvpESA==
+    admin-token: ${ADMIN_TOKEN}
     admins: ${ADMIN_USER_IDS}
 
 mock:
@@ -183,18 +153,8 @@ management:
     web:
       exposure:
         include: ${MONITORING_ENDPOINTS}
-  endpoint:
-    health:
-      show-details: always
-  metrics:
-    tags:
-      application: ${spring.application.name}
 
 logging:
   level:
     root: INFO
-    com.vpn.config: DEBUG
-    org.springframework.cloud.openfeign: DEBUG
-    io.github.resilience4j: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    com.vpn.config: INFO

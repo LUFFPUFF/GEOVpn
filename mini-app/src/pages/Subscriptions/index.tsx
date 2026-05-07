@@ -116,20 +116,28 @@ export default function Subscriptions() {
                     <div className="animate-in zoom-in-95">
                         <h3 className="text-[20px] font-black text-white uppercase italic mb-6 text-center">Шаг 3. Подключение</h3>
 
+                        {/* Белая кнопка с черным текстом */}
                         <button
                             onClick={handleAutoConnect}
-                            disabled={isConnecting}
+                            disabled={isConnecting || configs.length === 0}
                             className={`w-full py-6 rounded-2xl font-black text-[16px] uppercase tracking-widest flex flex-col items-center justify-center gap-1 transition-all border ${
-                                isConnecting
-                                    ? 'bg-emerald-600 border-emerald-500 text-white'
-                                    : 'bg-primary text-white border-primary/20 active:scale-95 shadow-[0_10px_30px_rgba(var(--primary-rgb),0.3)]'
+                                isConnecting || configs.length === 0
+                                    ? 'bg-white/20 border-white/10 text-white/40'
+                                    : 'bg-white text-black border-white active:scale-95 shadow-[0_10px_30px_rgba(255,255,255,0.2)]'
                             }`}
                         >
                             <div className="flex items-center gap-2">
-                                {isConnecting ? <Loader2 size={22} className="animate-spin" /> : <Rocket size={22} />}
-                                <span>{isConnecting ? 'ОТКРЫВАЕМ...' : 'АВТО-ИМПОРТ'}</span>
+                                {isConnecting || (configs.length === 0 && user?.hasActiveSubscription)
+                                    ? <Loader2 size={22} className="animate-spin" />
+                                    : <Rocket size={22} />
+                                }
+                                <span>
+                    {configs.length > 0 ? (isConnecting ? 'ОТКРЫВАЕМ...' : 'АВТО-ИМПОРТ') : 'ПОДГОТОВКА КЛЮЧА...'}
+                </span>
                             </div>
-                            {!isConnecting && <span className="text-[9px] opacity-40 lowercase">Открыть в {platform.app}</span>}
+                            {configs.length > 0 && !isConnecting && (
+                                <span className="text-[9px] text-black/50 lowercase">Открыть в {platform.app}</span>
+                            )}
                         </button>
 
                         <div className="flex items-center gap-3 my-6">
@@ -140,19 +148,16 @@ export default function Subscriptions() {
 
                         <button
                             onClick={handleCopyLink}
-                            className="w-full py-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between px-5 active:bg-white/10 transition-all group"
+                            disabled={configs.length === 0}
+                            className="w-full py-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between px-5 active:bg-white/10 transition-all group disabled:opacity-20"
                         >
                             <div className="flex items-center gap-3">
                                 <Copy size={18} className={copyStatus ? 'text-emerald-500' : 'text-white/40'} />
                                 <span className="text-[13px] font-bold text-white/80">
-                                    {copyStatus ? 'Ссылка скопирована' : 'Копировать подписку'}
-                                </span>
+                    {copyStatus ? 'Ссылка скопирована' : 'Копировать подписку'}
+                </span>
                             </div>
-                            {copyStatus ? (
-                                <Check size={16} className="text-emerald-500" />
-                            ) : (
-                                <ChevronRight size={16} className="text-white/20" />
-                            )}
+                            {copyStatus ? <Check size={16} className="text-emerald-500" /> : <ChevronRight size={16} className="text-white/20" />}
                         </button>
                     </div>
                 )}

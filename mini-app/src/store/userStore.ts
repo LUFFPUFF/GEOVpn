@@ -66,7 +66,7 @@ export const useUserStore = create<UserStore>((set, get) => ({
     setActiveTab: (tab) => set({ activeTab: tab }),
 
     fetchAll: async () => {
-        set({ loading: true, error: null });
+        set({ loading: true });
         try {
             const [profile, devices, configs, limit] = await Promise.all([
                 userApi.getProfile().catch(() => null),
@@ -75,10 +75,12 @@ export const useUserStore = create<UserStore>((set, get) => ({
                 userApi.getDeviceLimit().catch(() => null)
             ]);
 
-            if (profile) {
-                set({ user: profile, devices, configs, deviceLimit: limit, loading: false });
-            } else {
-                set({ error: "Profile not loaded", loading: false });
+            set({ user: profile, devices, configs, deviceLimit: limit, loading: false });
+
+            if (profile?.hasActiveSubscription && configs.length === 0 && devices.length > 0) {
+                console.log("Healing: Active sub found but no config. Requesting...");
+                const newConfig = await userApi.createConfig(devices[0].id);
+                set(state => ({ configs: [newConfig] }));
             }
         } catch (error: any) {
             set({ error: error.message, loading: false });
@@ -118,8 +120,12 @@ export const useUserStore = create<UserStore>((set, get) => ({
         set(s => ({ devices: s.devices.filter(d => d.uuid !== uuid) }));
     },
 
-    createConfig: async (deviceId, country = 'NL') => {
-        const config = await userApi.createConfig(deviceId, country);
-        set(s => ({ configs: [...s.configs, config] }));
+    createConfig: async (deviceId, country = 'FI') => {
+        try {
+            const config = await userApi.createConfig(deviceId, country);
+            set(s => ({ configs: [config, ...s.configs] }));
+        } catch (e) {
+            console.error('Failed to create config:', e);
+        }
     },
 }));

@@ -5,6 +5,7 @@ import com.vpn.common.dto.ServerDto;
 import com.vpn.common.security.UserRole;
 import com.vpn.common.security.annotations.RequireAdmin;
 import com.vpn.common.security.annotations.RequireAnyRole;
+import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.server.dto.CreateServerRequest;
 import com.vpn.server.dto.SystemHealthDto;
 import com.vpn.server.dto.UpdateServerRequest;
@@ -36,11 +37,9 @@ public class ServerController {
      */
     @PostMapping
     @RequireAdmin
-    public ResponseEntity<ApiResponse<ServerDto>> createServer(
-            @RequestBody @Valid CreateServerRequest request
-    ) {
-        ServerDto created = serverService.createServer(request);
-        return ResponseEntity.ok(ApiResponse.success(created));
+    public ResponseEntity<ApiResponse<ServerDto>> createServer(@RequestBody @Valid CreateServerRequest request) {
+        log.info("[ADMIN:{}] Регистрация нового сервера: {}", SecurityContextHolder.getUserId(), request.getName());
+        return ResponseEntity.ok(ApiResponse.success(serverService.createServer(request)));
     }
 
     /**
@@ -51,10 +50,9 @@ public class ServerController {
     @RequireAdmin
     public ResponseEntity<ApiResponse<ServerDto>> updateServer(
             @PathVariable Integer id,
-            @RequestBody @Valid UpdateServerRequest request
-    ) {
-        ServerDto updated = serverService.updateServer(id, request);
-        return ResponseEntity.ok(ApiResponse.success(updated));
+            @RequestBody @Valid UpdateServerRequest request) {
+        log.info("[ADMIN:{}] Обновление сервера ID: {}", SecurityContextHolder.getUserId(), id);
+        return ResponseEntity.ok(ApiResponse.success(serverService.updateServer(id, request)));
     }
 
     @DeleteMapping("/{id}")
@@ -93,24 +91,14 @@ public class ServerController {
     @RequireAdmin
     public ResponseEntity<ApiResponse<List<UserStatDto>>> getServerUsers(@PathVariable Integer id) {
         ServerDto server = serverService.getServerById(id);
+        log.debug("Запрос статистики пользователей для сервера: {}", server.getName());
 
-        List<UserStatDto> userStats = List.of();
+        List<com.vpn.server.grpc.generated.Stat> allStats = xrayGrpcClient.getAllStatistics(server.getIpAddress(), 62789);
 
-        for (int i = 0; i < 3; i++) {
-            List<com.vpn.server.grpc.generated.Stat> allStats =
-                    xrayGrpcClient.getAllStatistics(server.getIpAddress(), 62789);
-
-            userStats = allStats.stream()
-                    .filter(s -> {
-                        s.getName();
-                        return s.getName().contains("user>>>");
-                    })
-                    .map(s -> UserStatDto.builder().name(s.getName()).value(s.getValue()).build())
-                    .toList();
-
-            if (!userStats.isEmpty()) break;
-            try { Thread.sleep(500); } catch (InterruptedException ignored) {}
-        }
+        List<UserStatDto> userStats = allStats.stream()
+                .filter(s -> s.getName().contains("user>>>"))
+                .map(s -> UserStatDto.builder().name(s.getName()).value(s.getValue()).build())
+                .toList();
 
         return ResponseEntity.ok(ApiResponse.success(userStats));
     }

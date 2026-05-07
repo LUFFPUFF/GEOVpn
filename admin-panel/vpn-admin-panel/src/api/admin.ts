@@ -22,11 +22,9 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-    config.headers['X-Internal-Secret'] = INTERNAL_SECRET;
+    if (INTERNAL_SECRET) config.headers['X-Internal-Secret'] = INTERNAL_SECRET;
+    if (DEFAULT_ADMIN_ID) config.headers['X-User-Id'] = DEFAULT_ADMIN_ID;
 
-    if (!config.headers['X-User-Id']) {
-        config.headers['X-User-Id'] = DEFAULT_ADMIN_ID;
-    }
     return config;
 });
 

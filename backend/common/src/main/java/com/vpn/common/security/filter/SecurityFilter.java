@@ -96,7 +96,12 @@ public class SecurityFilter extends OncePerRequestFilter {
         if (internalSecretHeader != null && !internalSecretHeader.isBlank()
                 && internalSecretHeader.equals(internalSecret)) {
             roles.add(UserRole.SERVICE);
+            roles.add(UserRole.ADMIN);
             isInternal = true;
+
+            if (request.getHeader(HEADER_USER_ID) == null) {
+                builder.userId(-1L);
+            }
         }
 
         String adminTokenHeader = request.getHeader(HEADER_ADMIN_TOKEN);

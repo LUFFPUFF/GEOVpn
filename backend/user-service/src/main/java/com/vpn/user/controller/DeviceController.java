@@ -6,6 +6,7 @@ import com.vpn.common.dto.ErrorResponse;
 import com.vpn.common.dto.request.DeviceCreateRequest;
 import com.vpn.common.dto.response.DeviceResponse;
 import com.vpn.common.security.annotations.RequireUser;
+import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.user.service.interf.DeviceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,25 +32,21 @@ public class DeviceController {
     @PostMapping
     @RequireUser
     public ResponseEntity<ApiResponse<DeviceResponse>> registerDevice(
-            @RequestHeader("X-User-Id") Long telegramId,
             @Valid @RequestBody DeviceCreateRequest request) {
 
-        request.setUserId(telegramId);
-
+        request.setUserId(SecurityContextHolder.getUserId());
         DeviceResponse response = deviceService.createDevice(request);
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
     @PostMapping("/sync")
     @RequireUser
     public ResponseEntity<ApiResponse<DeviceResponse>> syncDevice(
-            @RequestHeader("X-User-Id") Long telegramId,
             @RequestBody Map<String, String> payload) {
 
+        Long telegramId = SecurityContextHolder.getUserId();
         String platform = payload.get("platform");
-
         DeviceResponse response = deviceService.syncDeviceWithPlatform(telegramId, platform);
 
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -60,9 +57,8 @@ public class DeviceController {
      */
     @GetMapping
     @RequireUser
-    public ResponseEntity<ApiResponse<List<DeviceResponse>>> getMyDevices(
-            @RequestHeader("X-User-Id") Long telegramId) {
-
+    public ResponseEntity<ApiResponse<List<DeviceResponse>>> getMyDevices() {
+        Long telegramId = SecurityContextHolder.getUserId();
         List<DeviceResponse> devices = deviceService.getUserActiveDevices(telegramId);
         return ResponseEntity.ok(ApiResponse.success(devices));
     }

@@ -54,16 +54,11 @@ public class XrayConfigController {
      */
     @GetMapping("/{deviceId}/download-url")
     @RequireUser
-    public ResponseEntity<ApiResponse<String>> getConfigDownloadUrl(
-            @PathVariable Long deviceId
-    ) {
+    public ResponseEntity<ApiResponse<String>> getConfigDownloadUrl(@PathVariable Long deviceId) {
         Long userId = SecurityContextHolder.getUserId();
 
-        log.info("🔗 Запрос URL для скачивания конфига: userId={}, deviceId={}",
-                userId, deviceId);
-
         String downloadUrl = String.format(
-                "https://api.geovpn.com/api/v1/configs/%d/xray.json",
+                "https://geovp.ru/api/v1/configs/%d/xray.json",
                 deviceId
         );
 

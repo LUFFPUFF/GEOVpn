@@ -5,7 +5,6 @@ import {
 } from '../types/api';
 
 export const userApi = {
-    /* User */
     getProfile: (): Promise<UserResponse> =>
         apiClient.get<ApiResponse<UserResponse>>('/users/me').then(r => r.data.data),
 
@@ -22,7 +21,6 @@ export const userApi = {
         }).then(r => r.data.data);
     },
 
-    /* Devices */
     getDevices: (): Promise<DeviceResponse[]> =>
         apiClient.get<ApiResponse<DeviceResponse[]>>('/devices').then(r => r.data.data),
 
@@ -40,13 +38,11 @@ export const userApi = {
         apiClient.get<ApiResponse<VpnConfigResponse[]>>('/configs/configs').then(r => r.data.data),
 
     createConfig: (deviceId: number, countryCode = 'NL'): Promise<VpnConfigResponse> => {
-    const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-    return apiClient.post<ApiResponse<VpnConfigResponse>>('/configs', {
-        deviceId,
-        countryCode,
-        userId: tgId
-    }).then(r => r.data.data);
-},
+        return apiClient.post<ApiResponse<VpnConfigResponse>>('/configs', {
+            deviceId,
+            countryCode
+        }).then(r => r.data.data);
+    },
 
     getConfigByDevice: (deviceId: number): Promise<VpnConfigResponse> =>
         apiClient.get<ApiResponse<VpnConfigResponse>>(`/configs/configs/${deviceId}`)
@@ -56,10 +52,7 @@ export const userApi = {
         apiClient.get<ApiResponse<LeaderboardEntry[]>>('/users/leaderboard').then(r => r.data.data),
 
     syncDevice: (platform: string): Promise<DeviceResponse> => {
-        const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-        return apiClient.post<ApiResponse<DeviceResponse>>('/devices/sync',
-            { platform },
-            { headers: { 'X-User-Id': tgId } }
-        ).then(r => r.data.data);
+        return apiClient.post<ApiResponse<DeviceResponse>>('/devices/sync', { platform })
+            .then(r => r.data.data);
     }
 };

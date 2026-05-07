@@ -7,6 +7,7 @@ import com.vpn.common.security.UserRole;
 import com.vpn.common.security.annotations.Public;
 import com.vpn.common.security.annotations.RequireAnyRole;
 import com.vpn.common.security.annotations.RequireUser;
+import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.common.util.StringUtils;
 import com.vpn.common.dto.request.ConfigCreateRequest;
 import com.vpn.common.dto.request.ConfigRegenerateRequest;
@@ -38,16 +39,14 @@ public class VpnConfigController {
     @PostMapping
     @RequireAnyRole({UserRole.USER, UserRole.SERVICE})
     public ResponseEntity<ApiResponse<VpnConfigResponse>> createConfig(
-            @RequestHeader("X-User-Id") Long telegramId,
             @Valid @RequestBody ConfigCreateRequest request) {
 
+        Long telegramId = SecurityContextHolder.getUserId();
         request.setUserTelegramId(telegramId);
         request.setUserId(telegramId);
 
         VpnConfigResponse response = vpnConfigService.createConfig(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
     /**
@@ -67,9 +66,8 @@ public class VpnConfigController {
      */
     @GetMapping("/configs")
     @RequireUser
-    public ResponseEntity<ApiResponse<List<VpnConfigResponse>>> getMyConfigs(
-            @RequestHeader("X-User-Id") Long telegramId) {
-
+    public ResponseEntity<ApiResponse<List<VpnConfigResponse>>> getMyConfigs() {
+        Long telegramId = SecurityContextHolder.getUserId();
         List<VpnConfigResponse> configs = vpnConfigService.getActiveConfigs(telegramId);
         return ResponseEntity.ok(ApiResponse.success(configs));
     }
@@ -79,16 +77,12 @@ public class VpnConfigController {
      */
     @GetMapping("/configs/{deviceId}")
     @RequireUser
-    public ResponseEntity<ApiResponse<VpnConfigResponse>> getConfigByDeviceId(
-            @RequestHeader("X-User-Id") Long telegramId,
-            @PathVariable("deviceId") Long deviceId) {
-
+    public ResponseEntity<ApiResponse<VpnConfigResponse>> getConfigByDeviceId(@PathVariable Long deviceId) {
+        Long telegramId = SecurityContextHolder.getUserId();
         if (!vpnConfigService.isConfigOwnedByUser(deviceId, telegramId)) {
             return buildConfigNotFoundResponse();
         }
-
-        VpnConfigResponse response = vpnConfigService.getConfigByDeviceId(deviceId);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(vpnConfigService.getConfigByDeviceId(deviceId)));
     }
 
     /**
@@ -126,8 +120,7 @@ public class VpnConfigController {
     @GetMapping(value = "/import-happ/{uuid}", produces = MediaType.TEXT_HTML_VALUE)
     @Public
     public ResponseEntity<String> redirectHapp(@PathVariable("uuid") UUID vlessUuid) {
-
-        String baseUrl = "https://ctrl-requirement-authentic-technician.trycloudflare.com";
+        String baseUrl = "https://geovp.ru";
         String subscriptionUrl = baseUrl + "/api/v1/configs/subscription/" + vlessUuid;
 
         String encodedUrl = java.net.URLEncoder.encode(subscriptionUrl, java.nio.charset.StandardCharsets.UTF_8);
@@ -136,26 +129,17 @@ public class VpnConfigController {
         String html = """
             <!DOCTYPE html>
             <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>GeoVPN Import</title>
-            </head>
+            <head><meta charset="UTF-8"><title>GeoVPN Import</title></head>
             <body style="background: #0a0a0f; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; margin: 0;">
-                <div style="text-align: center; padding: 20px;">
+                <div style="text-align: center;">
                     <div style="font-size: 50px; margin-bottom: 20px;">🚀</div>
-                    <h2 style="margin-bottom: 10px;">Открываем Happ Proxy...</h2>
-                    <p style="color: #888; font-size: 14px;">Если приложение не открылось автоматически,<br>нажмите на кнопку ниже:</p>
+                    <h2>Открываем Happ Proxy...</h2>
                     <a href="%s" style="display: inline-block; margin-top: 20px; padding: 15px 30px; background: #ed8936; color: white; text-decoration: none; border-radius: 12px; font-weight: bold;">ОТКРЫТЬ HAPP</a>
-                    <script>
-                        // Пробуем открыть сразу
-                        window.location.href = "%s";
-                        // Если не сработало, пробуем еще раз через секунду
-                        setTimeout(function() { window.location.href = "%s"; }, 1000);
-                    </script>
+                    <script>window.location.href = "%s";</script>
                 </div>
             </body>
             </html>
-            """.formatted(deepLink, deepLink, deepLink);
+            """.formatted(deepLink, deepLink);
 
         return ResponseEntity.ok(html);
     }

@@ -3,6 +3,7 @@ package com.vpn.config.controller;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.security.annotations.RequireAdmin;
 import com.vpn.common.security.annotations.RequireUser;
+import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.config.service.DeviceLimitService;
 import com.vpn.config.service.DeviceLimitService.DeviceLimitStatus;
 import jakarta.validation.Valid;
@@ -126,9 +127,8 @@ public class DeviceLimitController {
 
     @GetMapping("/api/v1/configs/limits/me")
     @RequireUser
-    public ResponseEntity<ApiResponse<DeviceLimitStatus>> getMyLimit(
-            @RequestHeader("X-User-Id") Long telegramId) {
-
+    public ResponseEntity<ApiResponse<DeviceLimitStatus>> getMyLimit() {
+        Long telegramId = SecurityContextHolder.getUserId();
         return ResponseEntity.ok(
                 ApiResponse.success(deviceLimitService.getStatus(telegramId)));
     }

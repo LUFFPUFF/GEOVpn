@@ -58,12 +58,7 @@ public class UserController {
             @RequestParam(value = "promo", defaultValue = "false") boolean promo) {
 
         Long telegramId = SecurityContextHolder.getUserId();
-        if (telegramId == null) {
-            throw new UnauthorizedException("User ID not found in security context");
-        }
-
         UserResponse response = userService.purchaseSubscription(telegramId, planName, months, promo);
-
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -75,8 +70,8 @@ public class UserController {
 
     @GetMapping("/me")
     @RequireUser
-    public ResponseEntity<ApiResponse<UserResponse>> getMyProfile(
-            @RequestHeader("X-User-Id") Long telegramId) {
+    public ResponseEntity<ApiResponse<UserResponse>> getMyProfile() {
+        Long telegramId = SecurityContextHolder.getUserId();
         return ResponseEntity.ok(ApiResponse.success(userService.getUserByTelegramId(telegramId)));
     }
 
@@ -90,8 +85,8 @@ public class UserController {
 
     @GetMapping("/me/stats")
     @RequireUser
-    public ResponseEntity<ApiResponse<UserStatsResponse>> getMyStats(
-            @RequestHeader("X-User-Id") Long telegramId) {
+    public ResponseEntity<ApiResponse<UserStatsResponse>> getMyStats() {
+        Long telegramId = SecurityContextHolder.getUserId();
         return ResponseEntity.ok(ApiResponse.success(userService.getUserStats(telegramId)));
     }
 
@@ -122,8 +117,8 @@ public class UserController {
 
     @GetMapping("/me/traffic")
     @RequireUser
-    public ResponseEntity<ApiResponse<TrafficStatsResponse>> getMyTrafficStats(
-            @RequestHeader("X-User-Id") Long telegramId) {
+    public ResponseEntity<ApiResponse<TrafficStatsResponse>> getMyTrafficStats() {
+        Long telegramId = SecurityContextHolder.getUserId();
         return ResponseEntity.ok(ApiResponse.success(userService.getTrafficStats(telegramId)));
     }
 

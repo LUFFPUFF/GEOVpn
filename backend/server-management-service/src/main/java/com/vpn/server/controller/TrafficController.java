@@ -4,10 +4,14 @@ import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.TrafficSessionDto;
 import com.vpn.common.dto.TrafficSummaryDto;
 import com.vpn.common.dto.projection.TrafficSummaryProjection;
+import com.vpn.common.security.UserRole;
+import com.vpn.common.security.annotations.RequireAnyRole;
+import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.server.dto.UserTrafficStatsDto;
 import com.vpn.server.repository.TrafficUsageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,12 +29,14 @@ public class TrafficController {
     private final TrafficUsageRepository trafficRepository;
 
     @GetMapping("/users/{userId}/summary")
-    public ApiResponse<TrafficSummaryDto> getTrafficSummary(@PathVariable Long userId) {
-        TrafficSummaryProjection projection = trafficRepository.sumTrafficByUserId(userId);
+    @RequireAnyRole({UserRole.USER, UserRole.ADMIN, UserRole.SERVICE})
+    public ResponseEntity<ApiResponse<TrafficSummaryDto>> getTrafficSummary(@PathVariable Long userId) {
 
+        validateAccessToUser(userId);
+
+        TrafficSummaryProjection projection = trafficRepository.sumTrafficByUserId(userId);
         Long bytesIn = (projection != null) ? projection.getBytesIn() : 0L;
         Long bytesOut = (projection != null) ? projection.getBytesOut() : 0L;
-
         Long costKopecks = trafficRepository.sumCostByUserId(userId);
 
         TrafficSummaryDto summary = TrafficSummaryDto.builder()
@@ -39,7 +45,7 @@ public class TrafficController {
                 .costKopecks(costKopecks != null ? costKopecks : 0L)
                 .build();
 
-        return ApiResponse.success(summary);
+        return ResponseEntity.ok(ApiResponse.success(summary));
     }
 
     @GetMapping("/users/{userId}/sessions")
@@ -60,9 +66,9 @@ public class TrafficController {
     }
 
     @GetMapping("/servers/{serverId}/stats")
-    public ApiResponse<List<UserTrafficStatsDto>> getServerTrafficStats(@PathVariable Integer serverId) {
+    @RequireAnyRole({UserRole.ADMIN, UserRole.SERVICE})
+    public ResponseEntity<ApiResponse<List<UserTrafficStatsDto>>> getServerTrafficStats(@PathVariable Integer serverId) {
         var stats = trafficRepository.findTrafficByServer(serverId);
-
         List<UserTrafficStatsDto> result = stats.stream().map(s ->
                 UserTrafficStatsDto.builder()
                         .userId(s.getUserId())
@@ -71,6 +77,19 @@ public class TrafficController {
                         .build()
         ).collect(Collectors.toList());
 
-        return ApiResponse.success(result);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    private void validateAccessToUser(Long targetUserId) {
+        Long currentUserId = SecurityContextHolder.getUserId();
+
+        if (SecurityContextHolder.isAdmin() || SecurityContextHolder.isService()) {
+            return;
+        }
+
+        if (!targetUserId.equals(currentUserId)) {
+            log.warn("Попытка несанкционированного доступа: Юзер {} пытался посмотреть трафик юзера {}", currentUserId, targetUserId);
+            throw new com.vpn.common.exception.ForbiddenException("Вы можете просматривать только свою статистику");
+        }
     }
 }

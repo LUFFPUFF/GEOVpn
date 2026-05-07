@@ -5,13 +5,11 @@ server:
   error:
     include-message: always
     include-binding-errors: always
-
 spring:
   application:
     name: user-service
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:prod}
-
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
     username: ${POSTGRES_USER}
@@ -24,7 +22,6 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
       pool-name: UserServiceHikariCP
-
   jpa:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO}
@@ -38,31 +35,26 @@ spring:
           batch_size: 20
         order_inserts: true
         order_updates: true
-
   flyway:
     enabled: ${FLYWAY_ENABLED}
     baseline-on-migrate: true
     locations: classpath:db/migration
     validate-on-migrate: true
-
   data:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD}
       timeout: 2000ms
-
   cache:
     type: redis
     redis:
       time-to-live: ${CACHE_TTL}
-
 service:
   security:
     internal-secret: ${INTERNAL_SECRET}
     admins: ${ADMIN_USER_IDS}
     admin-token: ${ADMIN_TOKEN}
-
 logging:
   level:
     root: ${LOG_LEVEL}
@@ -70,7 +62,6 @@ logging:
     org.hibernate.SQL: ${HIBERNATE_LOG_LEVEL}
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-
 management:
   endpoints:
     web:

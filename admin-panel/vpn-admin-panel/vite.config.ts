@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 export default defineConfig({
+base: '/admin/',
   plugins: [react()],
   server: {
     port: 5173,
@@ -18,7 +19,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
+    minify: false,
   },
   resolve: {
     alias: {

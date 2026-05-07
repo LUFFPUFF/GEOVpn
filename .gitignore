@@ -26,4 +26,5 @@ local-dev.yaml
 
 backend/.env
 
-admin-panel/.env
+admin-panel/.env.env
+docker-compose.yml

@@ -20,7 +20,7 @@ function App() {
     }
 
     return (
-        <BrowserRouter>
+        <BrowserRouter basename="/admin">
             <Routes>
                 {!isAuth ? (
                     <>

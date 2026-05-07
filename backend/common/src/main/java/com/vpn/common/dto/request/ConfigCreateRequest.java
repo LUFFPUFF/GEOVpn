@@ -15,14 +15,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ConfigCreateRequest {
 
-    @NotNull(message = "User ID is required")
     private Long userId;
 
     private Long userTelegramId;
 
     private String username;
 
-    @NotNull(message = "Device ID is required")
     private Long deviceId;
 
     private String preferredCountry;

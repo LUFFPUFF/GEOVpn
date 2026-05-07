@@ -60,8 +60,14 @@ logging:
     root: ${LOG_LEVEL}
     com.vpn: ${VPN_LOG_LEVEL}
     org.hibernate.SQL: ${HIBERNATE_LOG_LEVEL}
+    com.vpn.user.grpc: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+feign:
+  client:
+    config:
+      default:
+        loggerLevel: HEADERS
 management:
   endpoints:
     web:

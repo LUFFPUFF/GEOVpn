@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { userApi } from '../api/user';
+import { TRANSLATIONS, Lang } from '../utils/translations';
 import {
     UserResponse,
     UserStatsResponse,

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Конфигурация для Feign клиентов
  */
+@Configuration
 public class FeignClientConfiguration {
 
     @Value("${service.security.internal-secret}")

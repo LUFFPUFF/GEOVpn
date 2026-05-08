@@ -11,6 +11,8 @@ import Payments from './pages/Payments';
 import Subscriptions from './pages/Subscriptions';
 import Leaderboard from './pages/Leaderboard';
 
+import bgVideo from './assets/fon/bg.mp4';
+
 export default function App() {
     const { expand, tg } = useTelegram();
     const { activeTab, fetchAll } = useUserStore();
@@ -52,19 +54,35 @@ export default function App() {
     }, [tgReady]);
 
     return (
-        <div 
-            className="text-white flex flex-col relative"
+        <div
+            className="text-white flex flex-col relative bg-black"
             style={{ height: 'var(--tg-height, 100dvh)', overflow: 'hidden' }}
         >
-            <Header />
-            <main className="page-scroll px-4 relative z-10 custom-scrollbar pb-safe flex-1 overflow-y-auto">
-                {activeTab === 'home'          && <Home />}
-                {activeTab === 'profile'       && <Profile />}
-                {activeTab === 'payments'      && <Payments />}
-                {activeTab === 'subscriptions' && <Subscriptions />}
-                {activeTab === 'leaderboard'   && <Leaderboard />}
-            </main>
-            <BottomNav />
+            <video
+                key={activeTab}
+                src={bgVideo}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="fixed top-0 left-0 w-full h-full object-cover z-0 pointer-events-none"
+            />
+
+            <div className="fixed top-0 left-0 w-full h-full z-0 bg-black/40 pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col h-full w-full overflow-hidden">
+                <Header />
+
+                <main className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-24">
+                    {activeTab === 'home'          && <Home />}
+                    {activeTab === 'profile'       && <Profile />}
+                    {activeTab === 'payments'      && <Payments />}
+                    {activeTab === 'subscriptions' && <Subscriptions />}
+                    {activeTab === 'leaderboard'   && <Leaderboard />}
+                </main>
+
+                <BottomNav />
+            </div>
         </div>
     );
 }

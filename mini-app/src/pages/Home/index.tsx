@@ -81,11 +81,10 @@ export default function Home() {
                         width: `${totalSlides * 100}%`,
                     }}
                 >
-                    {/* Слайд 1: активная подписка */}
                     {hasSub && (
                         <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
-                            <div className="relative overflow-hidden rounded-[2.5rem] p-6 border border-white/10 bg-gradient-to-b from-[#12141d] to-[#0a0a0f] shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
-                                <div className="absolute top-[-20%] left-[-10%] w-[150%] h-[50%] bg-amber-500/10 blur-[80px] rounded-full pointer-events-none" />
+                            <div className="relative overflow-hidden rounded-[2.5rem] p-6 border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+                                <div className="absolute top-[-20%] left-[-10%] w-[150%] h-[50%] bg-amber-500/5 blur-[80px] rounded-full pointer-events-none" />
 
                                 <div className="flex justify-between items-start mb-5 relative z-10">
                                     <div className="flex items-center gap-3">
@@ -172,7 +171,7 @@ export default function Home() {
 
                     {/* Слайд 2: нет подписки */}
                     <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
-                        <div className="flex flex-col justify-center items-center text-center relative overflow-hidden rounded-[2.5rem] p-8 border border-white/5 bg-[#0a0a0f] shadow-2xl min-h-[65vh]">
+                        <div className="flex flex-col justify-center items-center text-center relative overflow-hidden rounded-[2.5rem] p-8 border border-white/5 bg-white/[0.03] backdrop-blur-2xl shadow-2xl min-h-[65vh]">
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-primary/5 blur-[100px] pointer-events-none rounded-full" />
                             <div className="w-full relative z-10 mb-8 mt-6">
                                 <div onClick={() => { setActiveTab('payments'); haptic(); }}

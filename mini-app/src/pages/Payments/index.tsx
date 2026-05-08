@@ -92,7 +92,7 @@ export default function Payments() {
             id: 'BASIC', name: 'Стандарт', devicesLabel: '1 устройство', price: 75,
             icon: Smartphone, color: 'text-gray-300', bgColor: 'bg-gray-500/10', borderColor: 'border-white/10',
             description: 'Базовый доступ ко всем заблокированным ресурсам без потери скорости.',
-            features: ['1 сервер на выбор', 'AES-256', 'Без ограничений трафика'],
+            features: ['Все серверы', 'AES-256', 'Без ограничений трафика'],
         },
         {
             id: 'STANDARD', name: 'Премиум', devicesLabel: '2 устройства', price: 150, isHit: true,
@@ -125,7 +125,6 @@ export default function Payments() {
                 </button>
             </div>
 
-            {/* ПРОМО (ЖЕЛТОЕ ОКНО - ВЕРНУЛ КАК БЫЛО) */}
             {IS_PROMO_ACTIVE && (
                 <div className="space-y-3">
                     <h3 className={`text-[17px] font-black text-white uppercase tracking-tighter italic leading-none flex items-center gap-2 px-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
@@ -195,7 +194,6 @@ export default function Payments() {
                 </div>
             )}
 
-            {/* ТАРИФЫ (ИСПРАВЛЕННЫЙ РОВНЫЙ БЛОК) */}
             <div className="space-y-2 pb-4">
                 {tariffs.map((tariff) => {
                     const isExpanded = expandedId === tariff.id;
@@ -212,12 +210,11 @@ export default function Payments() {
                                 onClick={() => handleToggle(tariff.id)}
                                 className={`w-full flex items-center p-4 gap-3 active:bg-white/5 transition-colors ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}
                             >
-                                {/* Лево: Иконка */}
+
                                 <div className={`w-12 h-12 ${tariff.bgColor} rounded-2xl flex items-center justify-center border border-white/5 shrink-0`}>
                                     <tariff.icon size={22} className={tariff.color} />
                                 </div>
 
-                                {/* Центр: Текст */}
                                 <div className={`flex-1 min-w-0 ${isRTL ? 'text-right' : 'text-left'}`}>
                                     <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                         <p className="text-white font-black text-[16px] leading-tight truncate">{tariff.name}</p>

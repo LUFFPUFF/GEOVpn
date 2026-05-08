@@ -19,9 +19,9 @@ const handleLink = (url: string) => {
 export default function Profile() {
     const { user, devices, addDevice, deleteDevice, t } = useUserStore();
     const [subPage, setSubPage] = useState<'main' | 'referral' | 'instructions' | 'privacy' | 'agreement'>('main');
-    const [showDeviceModal, setShowDeviceModal] = useState(false);
+    const[showDeviceModal, setShowDeviceModal] = useState(false);
     const [devName, setDevName] = useState('');
-    const [devType, setDevType] = useState('IOS');
+    const[devType, setDevType] = useState('IOS');
     const [activeInstruction, setActiveInstruction] = useState<'ios' | 'android' | 'windows' | null>(null);
 
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
@@ -43,7 +43,7 @@ export default function Profile() {
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
     };
 
-    // ─── СТРАНИЦА: ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ (ВЕСЬ ТЕКСТ) ───────────────────
+    // ─── СТРАНИЦА: ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ ─────────────────────────────────
     if (subPage === 'privacy') {
         return (
             <div className="flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden h-[100vh] pb-28 pt-2 px-1 text-left">
@@ -88,7 +88,7 @@ export default function Profile() {
         );
     }
 
-    // ─── СТРАНИЦА: ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ (ВЕСЬ ТЕКСТ) ─────────────────
+    // ─── СТРАНИЦА: ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ ──────────────────────────────
     if (subPage === 'agreement') {
         return (
             <div className="flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden h-[100vh] pb-28 pt-2 px-1 text-left">
@@ -163,7 +163,7 @@ export default function Profile() {
         );
     }
 
-    // ─── РЕФЕРАЛЬНАЯ СТРАНИЦА (ОРИГИНАЛЬНАЯ) ─────────────────────────────────
+    // ─── РЕФЕРАЛЬНАЯ СТРАНИЦА ───────────────────────────────────────────────
     if (subPage === 'referral') {
         const progress = 3;
         const goal = 10;
@@ -226,55 +226,138 @@ export default function Profile() {
         );
     }
 
-    // ─── СТРАНИЦА ИНСТРУКЦИЙ (ОРИГИНАЛЬНАЯ) ───────────────────────────────────
     if (subPage === 'instructions') {
-        const platforms = [
-            { id: 'ios',     name: 'iOS',     icon: Smartphone, desc: t.ios_desc },
-            { id: 'android', name: 'Android', icon: Smartphone, desc: t.android_desc },
-            { id: 'windows', name: 'Windows', icon: Laptop,     desc: t.windows_desc }
+        const instructionsData = {
+            ios:[
+                {
+                    title: "Скачайте приложение",
+                    text: "Перейдите в App Store и установите бесплатное приложение «Happ - Proxy Utility»."
+                },
+                {
+                    title: "Скопируйте подписку",
+                    text: "Вернитесь в это мини-приложение, выберите раздел VPN и нажмите кнопку «Копировать подписку»."
+                },
+                {
+                    title: "Импортируйте ключи",
+                    text: "Откройте скачанное приложение Happ, нажмите на иконку плюса «+» в правом верхнем углу и выберите «Вставить из буфера обмена» (Paste from clipboard)."
+                },
+                {
+                    title: "Подключитесь к серверу",
+                    text: "Выберите нужную локацию из появившегося списка (например, Финляндия) и нажмите на большую кнопку включения в центре экрана."
+                }
+            ],
+            android:[
+                {
+                    title: "Скачайте приложение",
+                    text: "Перейдите в Google Play и установите бесплатное приложение «Happ - Proxy Utility»."
+                },
+                {
+                    title: "Скопируйте подписку",
+                    text: "Вернитесь в это мини-приложение, выберите раздел VPN и нажмите кнопку «Копировать подписку»."
+                },
+                {
+                    title: "Импорт и подключение",
+                    text: "Откройте скачанное приложение Happ, нажмите на иконку плюса «+» в правом верхнем углу и выберите «Вставить из буфера обмена» (Paste from clipboard)."
+                }
+            ],
+            windows:[
+                {
+                    title: "Скачайте клиент",
+                    text: "Скачайте программу «Happ - Proxy Utility Desktop» и распакуйте архив в удобное место."
+                },
+                {
+                    title: "Скопируйте подписку",
+                    text: "В мини-приложении нажмите «Копировать подписку», чтобы скопировать вашу уникальную ссылку."
+                },
+                {
+                    title: "Настройка серверов",
+                    text: "Откройте настройки подписок в скачанном приложении (раздел «Подписки» -> «Настройки подписки») и вставьте скопированную ссылку."
+                },
+                {
+                    title: "Обновление списка",
+                    text: "Нажмите «Обновить подписку», чтобы загрузить актуальный список доступных серверов."
+                },
+                {
+                    title: "Подключение",
+                    text: "Выберите нужный сервер из списка, нажмите на него правой кнопкой мыши -> «Сделать активным» и обязательно включите «Системный прокси»."
+                }
+            ]
+        };
+
+        const platforms =[
+            { id: 'ios', name: 'iOS', icon: Smartphone, desc: t.ios_desc || 'Инструкция для iPhone/iPad', folder: 'ios_instruction' },
+            { id: 'android', name: 'Android', icon: Smartphone, desc: t.android_desc || 'Инструкция для смартфонов', folder: 'adnroid' },
+            { id: 'windows', name: 'Windows / macOS', icon: Laptop, desc: t.windows_desc || 'Инструкция для ПК', folder: 'windows_macos' }
         ];
 
         return (
-            <div className="flex flex-col animate-in fade-in duration-300 overflow-y-auto custom-scrollbar pb-28 pt-2 px-1">
+            <div className="flex flex-col animate-in fade-in duration-300 overflow-y-auto custom-scrollbar pb-28 pt-2 px-1 text-left">
                 <button onClick={handleBack} className="flex items-center gap-2 text-white/40 mb-4 font-black text-[10px] uppercase tracking-widest px-2 outline-none">
                     <ArrowLeft size={14} /> {t.back}
                 </button>
 
                 {!activeInstruction ? (
                     <div className="space-y-2 px-1 text-left">
-                        <h2 className="text-[22px] font-black text-white uppercase italic mb-4">{t.instructions_title}</h2>
+                        <h2 className="text-[22px] font-black text-white uppercase italic mb-4">{t.instructions_title || 'Инструкции'}</h2>
                         {platforms.map(p => (
                             <button
                                 key={p.id}
                                 onClick={() => { setActiveInstruction(p.id as any); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }}
-                                className="w-full flex items-center justify-between bg-[#12141d] border border-white/10 p-4 rounded-2xl active:bg-white/5 transition-all outline-none"
+                                className="w-full flex items-center justify-between bg-[#12141d] border border-white/10 p-4 rounded-2xl active:bg-white/5 transition-all outline-none group"
                             >
                                 <div className="flex items-center gap-4 text-left">
-                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shrink-0">
-                                        <p.icon size={18} className="text-white/80" />
+                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shrink-0 group-active:bg-emerald-500/20 group-active:border-emerald-500/30 group-active:text-emerald-500 transition-colors">
+                                        <p.icon size={18} className="text-white/80 group-active:text-emerald-500 transition-colors" />
                                     </div>
                                     <div>
                                         <p className="text-[15px] font-black text-white">{p.name}</p>
-                                        <p className="text-[10px] text-white/40 font-medium uppercase">{p.desc}</p>
+                                        <p className="text-[10px] text-white/40 font-medium uppercase mt-0.5">{p.desc}</p>
                                     </div>
                                 </div>
-                                <ChevronRight size={16} className="text-white/20" />
+                                <ChevronRight size={16} className="text-white/20 group-active:text-emerald-500 transition-colors" />
                             </button>
                         ))}
                     </div>
                 ) : (
                     <div className="px-2 animate-in slide-in-from-right-4 duration-300 text-left">
-                        <h2 className="text-[20px] font-black text-white uppercase italic mb-5">{t.setup_title} {activeInstruction.toUpperCase()}</h2>
-                        <div className="space-y-4">
-                            {[1, 2].map(s => (
-                                <div key={s} className="bg-[#12141d] border border-white/10 rounded-2xl p-5">
-                                    <div className="flex items-center gap-3 mb-4 text-white">
-                                        <div className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center font-black text-sm">{s}</div>
-                                        <p className="text-sm font-bold">{s === 1 ? t.step_download : t.step_import}</p>
+                        <h2 className="text-[20px] font-black text-white uppercase italic mb-6">
+                            Настройка {platforms.find(p => p.id === activeInstruction)?.name}
+                        </h2>
+
+                        <div className="relative border-l-2 border-emerald-500/20 ml-3 space-y-6 pb-6">
+                            {instructionsData[activeInstruction].map((step, idx) => {
+                                const activeFolder = platforms.find(p => p.id === activeInstruction)?.folder;
+                                const imageSrc = `/assets/${activeFolder}/${idx + 1}.png`;
+
+                                return (
+                                    <div key={idx} className="relative pl-6 animate-in slide-in-from-bottom-2 fade-in" style={{ animationDelay: `${idx * 100}ms`, animationFillMode: 'both' }}>
+                                        <div className="absolute -left-[17px] top-0 w-8 h-8 rounded-full bg-[#12141d] border-2 border-emerald-500 flex items-center justify-center font-black text-emerald-500 text-sm shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                                            {idx + 1}
+                                        </div>
+
+                                        <div className="bg-[#12141d] border border-white/10 rounded-3xl p-5 shadow-lg">
+                                            <h3 className="text-[16px] font-black text-white mb-2 leading-tight">
+                                                {step.title}
+                                            </h3>
+                                            <p className="text-[13px] text-white/60 mb-5 leading-relaxed">
+                                                {step.text}
+                                            </p>
+
+                                            <div className="w-full bg-black/40 rounded-xl overflow-hidden border border-white/5 relative">
+                                                <img
+                                                    src={imageSrc}
+                                                    alt={`Шаг ${idx + 1}`}
+                                                    className="w-full h-auto object-cover"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).style.display = 'none';
+                                                        (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="p-6 text-center text-white/20 text-[10px] font-bold uppercase tracking-widest">Изображение не найдено<br/>${imageSrc}</div>`;
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="w-full aspect-video bg-black/40 rounded-xl border border-white/5" />
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -282,7 +365,6 @@ export default function Profile() {
         );
     }
 
-    // ─── ГЛАВНАЯ СТРАНИЦА ПРОФИЛЯ ───────────────────────────────────────────
     return (
         <div className="flex flex-col overflow-y-auto custom-scrollbar pb-28 pt-2 px-1 animate-in fade-in duration-500 text-left">
 
@@ -353,7 +435,7 @@ export default function Profile() {
                 </button>
             </div>
 
-            {/* МЕНЮ (С НОВЫМИ ПУНКТАМИ) */}
+            {/* МЕНЮ */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-1 shadow-xl mb-3 shrink-0">
                 {[
                     { label: t.news, icon: Newspaper, action: () => handleLink('https://t.me/geovpn_news') },
@@ -411,7 +493,7 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* ЦЕНТРАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ (ФИКС КРИВИЗНЫ) */}
+            {/* ЦЕНТРАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ */}
             {showDeviceModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 animate-in fade-in duration-300">
                     <div

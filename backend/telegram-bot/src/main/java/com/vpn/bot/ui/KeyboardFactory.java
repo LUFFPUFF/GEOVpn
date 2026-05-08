@@ -25,11 +25,7 @@ public class KeyboardFactory {
         markup.setResizeKeyboard(true);
         markup.setOneTimeKeyboard(false);
 
-        KeyboardButton appBtn = new KeyboardButton("🚀 Открыть приложение");
-        appBtn.setWebApp(new WebAppInfo(miniAppUrl));
-
         markup.setKeyboard(List.of(
-                new KeyboardRow(List.of(appBtn)),
                 new KeyboardRow(List.of(new KeyboardButton("💎 Купить"), new KeyboardButton("🏆 Рефералы"))),
                 new KeyboardRow(List.of(new KeyboardButton("📰 Новости"), new KeyboardButton("📖 Инструкции"))),
                 new KeyboardRow(List.of(new KeyboardButton("💬 Поддержка"), new KeyboardButton("🌐 Веб-сайт")))

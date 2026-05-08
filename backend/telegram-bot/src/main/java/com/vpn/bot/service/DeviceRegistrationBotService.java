@@ -31,7 +31,7 @@ public class DeviceRegistrationBotService {
 
     public void registerUserIfAbsent(User tgUser) {
         try {
-            log.info("🔍 Checking user existence: tgId={}", tgUser.getId());
+            log.info("Checking user existence: tgId={}", tgUser.getId());
 
             ApiResponse<UserResponse> response = userServiceClient.getUserByTelegramId(internalSecret, tgUser.getId());
 

@@ -121,7 +121,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         String subscriptionUrl = subscriptionBaseUrl + "/api/v1/configs/subscription/" + vlessUuid;
 
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
-        syncWithXui(vlessUuid, allServers, user.getFirstName());
+        syncWithXui(vlessUuid, allServers, user.getUsername());
 
         ConfigMetadataDto meta = ConfigMetadataDto.builder()
                 .configId(config.getId())

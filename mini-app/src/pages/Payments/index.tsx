@@ -3,9 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUserStore } from '../../store/userStore';
 import {
     Globe2, Smartphone, Users,
-    Infinity, Gift, Sparkles, CheckCircle2, Shield, Wifi,
-    ChevronDown, ChevronUp, Star, LucideIcon
+    Gift, Sparkles, CheckCircle2, Shield, Wifi,
+    ChevronDown, Star, LucideIcon
 } from 'lucide-react';
+
+import promoImage from '../../assets/img.png';
 
 declare global {
     interface Window { Telegram?: { WebApp: any } }
@@ -82,7 +84,7 @@ export default function Payments() {
     const promoTariff: Tariff = {
         id: 'BASIC', name: 'Стандарт', devicesLabel: '1 устройство',
         price: 0, oldPrice: 75, icon: Gift,
-        color: 'text-yellow-400', bgColor: 'bg-yellow-500/15', borderColor: 'border-yellow-500/30',
+        color: 'text-white', bgColor: 'bg-white/10', borderColor: 'border-white/20',
         description: 'Полный доступ к GeoVPN на 30 дней — абсолютно бесплатно.',
         features: ['Все серверы', 'AES-256', 'Безлимит трафика'], isPromo: true,
     };
@@ -128,7 +130,7 @@ export default function Payments() {
             {IS_PROMO_ACTIVE && (
                 <div className="space-y-3">
                     <h3 className={`text-[17px] font-black text-white uppercase tracking-tighter italic leading-none flex items-center gap-2 px-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                        <Sparkles size={17} className="text-yellow-400" /> Ограниченное предложение
+                        <Sparkles size={17} className="text-white/60" /> Ограниченное предложение
                     </h3>
 
                     {promoAvailable ? (
@@ -136,49 +138,71 @@ export default function Payments() {
                             initial={{ scale: 0.93, opacity: 0, y: 12 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-                            className="relative rounded-[2.5rem] overflow-hidden"
+                            className="relative rounded-[2rem] overflow-hidden"
+                            style={{ minHeight: 220 }}
                         >
-                            <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/25 via-amber-600/10 to-[#0a0a0f]" />
-                            <motion.div
-                                animate={{ x: [-600, 600] }}
-                                transition={{ duration: 3.5, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
-                                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent skew-x-12 pointer-events-none"
+                            {/* Фоновая картинка */}
+                            <div
+                                className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                                style={{ backgroundImage: `url(${promoImage})` }}
                             />
-                            <div className="absolute inset-0 rounded-[2.5rem] border-2 border-yellow-500/40" />
+                            {/* Тёмный градиент-оверлей снизу для читаемости текста */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
 
-                            <div className="relative z-10 p-6 flex flex-col items-center text-center gap-4">
-                                <div className="w-[64px] h-[64px] bg-yellow-500 rounded-[1.5rem] flex items-center justify-center shadow-[0_0_40px_rgba(234,179,8,0.5)]">
-                                    <Gift size={32} className="text-black" />
+                            {/* Контент поверх */}
+                            <div className="relative z-10 p-5 flex flex-col gap-3 h-full" style={{ minHeight: 220 }}>
+                                {/* Верх: бейдж */}
+                                <div className="flex items-center gap-2">
+                                    <div className="bg-white/15 backdrop-blur-sm border border-white/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                                        <Gift size={11} className="text-white" />
+                                        <span className="text-white text-[10px] font-black uppercase tracking-widest">GEO VPN</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 className="text-[26px] font-black text-white uppercase italic tracking-tighter leading-none">Месяц в подарок</h4>
-                                    <p className="text-white/55 text-[13px] font-semibold mt-1.5">Полный доступ на 30 дней</p>
+
+                                {/* Основной текст */}
+                                <div className="mt-auto">
+                                    <h4 className="text-[28px] font-black text-white uppercase italic tracking-tighter leading-none drop-shadow-lg">
+                                        Месяц в подарок
+                                    </h4>
+                                    <p className="text-white/60 text-[12px] font-semibold mt-1 leading-snug">
+                                        Полный доступ к локациям<br />и безопасному соединению
+                                    </p>
+
+                                    {/* Цена */}
+                                    <div className={`flex items-baseline gap-3 mt-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                        <span className="text-white/30 text-[15px] font-black line-through italic">75 ₽</span>
+                                        <span className="text-white text-[36px] font-black italic leading-none drop-shadow-lg">0 ₽</span>
+                                    </div>
+
+                                    {/* Фичи */}
+                                    <div className={`flex flex-wrap gap-2 mt-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                        {[
+                                            { icon: Wifi, label: 'Безлимит' },
+                                            { icon: Shield, label: 'AES-256' },
+                                            { icon: Globe2, label: 'Все серверы' },
+                                        ].map((item, idx) => (
+                                            <div key={idx} className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/15 px-3 py-1.5 rounded-full">
+                                                <item.icon size={10} className="text-white/70" />
+                                                <span className="text-[10px] font-black uppercase text-white/80">{item.label}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Кнопка */}
+                                    <button
+                                        onClick={() => handlePay(promoTariff)}
+                                        disabled={!!payingId}
+                                        className="w-full bg-white text-black h-[50px] rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-[13px] tracking-wider mt-4 active:scale-[0.98] transition-all disabled:opacity-60 shadow-lg"
+                                    >
+                                        <Gift size={16} />
+                                        {payingId === 'BASIC' ? 'Оформляем...' : 'Забрать бесплатно'}
+                                    </button>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <span className="text-white/25 text-[18px] font-black line-through italic">75 ₽</span>
-                                    <span className="text-yellow-400 text-[44px] font-black italic leading-none">0 ₽</span>
-                                </div>
-                                <div className={`flex flex-wrap justify-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                    {[{ icon: Wifi, label: 'Безлимит' }, { icon: Shield, label: 'AES-256' }, { icon: Globe2, label: 'Все серверы' }].map((item, idx) => (
-                                        <div key={idx} className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
-                                            <item.icon size={11} className="text-yellow-400" />
-                                            <span className="text-[10px] font-black uppercase text-white/75">{item.label}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                                <button
-                                    onClick={() => handlePay(promoTariff)}
-                                    disabled={!!payingId}
-                                    className="w-full bg-yellow-500 text-black h-[54px] rounded-2xl flex items-center justify-center gap-2 font-black uppercase text-[14px] active:scale-[0.98] transition-all disabled:opacity-60"
-                                >
-                                    <Gift size={18} />
-                                    {payingId === 'BASIC' ? 'Оформляем...' : 'Забрать бесплатно'}
-                                </button>
                             </div>
                         </motion.div>
                     ) : (
                         <div className={`p-5 rounded-[2rem] bg-white/5 border border-white/10 flex items-center gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                            <CheckCircle2 size={28} className="text-yellow-500 shrink-0" />
+                            <CheckCircle2 size={28} className="text-white/50 shrink-0" />
                             <div>
                                 <p className="text-white font-black text-[14px]">Подписка активна</p>
                                 <p className="text-white/50 text-[12px] mt-0.5">Бесплатный месяц уже использован.</p>
@@ -210,7 +234,6 @@ export default function Payments() {
                                 onClick={() => handleToggle(tariff.id)}
                                 className={`w-full flex items-center p-4 gap-3 active:bg-white/5 transition-colors ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}
                             >
-
                                 <div className={`w-12 h-12 ${tariff.bgColor} rounded-2xl flex items-center justify-center border border-white/5 shrink-0`}>
                                     <tariff.icon size={22} className={tariff.color} />
                                 </div>
@@ -227,7 +250,6 @@ export default function Payments() {
                                     <p className="text-white/30 text-[11px] font-bold mt-1 uppercase tracking-tighter">{tariff.devicesLabel}</p>
                                 </div>
 
-                                {/* Право: Цена и стрелка */}
                                 <div className={`flex items-center gap-3 shrink-0 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                     <div className={`${isRTL ? 'text-left' : 'text-right'}`}>
                                         <p className="text-white font-black text-[17px] leading-none">{tariff.price} ₽</p>
@@ -253,7 +275,7 @@ export default function Payments() {
                                             </p>
                                             <div className={`flex flex-wrap gap-2 mb-5 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                                 {tariff.features.map((feat, i) => (
-                                                    <div key={i} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-[10px] font-black uppercase`}>
+                                                    <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-[10px] font-black uppercase">
                                                         <CheckCircle2 size={10} className="text-emerald-500" />
                                                         <span className="text-white/70">{feat}</span>
                                                     </div>

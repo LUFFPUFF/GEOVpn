@@ -5,7 +5,6 @@ import { Lang } from '../../utils/translations';
 
 type MenuView = 'main' | 'lang';
 
-// Вспомогательная функция для надежного открытия ссылок
 const handleLink = (url: string) => {
     if (window.Telegram?.WebApp?.openTelegramLink) {
         window.Telegram.WebApp.openTelegramLink(url);
@@ -15,11 +14,10 @@ const handleLink = (url: string) => {
 };
 
 export default function Header() {
-    const { lang, setLanguage, t } = useUserStore(); // Достаем t для переводов
+    const { lang, setLanguage, t } = useUserStore();
     const [open, setOpen] = useState(false);
     const [view, setView] = useState<MenuView>('main');
 
-    // Полный список языков
     const languages: { id: Lang; label: string }[] = [
         { id: 'ru', label: 'Русский' },
         { id: 'en', label: 'English' },
@@ -43,14 +41,16 @@ export default function Header() {
     const handleLangSelect = (id: Lang) => {
         setLanguage(id);
         handleClose();
-        // Вибрация при смене языка
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
     };
 
     return (
-        <header className="relative z-[100] px-5 pt-6 pb-4">
+        <header
+            className="relative z-[100] px-5 pb-4 flex-shrink-0"
+            style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))' }}
+        >
             <div className="grid grid-cols-3 items-center">
-                <div></div>
+                <div />
 
                 <div className="flex justify-center">
                     <h1 className="text-[22px] tracking-[-0.05em] uppercase leading-none flex items-center">
@@ -63,23 +63,32 @@ export default function Header() {
                     <div className="relative">
                         <button
                             onClick={handleOpen}
-                            className="w-9 h-9 bg-secondary/50 backdrop-blur-md rounded-full flex items-center justify-center border border-border active:scale-90 transition-all"
+                            className="w-9 h-9 bg-secondary/50 backdrop-blur-md rounded-full flex items-center justify-center border border-border active:scale-90 transition-all tap-target"
                         >
                             <Settings size={17} className="text-foreground" />
                         </button>
 
                         {open && (
                             <>
-                                <div className="fixed inset-0 z-10" onClick={handleClose} />
-                                <div className="absolute right-0 mt-3 bg-card border border-border rounded-2xl overflow-hidden shadow-2xl z-[110] w-56 animate-in fade-in zoom-in duration-200">
+                                {/* Оверлей — внутри #root, не на весь viewport */}
+                                <div
+                                    className="absolute inset-0 z-10"
+                                    style={{
+                                        position: 'fixed',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                    }}
+                                    onClick={handleClose}
+                                />
+                                <div className="absolute right-0 mt-3 bg-card border border-border rounded-2xl overflow-hidden shadow-2xl z-[110] w-56 animate-in fade-in zoom-in-95 duration-200">
 
-                                    {/* Главное меню */}
                                     {view === 'main' && (
                                         <>
-                                            {/* Язык — открывает подменю */}
                                             <button
                                                 onClick={() => setView('lang')}
-                                                className="w-full px-4 py-3.5 flex items-center justify-between border-b border-border active:bg-muted transition-colors hover:bg-muted/50"
+                                                className="w-full px-4 py-3.5 flex items-center justify-between border-b border-border active:bg-muted transition-colors"
                                             >
                                                 <div className="flex items-center gap-3 text-left">
                                                     <Languages size={15} className="text-muted-foreground" />
@@ -91,25 +100,17 @@ export default function Header() {
                                                 </div>
                                             </button>
 
-                                            {/* Инструкция */}
                                             <button
-                                                onClick={() => {
-                                                    handleLink('https://t.me/geovpn_news');
-                                                    handleClose();
-                                                }}
-                                                className="w-full px-4 py-3.5 flex items-center gap-3 border-b border-border active:bg-muted transition-colors hover:bg-muted/50 text-left"
+                                                onClick={() => { handleLink('https://t.me/geovpn_news'); handleClose(); }}
+                                                className="w-full px-4 py-3.5 flex items-center gap-3 border-b border-border active:bg-muted transition-colors text-left"
                                             >
                                                 <BookOpen size={15} className="text-muted-foreground" />
                                                 <span className="text-[13px] font-medium text-foreground">{t.instruction}</span>
                                             </button>
 
-                                            {/* Поддержка */}
                                             <button
-                                                onClick={() => {
-                                                    handleLink('https://t.me/geo_vpn_support');
-                                                    handleClose();
-                                                }}
-                                                className="w-full px-4 py-3.5 flex items-center gap-3 active:bg-muted transition-colors hover:bg-muted/50 text-left"
+                                                onClick={() => { handleLink('https://t.me/geo_vpn_support'); handleClose(); }}
+                                                className="w-full px-4 py-3.5 flex items-center gap-3 active:bg-muted transition-colors text-left"
                                             >
                                                 <Headphones size={15} className="text-muted-foreground" />
                                                 <span className="text-[13px] font-medium text-foreground">{t.support}</span>
@@ -117,10 +118,8 @@ export default function Header() {
                                         </>
                                     )}
 
-                                    {/* Подменю языков */}
                                     {view === 'lang' && (
-                                        <div className="max-h-[70vh] overflow-y-auto custom-scrollbar">
-                                            {/* Заголовок подменю */}
+                                        <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
                                             <button
                                                 onClick={() => setView('main')}
                                                 className="w-full px-4 py-3 flex items-center gap-2 border-b border-border sticky top-0 bg-card active:bg-muted transition-colors z-10"
@@ -133,7 +132,7 @@ export default function Header() {
                                                 <button
                                                     key={l.id}
                                                     onClick={() => handleLangSelect(l.id)}
-                                                    className="w-full px-4 py-3.5 flex items-center justify-between border-b border-border last:border-none active:bg-muted transition-colors hover:bg-muted/50"
+                                                    className="w-full px-4 py-3.5 flex items-center justify-between border-b border-border last:border-none active:bg-muted transition-colors"
                                                 >
                                                     <span className={`text-[13px] font-medium ${lang === l.id ? 'text-emerald-500' : 'text-foreground'}`}>
                                                         {l.label}
@@ -143,7 +142,6 @@ export default function Header() {
                                             ))}
                                         </div>
                                     )}
-
                                 </div>
                             </>
                         )}

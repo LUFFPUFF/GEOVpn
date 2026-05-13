@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useUserStore } from '../../store/userStore';
-import { Crown, Zap, MonitorSmartphone, Globe2, Plus, ChevronRight, ArrowRight } from 'lucide-react';
+import { Crown, Zap, MonitorSmartphone, Globe2, ChevronRight, ArrowRight } from 'lucide-react';
+import bgImage from '../../assets/vpn-bg.png';
 
 export default function Home() {
     const { user, deviceLimit, devices, setActiveTab, t } = useUserStore();
@@ -67,6 +68,7 @@ export default function Home() {
 
     return (
         <div className="flex flex-col pt-2">
+
             <div
                 className="overflow-hidden"
                 onTouchStart={onTouchStart}
@@ -81,10 +83,12 @@ export default function Home() {
                         width: `${totalSlides * 100}%`,
                     }}
                 >
+
+                    {/* ── Слайд 1: активная подписка ── */}
                     {hasSub && (
                         <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
-                            <div className="relative overflow-hidden rounded-[2.5rem] p-6 border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
-                                <div className="absolute top-[-20%] left-[-10%] w-[150%] h-[50%] bg-amber-500/5 blur-[80px] rounded-full pointer-events-none" />
+                            <div className="relative overflow-hidden rounded-[2.5rem] p-6 border border-white/10 bg-gradient-to-b from-[#12141d] to-[#0a0a0f] shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
+                                <div className="absolute top-[-20%] left-[-10%] w-[150%] h-[50%] bg-amber-500/10 blur-[80px] rounded-full pointer-events-none" />
 
                                 <div className="flex justify-between items-start mb-5 relative z-10">
                                     <div className="flex items-center gap-3">
@@ -150,17 +154,23 @@ export default function Home() {
 
                                 <div className="space-y-2.5 relative z-10">
                                     <div className="flex gap-2.5">
-                                        <button onClick={() => { setActiveTab('payments'); haptic(); }}
-                                                className="flex-1 py-3.5 bg-white/5 border border-white/10 rounded-2xl font-black text-[11px] text-white/80 uppercase tracking-widest active:scale-[0.98] transition-all tap-target">
+                                        <button
+                                            onClick={() => { setActiveTab('payments'); haptic(); }}
+                                            className="flex-1 py-3.5 bg-white/5 border border-white/10 rounded-2xl font-black text-[11px] text-white/80 uppercase tracking-widest active:scale-[0.98] transition-all tap-target"
+                                        >
                                             {t.renew}
                                         </button>
-                                        <button onClick={() => { setActiveTab('profile'); haptic(); }}
-                                                className="flex-1 py-3.5 bg-white/5 border border-white/10 rounded-2xl font-black text-[11px] text-white/80 uppercase tracking-widest active:scale-[0.98] transition-all tap-target">
+                                        <button
+                                            onClick={() => { setActiveTab('profile'); haptic(); }}
+                                            className="flex-1 py-3.5 bg-white/5 border border-white/10 rounded-2xl font-black text-[11px] text-white/80 uppercase tracking-widest active:scale-[0.98] transition-all tap-target"
+                                        >
                                             {t.profile}
                                         </button>
                                     </div>
-                                    <button onClick={() => { setActiveTab('subscriptions'); haptic('medium'); }}
-                                            className="w-full py-4 bg-white text-black rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-2 tap-target">
+                                    <button
+                                        onClick={() => { setActiveTab('subscriptions'); haptic('medium'); }}
+                                        className="w-full py-4 bg-white text-black rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-2 tap-target"
+                                    >
                                         <ArrowRight size={18} className="animate-pulse" />
                                         {t.setup_subscription}
                                     </button>
@@ -169,40 +179,75 @@ export default function Home() {
                         </div>
                     )}
 
-                    {/* Слайд 2: нет подписки */}
                     <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
-                        <div className="flex flex-col justify-center items-center text-center relative overflow-hidden rounded-[2.5rem] p-8 border border-white/5 bg-white/[0.03] backdrop-blur-2xl shadow-2xl min-h-[65vh]">
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-primary/5 blur-[100px] pointer-events-none rounded-full" />
-                            <div className="w-full relative z-10 mb-8 mt-6">
-                                <div onClick={() => { setActiveTab('payments'); haptic(); }}
-                                     className="w-20 h-20 bg-white text-black rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(255,255,255,0.15)] active:scale-90 transition-transform cursor-pointer tap-target">
-                                    <Plus size={40} strokeWidth={2.5} />
-                                </div>
-                                <h2 className="text-[32px] font-black leading-none mb-4 tracking-tighter uppercase italic text-white">
-                                    {t.add_subscription}
-                                </h2>
-                                <p className="text-white/40 text-[14px] font-medium leading-relaxed max-w-[260px] mx-auto">
-                                    {t.add_subscription_desc}
-                                </p>
+                        <div
+                            className="relative overflow-hidden rounded-[2.5rem] border border-white/10 shadow-2xl"
+                            style={{ background: '#0a0a0a' }}
+                        >
+                            {/* Картинка — занимает полную ширину, высота авто */}
+                            <img
+                                src={bgImage}
+                                alt="GEO VPN"
+                                style={{
+                                    display: 'block',
+                                    width: '100%',
+                                    height: 'auto',
+                                    maxHeight: 'calc(var(--tg-height, 100dvh) - 180px)',
+                                    objectFit: 'contain',
+                                }}
+                            />
+
+                            {/* Градиент снизу */}
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.1) 40%, transparent 100%)',
+                                    pointerEvents: 'none',
+                                }}
+                            />
+
+                            {/* Кнопка внизу */}
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    padding: '1.25rem',
+                                    zIndex: 2,
+                                }}
+                            >
+                                <button
+                                    onClick={() => { setActiveTab('payments'); haptic('medium'); }}
+                                    className="w-full bg-white text-black rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-2 tap-target"
+                                    style={{ minHeight: 56 }}
+                                >
+                                    <span>{t.get_access}</span>
+                                    <ChevronRight size={20} />
+                                </button>
                             </div>
-                            <button onClick={() => { setActiveTab('payments'); haptic('medium'); }}
-                                    className="w-full py-5 bg-white text-black rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-2 relative z-10 mt-auto tap-target">
-                                <span>{t.get_access}</span>
-                                <ChevronRight size={20} />
-                            </button>
                         </div>
                     </div>
+
                 </div>
             </div>
 
+            {/* ── Точки навигации ── */}
             {totalSlides > 1 && (
                 <div className="flex justify-center gap-2 py-4">
                     {Array.from({ length: totalSlides }).map((_, i) => (
-                        <div key={i} onClick={() => { setActiveSlide(i); haptic(); }}
-                             className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${activeSlide === i ? 'w-10 bg-white' : 'w-2 bg-white/20'}`} />
+                        <div
+                            key={i}
+                            onClick={() => { setActiveSlide(i); haptic(); }}
+                            className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${
+                                activeSlide === i ? 'w-10 bg-white' : 'w-2 bg-white/20'
+                            }`}
+                        />
                     ))}
                 </div>
             )}
+
         </div>
     );
 }

@@ -14,21 +14,35 @@ export default function BottomNav() {
     ];
 
     return (
-        <nav className="bottom-nav-container">
+        <nav
+            className="relative z-50 w-full flex-shrink-0"
+            style={{
+                paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                paddingLeft: '1rem',
+                paddingRight: '1rem',
+                paddingTop: '0.5rem',
+            }}
+        >
             <div className="glass-card !py-3 !px-4 flex justify-around items-center border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
                 {tabs.map(({ id, label, Icon }) => {
                     const isActive = activeTab === id || (id === 'home' && activeTab === 'subscriptions');
                     return (
                         <button
                             key={id}
-                            onClick={() => { setActiveTab(id); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }}
+                            onClick={() => {
+                                setActiveTab(id);
+                                window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
+                            }}
                             className={`flex flex-col items-center gap-1 transition-all duration-300 relative tap-target px-3 ${
                                 isActive ? 'text-primary scale-110' : 'text-muted-foreground/50'
                             }`}
                         >
                             <div className={isActive ? 'anim-pop relative' : 'relative'}>
-                                <Icon size={22} strokeWidth={isActive ? 2.5 : 2}
-                                      className={isActive ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : ''} />
+                                <Icon
+                                    size={22}
+                                    strokeWidth={isActive ? 2.5 : 2}
+                                    className={isActive ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : ''}
+                                />
                                 {isActive && (
                                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-primary rounded-full shadow-[0_0_10px_#fff]" />
                                 )}

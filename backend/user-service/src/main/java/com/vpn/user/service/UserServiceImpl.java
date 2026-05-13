@@ -161,6 +161,77 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @CacheEvict(value = "users", key = "#telegramId")
+    public UserResponse applyPromoCode(Long telegramId, String code) {
+        log.info("User {} applying promo code: {}", telegramId, code);
+
+        User currentUser = userRepository.findByTelegramId(telegramId)
+                .orElseThrow(() -> new UserNotFoundException(telegramId));
+
+        if (currentUser.isPromoApplied()) {
+            throw new RuntimeException("Вы уже применяли промокод ранее");
+        }
+
+        if (code.equalsIgnoreCase(currentUser.getReferralCode())) {
+            throw new RuntimeException("Вы не можете применить свой собственный код");
+        }
+
+        User referrer = userRepository.findByReferralCode(code.toUpperCase())
+                .orElseThrow(() -> new RuntimeException("Промокод не найден или недействителен"));
+
+        currentUser.setPromoApplied(true);
+
+        currentUser.setReferredBy(referrer.getTelegramId());
+
+        referrer.addBalance(5000);
+        userRepository.save(referrer);
+        log.info("Added 50 RUB to referrer {}", referrer.getTelegramId());
+
+        if (currentUser.getSubscriptionType() == SubscriptionType.PAYG) {
+            currentUser.setSubscriptionType(SubscriptionType.BASIC);
+        }
+
+        LocalDateTime currentExpiry = currentUser.getSubscriptionExpiresAt();
+        if (currentExpiry == null || currentExpiry.isBefore(LocalDateTime.now())) {
+            currentUser.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(10));
+        } else {
+            currentUser.setSubscriptionExpiresAt(currentExpiry.plusDays(10));
+        }
+
+        User savedUser = userRepository.saveAndFlush(currentUser);
+
+        syncVpnLimits(telegramId, savedUser.getSubscriptionType().name(), savedUser);
+
+        return userMapper.toResponse(savedUser);
+    }
+
+    @Override
+    @Transactional
+    @CachePut(value = "users", key = "#telegramId")
+    public UserResponse updateReferralCode(Long telegramId, String newCode) {
+        log.info("User {} changing referral code to: {}", telegramId, newCode);
+
+        if (newCode == null || !newCode.matches("^[A-Z0-9]{3,15}$")) {
+            throw new RuntimeException("Код должен содержать от 3 до 15 латинских букв и цифр");
+        }
+
+        User user = userRepository.findByTelegramId(telegramId)
+                .orElseThrow(() -> new UserNotFoundException(telegramId));
+
+        if (user.getReferralCode().equalsIgnoreCase(newCode)) {
+            return userMapper.toResponse(user);
+        }
+
+        if (userRepository.findByReferralCode(newCode).isPresent()) {
+            throw new RuntimeException("Этот промокод уже занят! Выберите другой.");
+        }
+
+        user.setReferralCode(newCode);
+        return userMapper.toResponse(userRepository.save(user));
+    }
+
+    @Override
     @Cacheable(value = "user-stats", key = "#telegramId", unless = "#result == null")
     public UserStatsResponse getUserStats(Long telegramId) {
         ValidationUtils.validateTelegramId(telegramId);

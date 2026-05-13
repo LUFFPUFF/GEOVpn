@@ -1,6 +1,6 @@
 export type UserRole = 'USER' | 'ADMIN' | 'SERVICE';
 export type SubscriptionType = 'PAYG' | 'BASIC' | 'STANDARD' | 'FAMILY' | 'BUSINESS' | 'UNLIMITED';
-export type DeviceType = 'IOS' | 'ANDROID' | 'WINDOWS';
+export type DeviceType = 'IOS' | 'ANDROID' | 'WINDOWS' | 'MACOS' | 'LINUX' | 'OTHER';
 
 export interface UserResponse {
     id: number;
@@ -98,4 +98,9 @@ export interface LeaderboardEntry {
     username: string | null;
     referralCount: number;
     isWinner: boolean;
+}
+
+export interface DepositResponse {
+    transactionId: number;
+    paymentUrl: string;
 }

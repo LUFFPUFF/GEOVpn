@@ -41,6 +41,24 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(userService.getUserByTelegramId(telegramId)));
     }
 
+    @PostMapping("/me/apply-promo")
+    @RequireUser
+    public ResponseEntity<ApiResponse<UserResponse>> applyPromoCode(
+            @RequestParam("code") String code) {
+        Long telegramId = SecurityContextHolder.getUserId();
+        UserResponse response = userService.applyPromoCode(telegramId, code);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PutMapping("/me/referral-code")
+    @RequireUser
+    public ResponseEntity<ApiResponse<UserResponse>> updateReferralCode(
+            @RequestParam("code") String newCode) {
+        Long telegramId = SecurityContextHolder.getUserId();
+        UserResponse response = userService.updateReferralCode(telegramId, newCode.toUpperCase());
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     /**
      * Оформление подписки.
      *

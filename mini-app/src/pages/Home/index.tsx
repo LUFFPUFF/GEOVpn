@@ -1,17 +1,26 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useUserStore } from '../../store/userStore';
-import { Crown, Zap, MonitorSmartphone, Globe2, ChevronRight, ArrowRight } from 'lucide-react';
+import { userApi } from '../../api/user';
+import DeviceSelector from '../../components/modals/DeviceSelector';
+import { Crown, Zap, MonitorSmartphone, Globe2, ChevronRight, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import bgImage from '../../assets/vpn-bg.png';
+import { DeviceType } from '../../types/api';
 
 export default function Home() {
-    const { user, deviceLimit, devices, setActiveTab, t } = useUserStore();
+    const { user, deviceLimit, devices, setActiveTab, t, register } = useUserStore();
     const [activeSlide, setActiveSlide] = useState(0);
+    const [showDeviceSelect, setShowDeviceSelect] = useState(false);
+    const [isSettingUp, setIsSettingUp] = useState(false);
+
     const touchStartX = useRef<number | null>(null);
     const touchStartY = useRef<number | null>(null);
     const isDragging  = useRef(false);
 
     const hasSub      = user?.hasActiveSubscription || false;
     const totalSlides = hasSub ? 2 : 1;
+
+    const needsDevice = hasSub && devices.length === 0;
 
     const { daysLeft, expireDateFormatted } = useMemo(() => {
         if (!user?.subscriptionExpiresAt) return { daysLeft: 0, expireDateFormatted: '---' };
@@ -31,6 +40,53 @@ export default function Home() {
         { icon: MonitorSmartphone, val: `${activeDevs}/${maxDevs}`, label: t.devices   },
         { icon: Globe2,            val: t.all_locations,            label: t.locations },
     ];
+
+    const handleGetAccess = () => {
+        haptic('medium');
+        setShowDeviceSelect(true);
+    };
+
+    const handleDeviceSelected = async (type: DeviceType) => {
+        try {
+            if (!user) {
+                await register();
+            }
+
+            const deviceName = `${type} Device`;
+            await userApi.registerDevice(deviceName, type);
+
+            setShowDeviceSelect(false);
+            setActiveTab('payments');
+        } catch (e) {
+            console.error(e);
+            setShowDeviceSelect(false);
+            setActiveTab('payments');
+        }
+    };
+
+    const handleSetupSubscription = async () => {
+        haptic('medium');
+
+        if (needsDevice) {
+            window.Telegram?.WebApp?.showAlert("Сначала создайте устройство во вкладке Профиль!");
+            setActiveTab('profile');
+            return;
+        }
+
+        try {
+            setIsSettingUp(true);
+            const deviceId = devices[0].id;
+
+            await userApi.createConfig(deviceId);
+
+            setActiveTab('subscriptions');
+        } catch (error) {
+            console.error("Ошибка при подготовке конфигурации:", error);
+            window.Telegram?.WebApp?.showAlert("Не удалось подготовить конфигурацию. Обратитесь в поддержку.");
+        } finally {
+            setIsSettingUp(false);
+        }
+    };
 
     const haptic = (s: 'light' | 'medium' = 'light') =>
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred(s);
@@ -84,7 +140,6 @@ export default function Home() {
                     }}
                 >
 
-                    {/* ── Слайд 1: активная подписка ── */}
                     {hasSub && (
                         <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
                             <div className="relative overflow-hidden rounded-[2.5rem] p-6 border border-white/10 bg-gradient-to-b from-[#12141d] to-[#0a0a0f] shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
@@ -110,6 +165,27 @@ export default function Home() {
                                         <p className="font-bold text-[12px] text-white/90 bg-white/5 px-2 py-1 rounded-md border border-white/5 whitespace-nowrap">{expireDateFormatted}</p>
                                     </div>
                                 </div>
+
+                                <AnimatePresence>
+                                    {needsDevice && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+                                            animate={{ height: 'auto', opacity: 1, marginBottom: 16 }}
+                                            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+                                            onClick={() => { setActiveTab('profile'); haptic('medium'); }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3 cursor-pointer tap-target active:scale-[0.98] transition-transform">
+                                                <AlertCircle className="text-amber-500 shrink-0" size={24} />
+                                                <div className="flex-1">
+                                                    <p className="text-white text-[12px] font-black uppercase tracking-wide">Устройство не найдено</p>
+                                                    <p className="text-white/60 text-[10px] mt-0.5 leading-tight">Нажмите здесь, чтобы создать устройство и активировать VPN.</p>
+                                                </div>
+                                                <ChevronRight size={18} className="text-white/40 shrink-0" />
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
 
                                 <div className="grid grid-cols-3 gap-2 mb-4 relative z-10">
                                     {stats.map((item, i) => (
@@ -168,11 +244,25 @@ export default function Home() {
                                         </button>
                                     </div>
                                     <button
-                                        onClick={() => { setActiveTab('subscriptions'); haptic('medium'); }}
-                                        className="w-full py-4 bg-white text-black rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-2 tap-target"
+                                        onClick={handleSetupSubscription}
+                                        disabled={isSettingUp}
+                                        className={`w-full py-4 rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 tap-target
+                                            ${isSettingUp
+                                            ? 'bg-white/50 text-black/50 cursor-not-allowed'
+                                            : 'bg-white text-black active:scale-[0.98]'
+                                        }`}
                                     >
-                                        <ArrowRight size={18} className="animate-pulse" />
-                                        {t.setup_subscription}
+                                        {isSettingUp ? (
+                                            <>
+                                                <Loader2 size={18} className="animate-spin" />
+                                                Настройка...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ArrowRight size={18} className="animate-pulse" />
+                                                {t.setup_subscription}
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -184,7 +274,6 @@ export default function Home() {
                             className="relative overflow-hidden rounded-[2.5rem] border border-white/10 shadow-2xl"
                             style={{ background: '#0a0a0a' }}
                         >
-                            {/* Картинка — занимает полную ширину, высота авто */}
                             <img
                                 src={bgImage}
                                 alt="GEO VPN"
@@ -219,13 +308,21 @@ export default function Home() {
                                 }}
                             >
                                 <button
-                                    onClick={() => { setActiveTab('payments'); haptic('medium'); }}
+                                    onClick={handleGetAccess}
                                     className="w-full bg-white text-black rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-2 tap-target"
                                     style={{ minHeight: 56 }}
                                 >
                                     <span>{t.get_access}</span>
                                     <ChevronRight size={20} />
                                 </button>
+                                <AnimatePresence>
+                                    {showDeviceSelect && (
+                                        <DeviceSelector
+                                            onSelect={handleDeviceSelected}
+                                            onClose={() => setShowDeviceSelect(false)}
+                                        />
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </div>
                     </div>
@@ -233,7 +330,6 @@ export default function Home() {
                 </div>
             </div>
 
-            {/* ── Точки навигации ── */}
             {totalSlides > 1 && (
                 <div className="flex justify-center gap-2 py-4">
                     {Array.from({ length: totalSlides }).map((_, i) => (

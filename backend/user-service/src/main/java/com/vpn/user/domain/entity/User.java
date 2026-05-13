@@ -56,6 +56,10 @@ public class User {
     @Column(name = "last_active_at")
     private LocalDateTime lastActiveAt;
 
+    @Column(name = "promo_applied", nullable = false)
+    @Builder.Default
+    private boolean promoApplied = false;
+
     public boolean hasActiveSubscription() {
         return subscriptionExpiresAt != null &&
                 subscriptionExpiresAt.isAfter(LocalDateTime.now());

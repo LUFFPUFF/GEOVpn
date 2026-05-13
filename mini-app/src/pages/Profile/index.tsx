@@ -1,13 +1,27 @@
 import React, { useState } from 'react';
 import { useUserStore } from '../../store/userStore';
+import { userApi } from '../../api/user';
 import {
     Smartphone, Laptop, Plus, Trash2, Share2,
     ChevronRight, Newspaper, Headphones, BookOpen,
     ShieldAlert, User, ShieldCheck, Fingerprint,
-    Crown, CheckCircle2, ArrowLeft, X, Monitor, FileText, Shield
+    Crown, CheckCircle2, ArrowLeft, X, Monitor, FileText, Shield,
+    Edit2, Save, Gift
 } from 'lucide-react';
 
-// Вспомогательная функция для надежного открытия ссылок
+import ios1 from '../../assets/ios_instruction/1.png';
+import ios2 from '../../assets/ios_instruction/2.png';
+import ios3 from '../../assets/ios_instruction/3.png';
+import ios4 from '../../assets/ios_instruction/4.png';
+import and1 from '../../assets/adnroid/1.png';
+import and2 from '../../assets/adnroid/2.png';
+import and3 from '../../assets/adnroid/3.png';
+import win1 from '../../assets/windows_macos/1.png';
+import win2 from '../../assets/windows_macos/2.png';
+import win3 from '../../assets/windows_macos/3.png';
+import win4 from '../../assets/windows_macos/4.png';
+import win5 from '../../assets/windows_macos/5.png';
+
 const handleLink = (url: string) => {
     if (window.Telegram?.WebApp?.openTelegramLink) {
         window.Telegram.WebApp.openTelegramLink(url);
@@ -19,10 +33,16 @@ const handleLink = (url: string) => {
 export default function Profile() {
     const { user, devices, addDevice, deleteDevice, t } = useUserStore();
     const [subPage, setSubPage] = useState<'main' | 'referral' | 'instructions' | 'privacy' | 'agreement'>('main');
-    const[showDeviceModal, setShowDeviceModal] = useState(false);
+    const [showDeviceModal, setShowDeviceModal] = useState(false);
     const [devName, setDevName] = useState('');
-    const[devType, setDevType] = useState('IOS');
+    const [devType, setDevType] = useState('IOS');
     const [activeInstruction, setActiveInstruction] = useState<'ios' | 'android' | 'windows' | null>(null);
+
+    const [promoCode, setPromoCode] = useState('');
+    const [isApplying, setIsApplying] = useState(false);
+    const [isEditingCode, setIsEditingCode] = useState(false);
+    const [editCodeValue, setEditCodeValue] = useState('');
+    const [isSavingCode, setIsSavingCode] = useState(false);
 
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
     const avatarUrl = tgUser?.photo_url;
@@ -43,7 +63,52 @@ export default function Profile() {
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
     };
 
-    // ─── СТРАНИЦА: ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ ─────────────────────────────────
+    const handleApplyPromo = async () => {
+        if (!promoCode.trim()) return;
+
+        try {
+            setIsApplying(true);
+            window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+
+            const updatedUser = await userApi.applyPromo(promoCode.trim());
+            useUserStore.setState({ user: updatedUser });
+
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+            window.Telegram?.WebApp?.showAlert('Успешно! Вы получили +10 дней к подписке 🎉');
+            setPromoCode('');
+        } catch (e: any) {
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
+            const errorMsg = e.response?.data?.error?.message || 'Ошибка активации. Проверьте код.';
+            window.Telegram?.WebApp?.showAlert(errorMsg);
+        } finally {
+            setIsApplying(false);
+        }
+    };
+
+    const handleSaveCustomCode = async () => {
+        if (!editCodeValue.trim() || editCodeValue.length < 3) {
+            window.Telegram?.WebApp?.showAlert('Код должен содержать минимум 3 символа');
+            return;
+        }
+
+        try {
+            setIsSavingCode(true);
+            window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+
+            const updatedUser = await userApi.updateReferralCode(editCodeValue.trim());
+            useUserStore.setState({ user: updatedUser });
+
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+            setIsEditingCode(false);
+        } catch (e: any) {
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
+            const errorMsg = e.response?.data?.error?.message || 'Этот код уже занят или недопустим.';
+            window.Telegram?.WebApp?.showAlert(errorMsg);
+        } finally {
+            setIsSavingCode(false);
+        }
+    };
+
     if (subPage === 'privacy') {
         return (
             <div className="flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden h-[100vh] pb-28 pt-2 px-1 text-left">
@@ -88,7 +153,6 @@ export default function Profile() {
         );
     }
 
-    // ─── СТРАНИЦА: ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ ──────────────────────────────
     if (subPage === 'agreement') {
         return (
             <div className="flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden h-[100vh] pb-28 pt-2 px-1 text-left">
@@ -104,7 +168,6 @@ export default function Profile() {
                             <p>1.2. Используя Сервис, включая запуск бота, регистрацию, оплату услуг или получение доступа к материалам, Пользователь подтверждает, что полностью ознакомился с условиями настоящего Соглашения и принимает их в полном объёме.</p>
                             <p>1.3. В случае несогласия с условиями Соглашения Пользователь обязан прекратить использование Сервиса.</p>
                         </div>
-
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">2. Характер услуг и цифровых товаров</p>
                             <p>2.1. Сервис предоставляет цифровые товары и услуги нематериального характера, включая информационные материалы, обучающие программы, консультации, цифровые продукты и сервисные услуги.</p>
@@ -112,7 +175,6 @@ export default function Profile() {
                             <p>2.3. Пользователь соглашается, что ценность заключается в систематизации, анализе, форме подачи и сопровождении.</p>
                             <p>2.4. Сервис не гарантирует уникальность отдельных элементов материалов вне Сервиса.</p>
                         </div>
-
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">3. Отказ от гарантий и ответственности</p>
                             <p>3.1. Сервис предоставляется на условиях «AS IS» («как есть»).</p>
@@ -120,42 +182,34 @@ export default function Profile() {
                             <p>3.3. Администрация не несёт ответственности за прямые или косвенные убытки, включая упущенную выгоду, тех. сбои или действия третьих лиц.</p>
                             <p>3.4. Все решения о применении материалов принимаются Пользователем самостоятельно.</p>
                         </div>
-
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">4. Законность использования</p>
                             <p>4.1. Сервис не предназначен для поощрения противоправной деятельности. 4.2. Пользователь обязуется использовать Сервис исключительно в рамках законодательства. 4.3. Ответственность полностью возлагается на Пользователя.</p>
                         </div>
-
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">5. Интеллектуальная собственность</p>
                             <p>5.1. Все материалы охраняются законодательством. 5.2. Пользователю запрещается копировать, распространять, перепродавать или передавать материалы третьим лицам без разрешения. 5.3. Нарушение прав влечет ограничение доступа без компенсации.</p>
                         </div>
-
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">6. Ограничение доступа</p>
                             <p>6.1. Администрация вправе приостановить доступ в случае нарушения Соглашения, злоупотреблений или требований закона. 6.2. Ограничение не освобождает от прошлых обязательств. 6.3. Право отказа в обслуживании при рисках для Сервиса.</p>
                         </div>
-
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">7. Платежи и возвраты</p>
                             <p>7.1. Оплата производится на условиях, указанных в Сервисе. 7.2. В связи с нематериальным характером, возврат после предоставления доступа не осуществляется. 7.3. Возврат возможен только если услуга не была оказана по технической вине Сервиса. 7.4. Обращение в поддержку в течение 24 часов. 7.5. Решение принимается индивидуально. 7.6. Пользователь обязуется не инициировать chargeback без обращения в поддержку.</p>
                         </div>
-
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">8. Конфиденциальность</p>
                             <p>8.1. Сбор минимально необходимых технических данных. 8.2. Разумные меры защиты информации.</p>
                         </div>
-
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">9. Изменение условий</p>
                             <p>9.1. Администрация вправе вносить изменения. 9.2. Актуальная версия публикуется в Сервисе. 9.3. Продолжение использования — согласие с новыми условиями.</p>
                         </div>
-
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">10. Контактная информация</p>
                             <p>10.1. По всем вопросам обращаться в службу поддержки через форму в боте.</p>
                         </div>
-
                         <p className="font-black text-white italic pt-4">Используя Сервис (в том числе запуская бота и/или вводя команду /start), Пользователь подтверждает, что ознакомлен с настоящим Соглашением и принимает его условия в полном объёме.</p>
                     </div>
                 </div>
@@ -163,131 +217,224 @@ export default function Profile() {
         );
     }
 
-    // ─── РЕФЕРАЛЬНАЯ СТРАНИЦА ───────────────────────────────────────────────
     if (subPage === 'referral') {
-        const progress = 3;
-        const goal = 10;
-        const percent = (progress / goal) * 100;
-
         return (
             <div className="flex flex-col animate-in fade-in duration-300 overflow-y-auto custom-scrollbar pb-28 pt-2 px-1">
                 <button onClick={handleBack} className="flex items-center gap-2 text-white/40 mb-4 font-black text-[10px] uppercase tracking-widest px-2 outline-none">
                     <ArrowLeft size={14} /> {t.back}
                 </button>
 
-                <div className="bg-[#12141d] border border-white/10 rounded-[2rem] p-6 mb-6 shadow-2xl relative overflow-hidden text-left">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[50px] rounded-full pointer-events-none" />
-                    <h2 className="text-[22px] font-black text-white uppercase italic mb-5">{t.referral_title}</h2>
+                <div className="bg-gradient-to-b from-[#1a1c29] to-[#0a0a0f] border border-white/10 rounded-[2rem] p-6 mb-4 shadow-[0_20px_40px_rgba(0,0,0,0.8)] relative overflow-hidden text-left">
+                    <div className="absolute -top-[20%] -right-[10%] w-[150%] h-[60%] bg-amber-500/10 blur-[80px] rounded-full pointer-events-none" />
 
-                    <div className="space-y-4 mb-6">
-                        <div className="flex items-start gap-3">
-                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                                <CheckCircle2 size={12} className="text-emerald-500" />
+                    <div className="flex items-center gap-3 mb-6 relative z-10">
+                        <div className="w-12 h-12 bg-gradient-to-br from-amber-400/20 to-amber-600/5 rounded-2xl flex items-center justify-center border border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                            <Crown size={22} className="text-amber-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-[20px] font-black text-white uppercase tracking-tight leading-none mb-1">Geo Partner</h2>
+                            <p className="text-amber-400 text-[9px] font-black uppercase tracking-[0.2em]">Партнерская программа</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3 mb-6 relative z-10">
+                        <div className="bg-black/40 backdrop-blur-md border border-white/5 rounded-2xl p-4 flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shrink-0">
+                                <span className="text-amber-500 font-black text-lg">₽</span>
                             </div>
-                            <p className="text-[13px] text-white/70 leading-snug">{t.referral_per_friend} <span className="text-white font-black">50₽</span> {t.referral_per_friend2}</p>
-                        </div>
-                        <div className="flex items-start gap-3">
-                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                                <CheckCircle2 size={12} className="text-emerald-500" />
+                            <div>
+                                <p className="text-[14px] font-black text-white">50₽ на ваш баланс</p>
+                                <p className="text-[10px] text-white/40 font-bold uppercase mt-0.5">За каждого приведенного друга</p>
                             </div>
-                            <p className="text-[13px] text-white/70 leading-snug">{t.referral_bonus} <span className="text-emerald-500 font-black">500₽</span>.</p>
+                        </div>
+
+                        <div className="bg-black/40 backdrop-blur-md border border-white/5 rounded-2xl p-4 flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
+                                <Gift size={18} className="text-emerald-500" />
+                            </div>
+                            <div>
+                                <p className="text-[14px] font-black text-white">+10 дней другу</p>
+                                <p className="text-[10px] text-white/40 font-bold uppercase mt-0.5">При активации вашего кода</p>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 mb-6">
-                        <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
-                            <p className="text-[9px] text-white/30 font-black uppercase mb-1">{t.referral_clicked}</p>
-                            <p className="text-[20px] font-black text-white">12</p>
-                        </div>
-                        <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
-                            <p className="text-[9px] text-white/30 font-black uppercase mb-1">{t.referral_bought}</p>
-                            <p className="text-[20px] font-black text-white">{progress}</p>
-                        </div>
-                    </div>
+                    <div className="relative z-10 mb-2">
+                        <p className="text-[10px] text-white/40 font-black uppercase mb-2 ml-1 tracking-widest">Ваш личный промокод</p>
 
-                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-6">
-                        <div className="flex justify-between items-end mb-2.5">
-                            <p className="text-[11px] font-black text-white uppercase italic">{t.referral_progress}</p>
-                            <p className="text-[11px] font-black text-emerald-500">{progress}/{goal}</p>
+                        <div className="flex flex-col gap-2 p-1.5 bg-black/40 border border-white/10 rounded-[1.25rem] backdrop-blur-md">
+                            <div className="flex items-center justify-between pl-3 h-12">
+                                {!isEditingCode ? (
+                                    <>
+                                        <span className="text-[16px] font-mono font-black text-amber-400 tracking-widest uppercase">
+                                            {user?.referralCode || 'ЗАГРУЗКА...'}
+                                        </span>
+                                        <div className="flex gap-1 pr-1">
+                                            <button
+                                                onClick={() => {
+                                                    setEditCodeValue(user?.referralCode || '');
+                                                    setIsEditingCode(true);
+                                                    window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
+                                                }}
+                                                className="w-10 h-10 flex items-center justify-center text-white/40 active:text-white transition-colors outline-none"
+                                            >
+                                                <Edit2 size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => copyAction(user?.referralCode, 'Код скопирован!')}
+                                                className="bg-white text-black px-4 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                                            >
+                                                Копия
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <input
+                                            type="text"
+                                            value={editCodeValue}
+                                            onChange={(e) => setEditCodeValue(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                                            maxLength={15}
+                                            placeholder="ВАШ КОД"
+                                            className="flex-1 bg-transparent text-[16px] font-mono font-black text-amber-400 tracking-widest uppercase outline-none placeholder:text-amber-400/30"
+                                            autoFocus
+                                        />
+                                        <div className="flex gap-1 pr-1">
+                                            <button
+                                                onClick={() => { setIsEditingCode(false); setEditCodeValue(''); }}
+                                                className="w-10 h-10 flex items-center justify-center text-white/40 active:text-white transition-colors outline-none"
+                                            >
+                                                <X size={18} />
+                                            </button>
+                                            <button
+                                                onClick={handleSaveCustomCode}
+                                                disabled={isSavingCode || !editCodeValue.trim()}
+                                                className="bg-amber-500 text-black px-4 h-10 rounded-xl flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
+                                            >
+                                                {isSavingCode ? '...' : <Save size={16} className="text-black" />}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
-                        <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 p-0.5">
-                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: `${percent}%` }} />
-                        </div>
-                    </div>
 
-                    <button
-                        onClick={() => copyAction(inviteLink, t.link_copied)}
-                        className="w-full py-4 bg-emerald-500 text-white rounded-xl font-black text-[13px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                    >
-                        <Share2 size={16} /> {t.referral_invite}
-                    </button>
+                        <button
+                            onClick={() => copyAction(inviteLink, t.link_copied)}
+                            className="w-full mt-3 py-4 bg-white/5 border border-white/10 text-white rounded-xl font-black text-[12px] uppercase tracking-widest active:bg-white/10 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Share2 size={16} /> Скопировать ссылку на бота
+                        </button>
+                    </div>
                 </div>
+
+                <div className="bg-[#12141d] border border-emerald-500/20 rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
+
+                    <p className="text-[12px] text-white font-black uppercase mb-3 relative z-10 flex items-center gap-2">
+                        <Gift size={16} className="text-emerald-500" /> Есть промокод?
+                    </p>
+
+                    <div className="flex gap-2 relative z-10 bg-black/40 p-1.5 rounded-[1.25rem] border border-white/5">
+                        <input
+                            type="text"
+                            placeholder="ВВЕДИТЕ КОД"
+                            value={promoCode}
+                            onChange={e => setPromoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                            className="flex-1 bg-transparent px-4 text-[14px] font-black outline-none focus:border-emerald-500/50 transition-colors text-white placeholder:text-white/20 uppercase font-mono tracking-widest"
+                        />
+                        <button
+                            onClick={handleApplyPromo}
+                            disabled={isApplying || !promoCode.trim()}
+                            className={`px-6 h-12 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg ${
+                                promoCode.trim() && !isApplying
+                                    ? 'bg-emerald-500 text-black active:scale-95 shadow-emerald-500/20'
+                                    : 'bg-white/5 text-white/20 cursor-not-allowed shadow-none border border-white/5'
+                            }`}
+                        >
+                            {isApplying ? '...' : 'Ок'}
+                        </button>
+                    </div>
+                </div>
+
             </div>
         );
     }
 
     if (subPage === 'instructions') {
         const instructionsData = {
-            ios:[
+            ios: [
                 {
                     title: "Скачайте приложение",
-                    text: "Перейдите в App Store и установите бесплатное приложение «Happ - Proxy Utility»."
+                    text: "Перейдите в App Store и установите бесплатное приложение «Happ - Proxy Utility».",
+                    image: ios1
                 },
                 {
                     title: "Скопируйте подписку",
-                    text: "Вернитесь в это мини-приложение, выберите раздел VPN и нажмите кнопку «Копировать подписку»."
+                    text: "Вернитесь в это мини-приложение, выберите раздел VPN и нажмите кнопку «Копировать подписку».",
+                    image: ios2
                 },
                 {
                     title: "Импортируйте ключи",
-                    text: "Откройте скачанное приложение Happ, нажмите на иконку плюса «+» в правом верхнем углу и выберите «Вставить из буфера обмена» (Paste from clipboard)."
+                    text: "Откройте скачанное приложение Happ, нажмите на иконку плюса «+» в правом верхнем углу и выберите «Вставить из буфера обмена» (Paste from clipboard).",
+                    image: ios3
                 },
                 {
                     title: "Подключитесь к серверу",
-                    text: "Выберите нужную локацию из появившегося списка (например, Финляндия) и нажмите на большую кнопку включения в центре экрана."
+                    text: "Выберите нужную локацию из появившегося списка (например, Финляндия) и нажмите на большую кнопку включения в центре экрана.",
+                    image: ios4
                 }
             ],
-            android:[
+            android: [
                 {
                     title: "Скачайте приложение",
-                    text: "Перейдите в Google Play и установите бесплатное приложение «Happ - Proxy Utility»."
+                    text: "Перейдите в Google Play и установите бесплатное приложение «Happ - Proxy Utility».",
+                    image: and1
                 },
                 {
                     title: "Скопируйте подписку",
-                    text: "Вернитесь в это мини-приложение, выберите раздел VPN и нажмите кнопку «Копировать подписку»."
+                    text: "Вернитесь в это мини-приложение, выберите раздел VPN и нажмите кнопку «Копировать подписку».",
+                    image: and2
                 },
                 {
                     title: "Импорт и подключение",
-                    text: "Откройте скачанное приложение Happ, нажмите на иконку плюса «+» в правом верхнем углу и выберите «Вставить из буфера обмена» (Paste from clipboard)."
+                    text: "Откройте скачанное приложение Happ, нажмите на иконку плюса «+» в правом верхнем углу и выберите «Вставить из буфера обмена» (Paste from clipboard).",
+                    image: and3
                 }
             ],
-            windows:[
+            windows: [
                 {
                     title: "Скачайте клиент",
-                    text: "Скачайте программу «Happ - Proxy Utility Desktop» и распакуйте архив в удобное место."
+                    text: "Скачайте программу «Happ - Proxy Utility Desktop» и распакуйте архив в удобное место.",
+                    image: win1
                 },
                 {
                     title: "Скопируйте подписку",
-                    text: "В мини-приложении нажмите «Копировать подписку», чтобы скопировать вашу уникальную ссылку."
+                    text: "В мини-приложении нажмите «Копировать подписку», чтобы скопировать вашу уникальную ссылку.",
+                    image: win2
                 },
                 {
                     title: "Настройка серверов",
-                    text: "Откройте настройки подписок в скачанном приложении (раздел «Подписки» -> «Настройки подписки») и вставьте скопированную ссылку."
+                    text: "Откройте настройки подписок в скачанном приложении (раздел «Подписки» -> «Настройки подписки») и вставьте скопированную ссылку.",
+                    image: win3
                 },
                 {
                     title: "Обновление списка",
-                    text: "Нажмите «Обновить подписку», чтобы загрузить актуальный список доступных серверов."
+                    text: "Нажмите «Обновить подписку», чтобы загрузить актуальный список доступных серверов.",
+                    image: win4
                 },
                 {
                     title: "Подключение",
-                    text: "Выберите нужный сервер из списка, нажмите на него правой кнопкой мыши -> «Сделать активным» и обязательно включите «Системный прокси»."
+                    text: "Выберите нужный сервер из списка, нажмите на него правой кнопкой мыши -> «Сделать активным» и обязательно включите «Системный прокси».",
+                    image: win5
                 }
             ]
         };
 
-        const platforms =[
-            { id: 'ios', name: 'iOS', icon: Smartphone, desc: t.ios_desc || 'Инструкция для iPhone/iPad', folder: 'ios_instruction' },
-            { id: 'android', name: 'Android', icon: Smartphone, desc: t.android_desc || 'Инструкция для смартфонов', folder: 'adnroid' },
-            { id: 'windows', name: 'Windows / macOS', icon: Laptop, desc: t.windows_desc || 'Инструкция для ПК', folder: 'windows_macos' }
+        const platforms = [
+            { id: 'ios', name: 'iOS', icon: Smartphone, desc: t.ios_desc || 'Инструкция для iPhone/iPad' },
+            { id: 'android', name: 'Android', icon: Smartphone, desc: t.android_desc || 'Инструкция для смартфонов' },
+            { id: 'windows', name: 'Windows / macOS', icon: Laptop, desc: t.windows_desc || 'Инструкция для ПК' }
         ];
 
         return (
@@ -325,39 +472,34 @@ export default function Profile() {
                         </h2>
 
                         <div className="relative border-l-2 border-emerald-500/20 ml-3 space-y-6 pb-6">
-                            {instructionsData[activeInstruction].map((step, idx) => {
-                                const activeFolder = platforms.find(p => p.id === activeInstruction)?.folder;
-                                const imageSrc = `/assets/${activeFolder}/${idx + 1}.png`;
+                            {instructionsData[activeInstruction].map((step, idx) => (
+                                <div key={idx} className="relative pl-6 animate-in slide-in-from-bottom-2 fade-in" style={{ animationDelay: `${idx * 100}ms`, animationFillMode: 'both' }}>
+                                    <div className="absolute -left-[17px] top-0 w-8 h-8 rounded-full bg-[#12141d] border-2 border-emerald-500 flex items-center justify-center font-black text-emerald-500 text-sm shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                                        {idx + 1}
+                                    </div>
 
-                                return (
-                                    <div key={idx} className="relative pl-6 animate-in slide-in-from-bottom-2 fade-in" style={{ animationDelay: `${idx * 100}ms`, animationFillMode: 'both' }}>
-                                        <div className="absolute -left-[17px] top-0 w-8 h-8 rounded-full bg-[#12141d] border-2 border-emerald-500 flex items-center justify-center font-black text-emerald-500 text-sm shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                                            {idx + 1}
-                                        </div>
+                                    <div className="bg-[#12141d] border border-white/10 rounded-3xl p-5 shadow-lg">
+                                        <h3 className="text-[16px] font-black text-white mb-2 leading-tight">
+                                            {step.title}
+                                        </h3>
+                                        <p className="text-[13px] text-white/60 mb-5 leading-relaxed">
+                                            {step.text}
+                                        </p>
 
-                                        <div className="bg-[#12141d] border border-white/10 rounded-3xl p-5 shadow-lg">
-                                            <h3 className="text-[16px] font-black text-white mb-2 leading-tight">
-                                                {step.title}
-                                            </h3>
-                                            <p className="text-[13px] text-white/60 mb-5 leading-relaxed">
-                                                {step.text}
-                                            </p>
-
-                                            <div className="w-full bg-black/40 rounded-xl overflow-hidden border border-white/5 relative">
-                                                <img
-                                                    src={imageSrc}
-                                                    alt={`Шаг ${idx + 1}`}
-                                                    className="w-full h-auto object-cover"
-                                                    onError={(e) => {
-                                                        (e.target as HTMLImageElement).style.display = 'none';
-                                                        (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="p-6 text-center text-white/20 text-[10px] font-bold uppercase tracking-widest">Изображение не найдено<br/>${imageSrc}</div>`;
-                                                    }}
-                                                />
-                                            </div>
+                                        <div className="w-full bg-black/40 rounded-xl overflow-hidden border border-white/5 relative">
+                                            <img
+                                                src={step.image}
+                                                alt={`Шаг ${idx + 1}`}
+                                                className="w-full h-auto object-cover"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                    (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="p-6 text-center text-white/20 text-[10px] font-bold uppercase tracking-widest">Ошибка загрузки изображения</div>`;
+                                                }}
+                                            />
                                         </div>
                                     </div>
-                                );
-                            })}
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
@@ -438,7 +580,7 @@ export default function Profile() {
             {/* МЕНЮ */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-1 shadow-xl mb-3 shrink-0">
                 {[
-                    { label: t.news, icon: Newspaper, action: () => handleLink('https://t.me/geovpn_news') },
+                    { label: t.news, icon: Newspaper, action: () => handleLink('https://t.me/+yuKUzLhYdJVjOWRi') },
                     { label: t.instructions, icon: BookOpen, action: () => setSubPage('instructions') },
                     { label: t.support, icon: Headphones, action: () => handleLink('https://t.me/geo_vpn_support') },
                     { label: "Политика конфиденциальности", icon: Shield, action: () => setSubPage('privacy') },

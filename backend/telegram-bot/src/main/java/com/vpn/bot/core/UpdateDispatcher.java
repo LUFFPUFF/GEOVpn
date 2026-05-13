@@ -1,8 +1,10 @@
 package com.vpn.bot.core;
 
-import com.vpn.bot.handler.OsSelectionCallbackHandler;
+
 import com.vpn.bot.handler.TelegramStartHandler;
 import com.vpn.bot.service.BotBusinessService;
+import com.vpn.bot.service.DeviceRegistrationBotService;
+import com.vpn.bot.ui.KeyboardFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,8 +27,9 @@ public class UpdateDispatcher {
     private final BotBusinessService businessService;
     private final MessageSender sender;
     private final TelegramStartHandler startHandler;
-    private final OsSelectionCallbackHandler osSelectionCallbackHandler;
     private final SubscriptionService subscriptionService;
+    private final DeviceRegistrationBotService registrationService;
+    private final KeyboardFactory keyboardFactory;
 
     @Value("${telegram.bot.channel-url}")
     private String channelUrl;
@@ -37,9 +40,17 @@ public class UpdateDispatcher {
             long userId = getUserId(update);
             if (userId == 0) return;
 
-            if (!subscriptionService.isSubscribed(sender.getAbsSender(), userId)) {
+            boolean isSubscribed = subscriptionService.isSubscribed(sender.getAbsSender(), userId);
+
+            if (!isSubscribed) {
                 sendSubscriptionRequiredMessage(userId);
                 return;
+            }
+
+            if (update.hasMessage()) {
+                registrationService.registerUserIfAbsent(update.getMessage().getFrom());
+            } else if (update.hasCallbackQuery()) {
+                registrationService.registerUserIfAbsent(update.getCallbackQuery().getFrom());
             }
 
             if (update.hasMessage() && update.getMessage().hasText()) {
@@ -57,10 +68,8 @@ public class UpdateDispatcher {
         String text = update.getMessage().getText();
 
         if (text.startsWith("/start")) {
-            String firstName = update.getMessage().getFrom().getFirstName();
-            String username = update.getMessage().getFrom().getUserName();
-            businessService.processStartCommand(chatId, firstName, username);
             SendMessage response = startHandler.handle(update);
+            response.setReplyMarkup(keyboardFactory.getMainReplyKeyboard());
             sender.execute(response);
         }
         else if (text.equals("💎 Купить")) {
@@ -79,61 +88,44 @@ public class UpdateDispatcher {
     }
 
     private void handleCallback(Update update) {
-        String callbackId = update.getCallbackQuery().getId();
         String data = update.getCallbackQuery().getData();
+        String callbackId = update.getCallbackQuery().getId();
+        long chatId = update.getCallbackQuery().getMessage().getChatId();
 
-        sender.execute(new AnswerCallbackQuery(callbackId));
+        if ("check_sub".equals(data)) {
+            if (subscriptionService.isSubscribed(sender.getAbsSender(), chatId)) {
+                sender.execute(new AnswerCallbackQuery(callbackId));
 
-        if (data == null) return;
+                sender.execute(new SendMessage(String.valueOf(chatId), "✅ Спасибо за подписку! Теперь вам доступен весь функционал."));
 
-        if (data.startsWith("os_select:")) {
-            SendMessage response = osSelectionCallbackHandler.handle(update);
-            sender.execute(response);
-        }
-        else if (data.equals("check_subscription")) {
-            long chatId = update.getCallbackQuery().getMessage().getChatId();
-            org.telegram.telegrambots.meta.api.objects.User tgUser = update.getCallbackQuery().getFrom();
-            InlineKeyboardMarkup keyboard = InlineKeyboardMarkup.builder()
-                    .keyboardRow(List.of(
-                            InlineKeyboardButton.builder().text("📱 iOS").callbackData("os_select:iOS").build(),
-                            InlineKeyboardButton.builder().text("🤖 Android").callbackData("os_select:Android").build()
-                    ))
-                    .keyboardRow(List.of(
-                            InlineKeyboardButton.builder().text("🪟 Windows").callbackData("os_select:Windows").build(),
-                            InlineKeyboardButton.builder().text("🍏 macOS").callbackData("os_select:macOS").build()
-                    ))
-                    .build();
-            SendMessage response = SendMessage.builder()
-                    .chatId(chatId)
-                    .text("👋 Привет, " + tgUser.getFirstName() + "!\n\nДля настройки выбери свою ОС:")
-                    .replyMarkup(keyboard)
-                    .build();
-            sender.execute(response);
+                SendMessage startMsg = startHandler.handle(update);
+                startMsg.setReplyMarkup(keyboardFactory.getMainReplyKeyboard());
+                sender.execute(startMsg);
+            } else {
+                AnswerCallbackQuery alert = AnswerCallbackQuery.builder()
+                        .callbackQueryId(callbackId)
+                        .text("❌ Вы всё еще не подписаны на канал!")
+                        .showAlert(true)
+                        .build();
+                sender.execute(alert);
+            }
         }
     }
 
     private void sendSubscriptionRequiredMessage(long chatId) {
         InlineKeyboardMarkup markup = InlineKeyboardMarkup.builder()
-                .keyboardRow(List.of(
-                        InlineKeyboardButton.builder()
-                                .text("📢 Подписаться на канал")
-                                .url(channelUrl)
-                                .build()
-                ))
-                .keyboardRow(List.of(
-                        InlineKeyboardButton.builder()
-                                .text("✅ Я подписался")
-                                .callbackData("check_subscription")
-                                .build()
-                ))
+                .keyboardRow(List.of(InlineKeyboardButton.builder().text("📢 Подписаться на канал").url(channelUrl).build()))
+                .keyboardRow(List.of(InlineKeyboardButton.builder().text("✅ Я подписался").callbackData("check_sub").build()))
                 .build();
 
         SendMessage msg = SendMessage.builder()
                 .chatId(chatId)
-                .text("🛡 <b>Доступ заблокирован</b>\n\nЧтобы пользоваться VPN и открыть приложение, подпишитесь на наш канал. Там мы публикуем новости и новые серверы!")
+                .text("🛡 <b>Доступ заблокирован</b>\n\nДля использования GeoVPN и открытия Mini App, необходимо подписаться на наш информационный канал.")
                 .parseMode("HTML")
                 .replyMarkup(markup)
                 .build();
+
+        msg.setReplyMarkup(markup);
 
         sender.execute(msg);
     }

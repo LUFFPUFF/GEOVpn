@@ -24,9 +24,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * Реализация DeviceService
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -54,7 +51,7 @@ public class DeviceServiceImpl implements DeviceService {
 
         long activeDevicesCount = deviceRepository.countActiveDevicesByUserId(request.getUserId());
         if (activeDevicesCount >= AppConstants.MAX_DEVICES_PER_USER) {
-            log.warn(" Max devices limit exceeded: userId={}, current={}, max={}",
+            log.warn("Max devices limit exceeded: userId={}, current={}, max={}",
                     request.getUserId(), activeDevicesCount, AppConstants.MAX_DEVICES_PER_USER);
             throw new MaxDevicesExceededException(request.getUserId());
         }
@@ -122,7 +119,56 @@ public class DeviceServiceImpl implements DeviceService {
         device.deactivate();
         deviceRepository.save(device);
 
-        log.info("✅ Device deactivated: uuid={}, userId={}", uuid, telegramId);
+        log.info("Device deactivated: uuid={}, userId={}", uuid, telegramId);
+    }
+
+    /**
+     * Физическое удаление устройства из БД по UUID.
+     * Проверяет, что устройство принадлежит вызывающему пользователю.
+     */
+    @Override
+    @Transactional
+    @CacheEvict(value = {"devices", "user-devices"}, allEntries = true)
+    public void deleteDevice(UUID uuid, Long telegramId) {
+        log.info("Hard deleting device: uuid={}, requestedBy={}", uuid, telegramId);
+
+        ValidationUtils.validateNotNull(uuid, "Device UUID");
+        ValidationUtils.validateTelegramId(telegramId);
+
+        Device device = deviceRepository.findByUuid(uuid)
+                .orElseThrow(() -> new DeviceNotFoundException(uuid));
+
+        if (!device.getUserId().equals(telegramId)) {
+            log.warn("Unauthorized device delete attempt: uuid={}, ownerId={}, requestedBy={}",
+                    uuid, device.getUserId(), telegramId);
+            throw new DeviceNotFoundException(uuid);
+        }
+
+        deviceRepository.delete(device);
+        log.info("Device hard deleted: uuid={}, userId={}", uuid, telegramId);
+    }
+
+    /**
+     * Физическое удаление устройства из БД по внутреннему ID.
+     * Используется config-service при принудительном соблюдении лимита.
+     * Намеренно не выбрасывает исключение, если устройство уже удалено.
+     */
+    @Override
+    @Transactional
+    @CacheEvict(value = {"devices", "user-devices"}, allEntries = true)
+    public void deleteDeviceById(Long deviceId, Long userId) {
+        log.info("Internal hard delete: deviceId={}, userId={}", deviceId, userId);
+
+        deviceRepository.findById(deviceId)
+                .filter(d -> d.getUserId().equals(userId))
+                .ifPresentOrElse(
+                        device -> {
+                            deviceRepository.delete(device);
+                            log.info("Device hard deleted by ID: deviceId={}, userId={}", deviceId, userId);
+                        },
+                        () -> log.warn("Device not found or owner mismatch on internal delete: deviceId={}, userId={}",
+                                deviceId, userId)
+                );
     }
 
     @Override

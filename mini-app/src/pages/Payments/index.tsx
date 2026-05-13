@@ -122,7 +122,13 @@ export default function Payments() {
                         {realBalance} <span className="text-[16px] font-bold text-white/50">₽</span>
                     </h2>
                 </div>
-                <button className="bg-white text-black px-5 py-3 rounded-2xl font-black text-[12px] uppercase tracking-widest active:scale-95 transition-all">
+                <button
+                    onClick={() => {
+                        haptic('light');
+                        setActiveTab('deposit');
+                    }}
+                    className="bg-white text-black px-5 py-3 rounded-2xl font-black text-[12px] uppercase tracking-widest active:scale-95 transition-all"
+                >
                     {t.top_up}
                 </button>
             </div>

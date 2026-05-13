@@ -48,4 +48,8 @@ public interface UserService {
     void updateLastActive(Long telegramId);
 
     List<LeaderboardEntryDto> getLeaderboard();
+
+    UserResponse applyPromoCode(Long telegramId, String code);
+
+    UserResponse updateReferralCode(Long telegramId, String newCode);
 }

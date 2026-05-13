@@ -39,6 +39,17 @@ import java.util.stream.Collectors;
  * VLESS / relay / HY2 ссылки генерируются ОДИН РАЗ при createConfig/regenerateConfig
  * и сохраняются в БД (JSONB колонки vless_links_json, relay_links_json, hy2_link).
  * Подписка (SubscriptionService) только читает и раздаёт готовые ссылки.
+ *
+ * Логика лимита устройств:
+ * - При каждом вызове createConfig сначала запускается enforceDeviceLimit:
+ *   если активных конфигураций больше, чем позволяет тариф, самые новые
+ *   (по createdAt) отзываются, а соответствующие устройства удаляются из user-service.
+ * - После принудительного соблюдения лимита, если слотов всё равно нет — создание блокируется.
+ *
+ * Нумерация устройств в XUI:
+ * - Первое устройство пользователя получает label = username.
+ * - Второе и последующие: username + " - устр. N", где N — порядковый номер
+ *   устройства среди активных конфигураций (по возрастанию deviceId).
  */
 @Slf4j
 @Service
@@ -66,6 +77,20 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     public VpnConfigResponse createConfig(ConfigCreateRequest request) {
         log.info("Creating config: userId={}, deviceId={}", request.getUserId(), request.getDeviceId());
 
+
+        Optional<VpnConfiguration> existingConfigOpt = configRepository
+                .findByDeviceIdAndStatus(request.getDeviceId(), ConfigStatus.ACTIVE);
+
+        if (existingConfigOpt.isPresent()) {
+            log.info("Active config already exists for deviceId={}, returning existing config.", request.getDeviceId());
+            VpnConfiguration existingConfig = existingConfigOpt.get();
+
+            if (existingConfig.hasNoStoredLinks()) {
+                rebuildLinks(existingConfig);
+            }
+            return toConfigResponse(existingConfig);
+        }
+
         Long tgId = request.getUserTelegramId();
 
         UserResponse user = userServiceClient.getUserByTelegramId(tgId).getData();
@@ -77,12 +102,14 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 user.getSubscriptionExpiresAt()
         );
 
+        enforceDeviceLimit(tgId);
+
         boolean isNewDevice = configRepository
                 .findByDeviceIdAndStatus(request.getDeviceId(), ConfigStatus.ACTIVE)
                 .isEmpty();
 
         if (isNewDevice && deviceLimitService.isLimitExceeded(tgId)) {
-            log.warn("Device limit exceeded for userId={}", tgId);
+            log.warn("Device limit exceeded for userId={}, creation blocked", tgId);
             return buildLimitExceededResponse(request.getUserId());
         }
 
@@ -116,12 +143,13 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         config = configRepository.save(config);
 
         String qrCodeDataUrl = qrCodeGenerator.generateQRCodeDataUrl(primaryLink);
-
         String subscriptionBase64 = subscriptionService.generateSubscription(vlessUuid);
         String subscriptionUrl = subscriptionBaseUrl + "/api/v1/configs/subscription/" + vlessUuid;
 
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
-        syncWithXui(vlessUuid, allServers, user.getUsername());
+
+        String xuiLabel = buildXuiLabel(user.getUsername(), tgId, request.getDeviceId(), isNewDevice);
+        syncWithXui(vlessUuid, allServers, xuiLabel);
 
         ConfigMetadataDto meta = ConfigMetadataDto.builder()
                 .configId(config.getId())
@@ -132,8 +160,8 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
         List<VpnConfigResponse.ServerConfig> serverConfigs = buildResponseConfigs(config);
 
-        log.info("Config created successfully: uuid={}, servers={}, relays={}, hy2={}",
-                vlessUuid,
+        log.info("Config created: uuid={}, xuiLabel='{}', servers={}, relays={}, hy2={}",
+                vlessUuid, xuiLabel,
                 config.getVlessLinks().size(),
                 config.getRelayLinks().size(),
                 config.getHy2Links() != null ? "yes" : "no");
@@ -154,6 +182,96 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .build();
     }
 
+    /**
+     * Принудительное соблюдение лимита устройств.
+     *
+     * Если у пользователя активных конфигураций больше, чем позволяет его тариф,
+     * самые новые (по createdAt) отзываются, а соответствующие им устройства
+     * удаляются из user-service через DeviceServiceClient.
+     *
+     * Метод не выбрасывает исключение при частичных ошибках — каждое устройство
+     * обрабатывается независимо, чтобы сбой на одном не блокировал остальные.
+     */
+    private void enforceDeviceLimit(Long userId) {
+        int maxDevices = deviceLimitService.getMaxDevices(userId);
+        List<VpnConfiguration> activeConfigs = configRepository
+                .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE);
+
+        int excess = activeConfigs.size() - maxDevices;
+        if (excess <= 0) return;
+
+        log.warn("Enforcing device limit for userId={}: {} excess device(s) will be removed (max={})",
+                userId, excess, maxDevices);
+
+        List<VpnConfiguration> toRevoke = activeConfigs.stream()
+                .sorted(Comparator.comparing(
+                        VpnConfiguration::getCreatedAt,
+                        Comparator.nullsFirst(Comparator.reverseOrder())
+                ))
+                .limit(excess)
+                .toList();
+
+        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
+
+        for (VpnConfiguration config : toRevoke) {
+            try {
+                for (ServerDto server : allServers) {
+                    try {
+                        xuiClient.removeClient(server, config.getVlessUuid().toString());
+                    } catch (Exception e) {
+                        log.warn("Enforcement: failed to remove from XUI server={}, uuid={}: {}",
+                                server.getName(), config.getVlessUuid(), e.getMessage());
+                    }
+                }
+
+                config.revoke();
+                configRepository.save(config);
+                redisCacheService.delete("vpn:meta:" + config.getVlessUuid());
+
+                userServiceClient.deleteDeviceById(config.getDeviceId(), userId);
+
+                log.info("Enforcement: removed deviceId={}, uuid={} for userId={}",
+                        config.getDeviceId(), config.getVlessUuid(), userId);
+
+            } catch (Exception e) {
+                log.error("Enforcement: failed for deviceId={}, userId={}: {}",
+                        config.getDeviceId(), userId, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Формирует label для регистрации клиента в XUI.
+     *
+     * Порядковый номер устройства определяется по позиции deviceId
+     * среди всех активных конфигураций пользователя (сортировка по deviceId asc).
+     * Для нового устройства номер = количество существующих активных + 1.
+     *
+     * Примеры:
+     *   Устройство #1 → "ivan_ivanov"
+     *   Устройство #2 → "ivan_ivanov - устр. 2"
+     *   Устройство #3 → "ivan_ivanov - устр. 3"
+     */
+    private String buildXuiLabel(String username, Long userId, Long deviceId, boolean isNewDevice) {
+        List<Long> sortedDeviceIds = configRepository
+                .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE)
+                .stream()
+                .map(VpnConfiguration::getDeviceId)
+                .sorted()
+                .toList();
+
+        int deviceNumber;
+        if (!isNewDevice) {
+            int idx = sortedDeviceIds.indexOf(deviceId);
+            deviceNumber = idx >= 0 ? idx + 1 : sortedDeviceIds.size() + 1;
+        } else {
+            deviceNumber = sortedDeviceIds.size() + 1;
+        }
+
+        return deviceNumber == 1
+                ? username
+                : username + " - устр. " + deviceNumber;
+    }
 
     @Override
     public String getSubscription(UUID vlessUuid) {
@@ -171,16 +289,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
             rebuildLinks(config);
         }
 
-        return VpnConfigResponse.builder()
-                .id(config.getId())
-                .deviceId(config.getDeviceId())
-                .userId(config.getUserId())
-                .subscriptionUrl(subscriptionBaseUrl + "/api/v1/subscription/" + config.getVlessUuid())
-                .configs(buildResponseConfigs(config))
-                .status(config.getStatus().name())
-                .recommendedProtocol("VLESS")
-                .availableProtocols(buildAvailableProtocols(config))
-                .build();
+        return toConfigResponse(config);
     }
 
     @Override
@@ -208,10 +317,12 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         return configRepository
                 .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE)
                 .stream()
-                .map(config -> getConfigByDeviceId(config.getDeviceId()))
+                .map(config -> {
+                    if (config.hasNoStoredLinks()) rebuildLinks(config);
+                    return toConfigResponse(config);
+                })
                 .collect(Collectors.toList());
     }
-
 
     @Override
     @Transactional
@@ -239,7 +350,6 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         return createConfig(createRequest);
     }
 
-
     @Override
     @Transactional
     @CacheEvict(value = "vpn-configs", key = "#deviceId")
@@ -264,7 +374,6 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         log.info("Config revoked: deviceId={}", deviceId);
     }
 
-
     @Override
     @Transactional
     public void updateLastUsed(UUID vlessUuid) {
@@ -282,7 +391,6 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .orElse(false);
     }
 
-    /** Строит primary ссылку для QR-кода */
     private String buildPrimaryLink(UUID uuid, ServerDto server) {
         try {
             return vlessLinkBuilder.buildVlessLinkCustom(
@@ -301,11 +409,6 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         }
     }
 
-    /**
-     * Формирует список ServerConfig для ответа клиенту.
-     * Читает из уже сохранённых JSON-полей entity.
-     * Порядок: relay → direct → hy2
-     */
     private List<VpnConfigResponse.ServerConfig> buildResponseConfigs(VpnConfiguration config) {
         List<VpnConfigResponse.ServerConfig> result = new ArrayList<>();
 
@@ -344,18 +447,31 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         }
 
         if (config.getHy2Links() != null) {
-            config.getHy2Links().forEach(link -> {
-                result.add(VpnConfigResponse.ServerConfig.builder()
-                        .serverName("HY2 UDP Fallback")
-                        .type("HY2")
-                        .vlessLink(link)
-                        .protocol("HY2")
-                        .isRelay(false)
-                        .build());
-            });
+            config.getHy2Links().forEach(link -> result.add(
+                    VpnConfigResponse.ServerConfig.builder()
+                            .serverName("HY2 UDP Fallback")
+                            .type("HY2")
+                            .vlessLink(link)
+                            .protocol("HY2")
+                            .isRelay(false)
+                            .build()
+            ));
         }
 
         return result;
+    }
+
+    private VpnConfigResponse toConfigResponse(VpnConfiguration config) {
+        return VpnConfigResponse.builder()
+                .id(config.getId())
+                .deviceId(config.getDeviceId())
+                .userId(config.getUserId())
+                .subscriptionUrl(subscriptionBaseUrl + "/api/v1/subscription/" + config.getVlessUuid())
+                .configs(buildResponseConfigs(config))
+                .status(config.getStatus().name())
+                .recommendedProtocol("VLESS")
+                .availableProtocols(buildAvailableProtocols(config))
+                .build();
     }
 
     private List<String> buildAvailableProtocols(VpnConfiguration config) {
@@ -381,10 +497,6 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .build();
     }
 
-    /**
-     * Перестройка ссылок — используется для записей до миграции
-     * или при ручном запросе обновления.
-     */
     @Transactional
     public void rebuildLinks(VpnConfiguration config) {
         log.info("Rebuilding links for uuid={}", config.getVlessUuid());
@@ -395,12 +507,9 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     private void syncWithXui(UUID vlessUuid, List<ServerDto> servers, String email) {
         for (ServerDto server : servers) {
             try {
-
                 String flow = server.isRelay() ? "xtls-rprx-vision" : "";
-
                 xuiClient.addClient(server, vlessUuid.toString(), email, 0, flow);
-
-                log.info("XUI sync success for server={}", server.getName());
+                log.info("XUI sync success: server={}, label='{}'", server.getName(), email);
             } catch (Exception e) {
                 log.error("XUI sync FAIL: server={}, error={}", server.getName(), e.getMessage());
             }

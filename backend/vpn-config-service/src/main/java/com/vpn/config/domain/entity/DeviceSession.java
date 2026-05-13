@@ -21,8 +21,8 @@ import java.util.UUID;
 @Table(
         name = "device_sessions",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_device_fingerprint",
-                columnNames = {"user_id", "device_fingerprint"}
+                name = "uq_user_vless_config",
+                columnNames = {"user_id", "vless_uuid"}
         )
 )
 @Getter @Setter

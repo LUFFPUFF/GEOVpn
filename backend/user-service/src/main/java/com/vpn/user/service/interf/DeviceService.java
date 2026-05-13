@@ -42,4 +42,17 @@ public interface DeviceService {
     boolean isDeviceOwnedByUser(UUID deviceUuid, Long telegramId);
 
     DeviceResponse syncDeviceWithPlatform(Long userId, String platform);
+
+    /**
+     * Физическое удаление устройства из БД.
+     * Вызывается пользователем — проверяет право владения по UUID.
+     */
+    void deleteDevice(UUID uuid, Long telegramId);
+
+    /**
+     * Физическое удаление устройства по внутреннему ID.
+     * Вызывается из config-service через DeviceServiceClient при принудительном
+     * соблюдении лимита. Не выбрасывает исключение, если устройство не найдено.
+     */
+    void deleteDeviceById(Long deviceId, Long userId);
 }

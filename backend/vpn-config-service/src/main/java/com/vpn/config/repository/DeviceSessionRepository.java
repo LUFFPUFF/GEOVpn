@@ -20,6 +20,8 @@ public interface DeviceSessionRepository extends JpaRepository<DeviceSession, Lo
 
     int countByUserIdAndIsActiveTrue(Long userId);
 
+    Optional<DeviceSession> findByUserIdAndVlessUuid(Long userId, UUID vlessUuid);
+
     @Modifying
     @Query("UPDATE DeviceSession s SET s.isActive = false WHERE s.userId = :userId AND s.deviceFingerprint = :fp")
     void deactivateSession(@Param("userId") Long userId, @Param("fp") String fingerprint);

@@ -1,0 +1,36 @@
+package com.vpn.billing.controller;
+
+import com.vpn.billing.dto.request.DepositRequest;
+import com.vpn.billing.dto.response.DepositResponse;
+import com.vpn.billing.service.BillingService;
+import com.vpn.common.dto.ApiResponse;
+import com.vpn.common.security.annotations.RequireUser;
+import com.vpn.common.security.context.SecurityContextHolder;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/v1/billing")
+@RequiredArgsConstructor
+public class BillingController {
+
+    private final BillingService billingService;
+
+    @PostMapping("/deposit")
+    @RequireUser
+    public ResponseEntity<ApiResponse<DepositResponse>> createDeposit(
+            @Valid @RequestBody DepositRequest request) {
+
+        Long telegramId = SecurityContextHolder.getUserId();
+        log.info("Получен запрос на пополнение от пользователя {}: {} RUB", telegramId, request.getAmount());
+
+        DepositResponse response = billingService.createDeposit(telegramId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+}

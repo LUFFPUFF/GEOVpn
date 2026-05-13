@@ -5,6 +5,7 @@ import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ErrorResponse;
 import com.vpn.common.dto.request.DeviceCreateRequest;
 import com.vpn.common.dto.response.DeviceResponse;
+import com.vpn.common.security.annotations.RequireService;
 import com.vpn.common.security.annotations.RequireUser;
 import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.user.service.interf.DeviceService;
@@ -12,7 +13,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,7 +27,7 @@ public class DeviceController {
     private final DeviceService deviceService;
 
     /**
-     * Зарегистрировать новое устройство для текущего пользователя
+     * Зарегистрировать новое устройство для текущего пользователя.
      */
     @PostMapping
     @RequireUser
@@ -53,7 +53,7 @@ public class DeviceController {
     }
 
     /**
-     * Получить список всех активных устройств текущего пользователя
+     * Получить список всех активных устройств текущего пользователя.
      */
     @GetMapping
     @RequireUser
@@ -64,8 +64,7 @@ public class DeviceController {
     }
 
     /**
-     * Получить информацию о конкретном устройстве по UUID
-     * ВНИМАНИЕ: Нужно проверить, что девайс принадлежит этому пользователю!
+     * Получить информацию о конкретном устройстве по UUID.
      */
     @GetMapping("/{uuid}")
     @RequireUser
@@ -74,15 +73,7 @@ public class DeviceController {
             @PathVariable("uuid") UUID uuid) {
 
         if (!deviceService.isDeviceOwnedByUser(uuid, telegramId)) {
-
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .code(ErrorCode.DEVICE_NOT_FOUND.getCode())
-                    .message(ErrorCode.DEVICE_NOT_FOUND.getDefaultMessage())
-                    .traceId("") //todo указать верный traceId
-                    .build();
-
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error(errorResponse));
+            return buildDeviceNotFoundResponse();
         }
 
         DeviceResponse response = deviceService.getDeviceByUuid(uuid);
@@ -90,7 +81,8 @@ public class DeviceController {
     }
 
     /**
-     * Деактивировать устройство (Soft Delete)
+     * Деактивировать устройство — soft delete (isActive = false).
+     * Устройство остаётся в БД.
      */
     @DeleteMapping("/{uuid}")
     @RequireUser
@@ -99,7 +91,48 @@ public class DeviceController {
             @PathVariable("uuid") UUID uuid) {
 
         deviceService.deactivateDevice(uuid, telegramId);
-
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /**
+     * Физическое удаление устройства из БД — hard delete.
+     * Устройство удаляется полностью. VPN конфигурация должна быть
+     * отозвана заранее через DELETE /api/v1/configs/configs/{deviceId}.
+     */
+    @DeleteMapping("/{uuid}/permanent")
+    @RequireUser
+    public ResponseEntity<ApiResponse<Void>> deleteDevicePermanently(
+            @RequestHeader("X-User-Id") Long telegramId,
+            @PathVariable("uuid") UUID uuid) {
+
+        deviceService.deleteDevice(uuid, telegramId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /**
+     * Внутренний эндпоинт для межсервисного вызова из config-service.
+     * Физически удаляет устройство по его внутреннему ID при принудительном
+     * соблюдении лимита устройств (например, при понижении тарифа).
+     *
+     * Вызывается только сервисами с ролью SERVICE, не доступен пользователям.
+     */
+    @DeleteMapping("/internal/{deviceId}")
+    @RequireService
+    public ResponseEntity<ApiResponse<Void>> deleteDeviceByIdInternal(
+            @PathVariable Long deviceId,
+            @RequestHeader("X-User-Id") Long userId) {
+
+        deviceService.deleteDeviceById(deviceId, userId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    private ResponseEntity<ApiResponse<DeviceResponse>> buildDeviceNotFoundResponse() {
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.DEVICE_NOT_FOUND.getCode())
+                .message(ErrorCode.DEVICE_NOT_FOUND.getDefaultMessage())
+                .traceId("")
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(errorResponse));
     }
 }

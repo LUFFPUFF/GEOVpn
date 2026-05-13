@@ -1,0 +1,88 @@
+server:
+  port: ${BILLING_PORT}
+  compression:
+    enabled: true
+  error:
+    include-message: always
+    include-binding-errors: always
+
+spring:
+  application:
+    name: billing-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:prod}
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: BillingServiceHikariCP
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO}
+    show-sql: ${SHOW_SQL:false}
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      timeout: 2000ms
+
+platega:
+  merchant-id: ${PLATEGA_MERCHANT_ID}
+  secret-key: ${PLATEGA_SECRET_KEY}
+  return-url: ${PLATEGA_RETURN_URL}
+
+services:
+  user-service:
+    url: ${USER_SERVICE_URL}
+
+service:
+  security:
+    internal-secret: ${INTERNAL_SECRET}
+    admins: ${ADMIN_USER_IDS}
+    admin-token: ${ADMIN_TOKEN}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    com.vpn: ${VPN_LOG_LEVEL:INFO}
+    org.hibernate.SQL: ${HIBERNATE_LOG_LEVEL:WARN}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+feign:
+  client:
+    config:
+      default:
+        loggerLevel: FULL
+        connectTimeout: 5000
+        readTimeout: 15000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MONITORING_ENDPOINTS}
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+

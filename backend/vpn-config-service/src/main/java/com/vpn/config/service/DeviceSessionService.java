@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -28,7 +29,6 @@ import java.util.UUID;
 public class DeviceSessionService {
 
     private final DeviceSessionRepository sessionRepository;
-    private final DeviceLimitRepository deviceLimitRepository;
     private final DeviceLimitService deviceLimitService;
 
     /**
@@ -46,27 +46,29 @@ public class DeviceSessionService {
         String ip          = extractClientIp(httpRequest);
         String deviceName  = httpRequest.getHeader("X-Device-Name");
 
-        if (sessionRepository.existsByUserIdAndDeviceFingerprintAndIsActiveTrue(userId, fingerprint)) {
-            sessionRepository.findByUserIdAndDeviceFingerprint(userId, fingerprint)
-                    .ifPresent(s -> {
-                        s.setLastIp(ip);
-                        s.setUserAgent(userAgent);
-                        sessionRepository.save(s);
-                    });
-            log.debug("Known device reconnected: userId={}, fp={}...", userId, fingerprint.substring(0, 8));
+        Optional<DeviceSession> existingSession = sessionRepository.findByUserIdAndVlessUuid(userId, vlessUuid);
+
+        if (existingSession.isPresent()) {
+            DeviceSession session = existingSession.get();
+            session.setLastIp(ip);
+            session.setUserAgent(userAgent);
+            session.setDeviceFingerprint(fingerprint);
+            session.setIsActive(true);
+            sessionRepository.save(session);
+
+            log.debug("Session updated for config {}: IP changed to {}", vlessUuid, ip);
             return true;
         }
 
-        int maxDevices     = deviceLimitService.getMaxDevices(userId);
-        int activeDevices  = sessionRepository.countByUserIdAndIsActiveTrue(userId);
+        int maxDevices = deviceLimitService.getMaxDevices(userId);
+        int activeDevices = sessionRepository.countByUserIdAndIsActiveTrue(userId);
 
         if (activeDevices >= maxDevices) {
-            log.warn("Device limit exceeded: userId={}, active={}, max={}",
-                    userId, activeDevices, maxDevices);
+            log.warn("Device limit exceeded for userId {}: {}/{}", userId, activeDevices, maxDevices);
             return false;
         }
 
-        DeviceSession session = DeviceSession.builder()
+        DeviceSession newSession = DeviceSession.builder()
                 .userId(userId)
                 .deviceFingerprint(fingerprint)
                 .vlessUuid(vlessUuid)
@@ -76,9 +78,8 @@ public class DeviceSessionService {
                 .isActive(true)
                 .build();
 
-        sessionRepository.save(session);
-        log.info("New device registered: userId={}, fp={}..., ip={}",
-                userId, fingerprint.substring(0, 8), ip);
+        sessionRepository.save(newSession);
+        log.info("New physical device registered via config {}: ip={}", vlessUuid, ip);
 
         return true;
     }

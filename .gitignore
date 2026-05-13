@@ -28,3 +28,7 @@ backend/.env
 
 admin-panel/.env.env
 docker-compose.yml
+
+backend/user-service/src/main/resources/application-local.yml
+backend/billing-service/src/main/resources/application-local.yml
+backend/api-gateway/src/main/resources/application-local.yml

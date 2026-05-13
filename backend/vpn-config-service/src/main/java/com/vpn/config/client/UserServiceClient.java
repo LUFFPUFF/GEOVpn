@@ -30,4 +30,10 @@ public interface UserServiceClient {
 
     @PostMapping("/api/v1/connections/close")
     ApiResponse<Void> closeConnection(@RequestBody ConnectionUpdateRequest request);
+
+    @DeleteMapping("/api/v1/devices/internal/{deviceId}")
+    void deleteDeviceById(
+            @PathVariable("deviceId") Long deviceId,
+            @RequestHeader("X-User-Id") Long userId
+    );
 }

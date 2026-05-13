@@ -101,11 +101,11 @@ export default function Header() {
                                             </button>
 
                                             <button
-                                                onClick={() => { handleLink('https://t.me/geovpn_news'); handleClose(); }}
+                                                onClick={() => { handleLink('https://t.me/+yuKUzLhYdJVjOWRi'); handleClose(); }}
                                                 className="w-full px-4 py-3.5 flex items-center gap-3 border-b border-border active:bg-muted transition-colors text-left"
                                             >
                                                 <BookOpen size={15} className="text-muted-foreground" />
-                                                <span className="text-[13px] font-medium text-foreground">{t.instruction}</span>
+                                                <span className="text-[13px] font-medium text-foreground">Новостной канал</span>
                                             </button>
 
                                             <button

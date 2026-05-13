@@ -31,5 +31,19 @@ export const userApi = {
     getLeaderboard: () => apiClient.get<ApiResponse<LeaderboardEntry[]>>('/users/leaderboard').then(r => r.data.data),
 
     syncDevice: (platform: string) =>
-        apiClient.post<ApiResponse<DeviceResponse>>('/devices/sync', { platform }).then(r => r.data.data)
+        apiClient.post<ApiResponse<DeviceResponse>>('/devices/sync', { platform }).then(r => r.data.data),
+
+    register: (telegramId: number, firstName: string, username?: string, referralCode?: string) =>
+        apiClient.post<ApiResponse<UserResponse>>('/users/register', {
+            telegramId,
+            firstName,
+            username,
+            referralCode
+        }).then(r => r.data.data),
+
+    syncOnStart: (platform: DeviceType): Promise<UserResponse> => {
+        return apiClient.post<ApiResponse<UserResponse>>('/devices/sync', {
+            platform
+        }).then(r => r.data.data);
+    }
 };

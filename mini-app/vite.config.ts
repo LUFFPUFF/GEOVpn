@@ -10,7 +10,22 @@ export default defineConfig({
     port: 3000,
     host: true,
     proxy: {
-      '/api': {
+      '/api/v1/billing': {
+        target: 'http://localhost:8085',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/v1/users': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/v1/devices': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/v1': {
         target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,

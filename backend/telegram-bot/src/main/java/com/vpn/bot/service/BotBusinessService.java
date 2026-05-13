@@ -24,37 +24,8 @@ public class BotBusinessService {
     private final MessageSender sender;
     private final KeyboardFactory keyboardFactory;
 
-    public void processStartCommand(long chatId, String firstName, String username) {
-        try {
-            userService.registerUser(UserRegistrationRequest.builder()
-                    .telegramId(chatId)
-                    .firstName(firstName)
-                    .username(username)
-                    .build());
-        } catch (Exception e) {
-            log.debug("User already exists or service down");
-        }
-
-        String text = "🛡 <b>GeoVPN — Ваш быстрый и свободный интернет</b>\n\n" +
-                "Привет, <b>" + firstName + "</b>! 👋\n\n" +
-                "Мы сделали всё, чтобы интернет работал стабильно и безопасно.\n\n" +
-                "✨ <b>Что вы получаете:</b>\n" +
-                "• YouTube, Instagram и TikTok без зависаний\n" +
-                "• Простую настройку всего в 2 клика\n" +
-                "• Стабильную работу (не садит батарею)\n" +
-                "• <b>Первый месяц — абсолютно бесплатно!</b> 🎁\n\n" +
-                "<i>\uD83D\uDC47 Воспользуйтесь меню ниже, чтобы начать:</i>";
-
-        InputStream img = getClass().getResourceAsStream("/header1.png");
-        if (img != null) {
-            SendPhoto photo = new SendPhoto(String.valueOf(chatId), new InputFile(img, "header.png"));
-            photo.setCaption(text);
-            photo.setParseMode("HTML");
-            photo.setReplyMarkup(keyboardFactory.getMainReplyKeyboard());
-            sender.executePhoto(photo);
-        } else {
-            sendSimpleText(chatId, text, true);
-        }
+    public void processStartCommand(long chatId, String firstName) {
+        log.info("User {} opened bot, chatId={}", firstName, chatId);
     }
 
     public void sendSubscriptionOptions(long chatId) {

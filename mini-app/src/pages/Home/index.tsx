@@ -1,11 +1,16 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { useUserStore } from '../../store/userStore';
+import { userApi } from '../../api/user';
+import DeviceSelector from '../../components/modals/DeviceSelector';
 import { Crown, Zap, MonitorSmartphone, Globe2, ChevronRight, ArrowRight } from 'lucide-react';
 import bgImage from '../../assets/vpn-bg.png';
+import { DeviceType } from '../../types/api';
 
 export default function Home() {
-    const { user, deviceLimit, devices, setActiveTab, t } = useUserStore();
+    const { user, deviceLimit, devices, setActiveTab, t, register } = useUserStore();
     const [activeSlide, setActiveSlide] = useState(0);
+    const [showDeviceSelect, setShowDeviceSelect] = useState(false);
     const touchStartX = useRef<number | null>(null);
     const touchStartY = useRef<number | null>(null);
     const isDragging  = useRef(false);
@@ -31,6 +36,28 @@ export default function Home() {
         { icon: MonitorSmartphone, val: `${activeDevs}/${maxDevs}`, label: t.devices   },
         { icon: Globe2,            val: t.all_locations,            label: t.locations },
     ];
+
+    const handleGetAccess = () => {
+        haptic('medium');
+        setShowDeviceSelect(true);
+    };
+
+    const handleDeviceSelected = async (type: DeviceType) => {
+        try {
+            if (!user) {
+                await register();
+            }
+
+            await userApi.syncOnStart(type);
+
+            setShowDeviceSelect(false);
+            setActiveTab('payments');
+        } catch (e) {
+            console.error(e);
+            setShowDeviceSelect(false);
+            setActiveTab('payments');
+        }
+    };
 
     const haptic = (s: 'light' | 'medium' = 'light') =>
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred(s);
@@ -219,13 +246,21 @@ export default function Home() {
                                 }}
                             >
                                 <button
-                                    onClick={() => { setActiveTab('payments'); haptic('medium'); }}
+                                    onClick={handleGetAccess}
                                     className="w-full bg-white text-black rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-2 tap-target"
                                     style={{ minHeight: 56 }}
                                 >
                                     <span>{t.get_access}</span>
                                     <ChevronRight size={20} />
                                 </button>
+                                <AnimatePresence>
+                                    {showDeviceSelect && (
+                                        <DeviceSelector
+                                            onSelect={handleDeviceSelected}
+                                            onClose={() => setShowDeviceSelect(false)}
+                                        />
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </div>
                     </div>

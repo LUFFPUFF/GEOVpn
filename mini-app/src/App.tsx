@@ -8,6 +8,7 @@ import BottomNav from './components/layout/BottomNav';
 import Home from './pages/Home';
 import Profile from './pages/Profile';
 import Payments from './pages/Payments';
+import Deposit from './pages/Deposit/Deposit'
 import Subscriptions from './pages/Subscriptions';
 import Leaderboard from './pages/Leaderboard';
 
@@ -28,7 +29,6 @@ export default function App() {
         tg.disableVerticalSwipes?.();
 
         const setHeight = () => {
-            // Берём стабильную высоту — не прыгает при появлении клавиатуры
             const h = tg.viewportStableHeight || window.innerHeight;
             document.documentElement.style.setProperty('--tg-height', `${h}px`);
             // Дублируем на body для надёжности
@@ -53,7 +53,6 @@ export default function App() {
     }, [tgReady]);
 
     return (
-        // Внешний контейнер — только размеры, без flex
         <div
             style={{
                 position: 'relative',
@@ -63,7 +62,6 @@ export default function App() {
                 background: '#000',
             }}
         >
-            {/* Фоновое видео — абсолютное, на весь контейнер */}
             <video
                 src={bgVideo}
                 autoPlay
@@ -115,14 +113,11 @@ export default function App() {
                         flex: 1,
                         overflowY: 'auto',
                         overflowX: 'hidden',
-                        // Отступ снизу = навбар + safe area
                         paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
                         paddingLeft: '1rem',
                         paddingRight: '1rem',
-                        // Momentum scroll на iOS
                         WebkitOverflowScrolling: 'touch',
                         overscrollBehavior: 'contain',
-                        // Минимум — чтобы flex не схлопнул
                         minHeight: 0,
                     } as React.CSSProperties}
                     className="custom-scrollbar"
@@ -130,6 +125,7 @@ export default function App() {
                     {activeTab === 'home'          && <Home />}
                     {activeTab === 'profile'       && <Profile />}
                     {activeTab === 'payments'      && <Payments />}
+                    {activeTab === 'deposit'       && <Deposit />}
                     {activeTab === 'subscriptions' && <Subscriptions />}
                     {activeTab === 'leaderboard'   && <Leaderboard />}
                 </main>

@@ -10,7 +10,7 @@ import {
     LeaderboardEntry
 } from '../types/api';
 
-export type TabId = 'home' | 'payments' | 'profile' | 'subscriptions';
+export type TabId = 'home' | 'profile' | 'payments' | 'subscriptions' | 'leaderboard' | 'deposit';
 
 function detectDeviceType(): string {
     const ua = navigator.userAgent.toLowerCase();
@@ -54,6 +54,30 @@ export const useUserStore = create<UserStore>((set, get) => ({
 
     lang: 'ru',
     t: TRANSLATIONS.ru,
+
+    register: async () => {
+        const tg = window.Telegram?.WebApp;
+        const userDetails = tg?.initDataUnsafe?.user;
+        const startParam = tg?.initDataUnsafe?.start_param;
+
+        if (!userDetails) {
+            console.error("No telegram user data found");
+            return;
+        }
+
+        try {
+            const newUser = await userApi.register(
+                userDetails.id,
+                userDetails.first_name,
+                userDetails.username,
+                startParam
+            );
+            set({ user: newUser });
+            await get().fetchAll();
+        } catch (e) {
+            console.error("Registration failed", e);
+        }
+    },
 
     setLanguage: (newLang: Lang) => {
         set({

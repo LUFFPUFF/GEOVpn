@@ -65,6 +65,8 @@ services:
       BILLING_SERVICE_URL: http://billing-service:8085
       SERVER_MANAGEMENT_SERVICE_URL: http://server-management-service:8084
       VPN_CONFIG_SERVICE_URL: http://vpn-config-service:8083
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
     networks:
       - vpn-network
     depends_on:
@@ -193,6 +195,11 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
+      USER_SERVICE_URL: http://user-service:8082
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      PLATEGA_MERCHANT_ID: ${PLATEGA_MERCHANT_ID}
+      PLATEGA_SECRET_KEY: ${PLATEGA_SECRET_KEY}
+      PLATEGA_RETURN_URL: ${PLATEGA_RETURN_URL}
     networks:
       - vpn-network
     depends_on:
@@ -201,7 +208,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1"]
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -18,7 +18,7 @@ public interface DeviceRepository extends JpaRepository<Device, Long> {
 
     Optional<Device> findByUuid(UUID uuid);
 
-    Optional<Device> findByUserIdAndDeviceTypeAndIsActiveTrue(Long userId, DeviceType deviceType);
+    List<Device> findByUserIdAndDeviceTypeAndIsActiveTrue(Long userId, DeviceType deviceType);
 
     @Query("SELECT COUNT(d) FROM Device d WHERE d.userId = :userId AND d.isActive = true")
     long countActiveDevicesByUserId(@Param("userId") Long userId);

@@ -198,16 +198,18 @@ public class DeviceServiceImpl implements DeviceService {
     public DeviceResponse syncDeviceWithPlatform(Long userId, String platform) {
         DeviceType type = mapPlatformToDeviceType(platform);
 
-        return deviceRepository.findByUserIdAndDeviceTypeAndIsActiveTrue(userId, type)
-                .map(deviceMapper::toResponse)
-                .orElseGet(() -> {
-                    DeviceCreateRequest request = DeviceCreateRequest.builder()
-                            .userId(userId)
-                            .deviceName(type.name() + " Device")
-                            .deviceType(type)
-                            .build();
-                    return createDevice(request);
-                });
+        List<Device> existingDevices = deviceRepository.findByUserIdAndDeviceTypeAndIsActiveTrue(userId, type);
+
+        if (!existingDevices.isEmpty()) {
+            return deviceMapper.toResponse(existingDevices.getFirst());
+        }
+
+        DeviceCreateRequest request = DeviceCreateRequest.builder()
+                .userId(userId)
+                .deviceName(type.name() + " Device")
+                .deviceType(type)
+                .build();
+        return createDevice(request);
     }
 
     private DeviceType mapPlatformToDeviceType(String platform) {

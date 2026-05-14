@@ -148,8 +148,11 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
 
-        String xuiLabel = buildXuiLabel(user.getUsername(), tgId, request.getDeviceId(), isNewDevice);
-        syncWithXui(vlessUuid, allServers, xuiLabel);
+        String xuiLabel = buildXuiLabel(user.getUsername(), tgId, request.getDeviceId());
+        boolean isSynced = syncWithXui(vlessUuid, allServers, xuiLabel);
+        if (!isSynced) {
+            throw new RuntimeException("Не удалось синхронизировать конфигурацию ни с одним сервером XUI. Откат транзакции.");
+        }
 
         ConfigMetadataDto meta = ConfigMetadataDto.builder()
                 .configId(config.getId())
@@ -252,23 +255,20 @@ public class VpnConfigServiceImpl implements VpnConfigService {
      *   Устройство #2 → "ivan_ivanov - устр. 2"
      *   Устройство #3 → "ivan_ivanov - устр. 3"
      */
-    private String buildXuiLabel(String username, Long userId, Long deviceId, boolean isNewDevice) {
+    private String buildXuiLabel(String username, Long userId, Long deviceId) {
         List<Long> sortedDeviceIds = configRepository
                 .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE)
                 .stream()
                 .map(VpnConfiguration::getDeviceId)
+                .distinct()
                 .sorted()
                 .toList();
 
-        int deviceNumber;
-        if (!isNewDevice) {
-            int idx = sortedDeviceIds.indexOf(deviceId);
-            deviceNumber = idx >= 0 ? idx + 1 : sortedDeviceIds.size() + 1;
-        } else {
-            deviceNumber = sortedDeviceIds.size() + 1;
-        }
+        int deviceIndex = sortedDeviceIds.indexOf(deviceId);
 
-        return deviceNumber == 1
+        int deviceNumber = deviceIndex >= 0 ? deviceIndex + 1 : sortedDeviceIds.size();
+
+        return deviceNumber <= 1
                 ? username
                 : username + " - устр. " + deviceNumber;
     }
@@ -279,6 +279,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     }
 
     @Override
+    @Transactional
     @Cacheable(value = "vpn-configs", key = "#deviceId")
     public VpnConfigResponse getConfigByDeviceId(Long deviceId) {
         VpnConfiguration config = configRepository
@@ -293,6 +294,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     }
 
     @Override
+    @Transactional
     public VpnConfigResponse getConfigByVlessUuid(UUID vlessUuid) {
         VpnConfiguration config = configRepository.findByVlessUuid(vlessUuid)
                 .orElseThrow(() -> new ConfigNotFoundException("Config not found: " + vlessUuid));
@@ -313,6 +315,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     }
 
     @Override
+    @Transactional
     public List<VpnConfigResponse> getActiveConfigs(Long userId) {
         return configRepository
                 .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE)
@@ -504,16 +507,19 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         configRepository.save(config);
     }
 
-    private void syncWithXui(UUID vlessUuid, List<ServerDto> servers, String email) {
+    private boolean syncWithXui(UUID vlessUuid, List<ServerDto> servers, String email) {
+        boolean atLeastOneSuccess = false;
         for (ServerDto server : servers) {
             try {
                 String flow = server.isRelay() ? "xtls-rprx-vision" : "";
                 xuiClient.addClient(server, vlessUuid.toString(), email, 0, flow);
                 log.info("XUI sync success: server={}, label='{}'", server.getName(), email);
+                atLeastOneSuccess = true;
             } catch (Exception e) {
                 log.error("XUI sync FAIL: server={}, error={}", server.getName(), e.getMessage());
             }
         }
+        return atLeastOneSuccess;
     }
 
     private String countryEmoji(String code) {

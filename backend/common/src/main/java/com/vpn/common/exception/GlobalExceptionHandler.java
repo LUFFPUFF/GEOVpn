@@ -17,6 +17,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 @Slf4j
 @RestControllerAdvice
@@ -43,10 +44,16 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ApiResponse<Void>> handleTypeMismatchException(MethodArgumentTypeMismatchException ex) {
-        String message = String.format("Parameter '%s' should be of type %s", ex.getName(), Objects.requireNonNull(ex.getRequiredType()).getSimpleName());
-        log.warn("Type mismatch: {}", message);
-        return buildErrorResponse(ErrorCode.INVALID_REQUEST, message, HttpStatus.BAD_REQUEST, null);
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        log.warn("Invalid parameter format: {} = {}", ex.getName(), ex.getValue());
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code("INVALID_PARAMETER")
+                .message("Неверный формат параметра: " + ex.getName())
+                .traceId(UUID.randomUUID().toString())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(errorResponse));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

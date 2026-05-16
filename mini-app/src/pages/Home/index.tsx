@@ -17,8 +17,16 @@ export default function Home() {
     const touchStartY = useRef<number | null>(null);
     const isDragging  = useRef(false);
 
-    const hasSub      = user?.hasActiveSubscription || false;
-    const totalSlides = hasSub ? 2 : 1;
+    // ✅ Фикс бага 1: защита от мигания — пока user не загрузился, показываем лоадер
+    const isInitialized = user !== null && user !== undefined;
+    const hasSub        = user?.hasActiveSubscription ?? false;
+
+    // ✅ Фикс бага 2: добавляем 3-й слайд "Улучшить подписку" для подписчиков
+    // Порядок слайдов:
+    //   0 — Премиум-карточка (только если hasSub)
+    //   1 — Улучшить подписку (только если hasSub)
+    //   последний — Get Access (всегда)
+    const totalSlides = hasSub ? 3 : 1;
 
     const needsDevice = hasSub && devices.length === 0;
 
@@ -40,6 +48,9 @@ export default function Home() {
         { icon: MonitorSmartphone, val: `${activeDevs}/${maxDevs}`, label: t.devices   },
         { icon: Globe2,            val: t.all_locations,            label: t.locations },
     ];
+
+    const haptic = (s: 'light' | 'medium' = 'light') =>
+        window.Telegram?.WebApp?.HapticFeedback.impactOccurred(s);
 
     const handleGetAccess = () => {
         haptic('medium');
@@ -88,9 +99,6 @@ export default function Home() {
         }
     };
 
-    const haptic = (s: 'light' | 'medium' = 'light') =>
-        window.Telegram?.WebApp?.HapticFeedback.impactOccurred(s);
-
     const goNext = useCallback(() => {
         if (activeSlide < totalSlides - 1) { setActiveSlide(p => p + 1); haptic(); }
     }, [activeSlide, totalSlides]);
@@ -122,6 +130,18 @@ export default function Home() {
         isDragging.current  = false;
     };
 
+    // ✅ Фикс бага 1: показываем лоадер пока данные пользователя не загрузились
+    if (!isInitialized) {
+        return (
+            <div
+                className="flex items-center justify-center"
+                style={{ height: 'calc(var(--tg-height, 100dvh) - 180px)' }}
+            >
+                <Loader2 size={28} className="animate-spin text-white/30" />
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col pt-2">
 
@@ -140,6 +160,7 @@ export default function Home() {
                     }}
                 >
 
+                    {/* ─── Слайд 0: Премиум-карточка (только для подписчиков) ─── */}
                     {hasSub && (
                         <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
                             <div className="relative overflow-hidden rounded-[2.5rem] p-6 border border-white/10 bg-gradient-to-b from-[#12141d] to-[#0a0a0f] shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
@@ -269,6 +290,60 @@ export default function Home() {
                         </div>
                     )}
 
+                    {/* ─── Слайд 1: Улучшить подписку (только для подписчиков) ─── */}
+                    {hasSub && (
+                        <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
+                            <div
+                                className="relative overflow-hidden rounded-[2.5rem] border border-white/10 shadow-2xl"
+                                style={{ background: '#0a0a0a' }}
+                            >
+                                <img
+                                    src={bgImage}
+                                    alt="GEO VPN"
+                                    style={{
+                                        display: 'block',
+                                        width: '100%',
+                                        height: 'auto',
+                                        maxHeight: 'calc(var(--tg-height, 100dvh) - 180px)',
+                                        objectFit: 'contain',
+                                    }}
+                                />
+
+                                {/* Градиент снизу */}
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.1) 40%, transparent 100%)',
+                                        pointerEvents: 'none',
+                                    }}
+                                />
+
+                                {/* Кнопка "Улучшить подписку" */}
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        padding: '1.25rem',
+                                        zIndex: 2,
+                                    }}
+                                >
+                                    <button
+                                        onClick={() => { setActiveTab('payments'); haptic('medium'); }}
+                                        className="w-full bg-white text-black rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-all flex items-center justify-center gap-2 tap-target"
+                                        style={{ minHeight: 56 }}
+                                    >
+                                        <Crown size={18} />
+                                        <span>{t.upgrade_subscription ?? 'Улучшить подписку'}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ─── Последний слайд: Get Access (для незарегистрированных) ─── */}
                     <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
                         <div
                             className="relative overflow-hidden rounded-[2.5rem] border border-white/10 shadow-2xl"
@@ -296,7 +371,7 @@ export default function Home() {
                                 }}
                             />
 
-                            {/* Кнопка внизу */}
+                            {/* Кнопка "Оформить доступ" */}
                             <div
                                 style={{
                                     position: 'absolute',

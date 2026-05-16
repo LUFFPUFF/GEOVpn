@@ -31,7 +31,6 @@ export default function App() {
         const setHeight = () => {
             const h = tg.viewportStableHeight || window.innerHeight;
             document.documentElement.style.setProperty('--tg-height', `${h}px`);
-            // Дублируем на body для надёжности
             document.body.style.height = `${h}px`;
         };
 
@@ -44,11 +43,6 @@ export default function App() {
 
     useEffect(() => {
         if (!tgReady) return;
-        if (tg?.platform) {
-            userApi.syncDevice(tg.platform).catch(err =>
-                console.error('[App] Device sync failed:', err)
-            );
-        }
         fetchAll();
     }, [tgReady]);
 

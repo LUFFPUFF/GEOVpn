@@ -40,6 +40,7 @@ public class DeviceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
+    @Deprecated
     @PostMapping("/sync")
     @RequireUser
     public ResponseEntity<ApiResponse<DeviceResponse>> syncDevice(

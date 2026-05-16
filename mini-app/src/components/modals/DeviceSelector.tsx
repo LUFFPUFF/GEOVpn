@@ -11,12 +11,12 @@ interface DeviceSelectorProps {
 }
 
 const DEVICES: { type: DeviceType; label: string; icon: any; color: string }[] = [
-    { type: 'IOS',     label: 'iPhone / iPad', icon: Apple,      color: 'text-white' },
-    { type: 'ANDROID', label: 'Android',       icon: Smartphone, color: 'text-emerald-400' },
-    { type: 'WINDOWS', label: 'Windows PC',    icon: Monitor,    color: 'text-blue-400' },
-    { type: 'MACOS',   label: 'MacBook / iMac',icon: Laptop,     color: 'text-purple-400' },
-    { type: 'LINUX',   label: 'Linux',         icon: Terminal,   color: 'text-orange-400' },
-    { type: 'OTHER',   label: 'Другое',        icon: HelpCircle, color: 'text-gray-400' },
+    { type: 'IOS',     label: 'iPhone / iPad',  icon: Apple,      color: 'text-white' },
+    { type: 'ANDROID', label: 'Android',        icon: Smartphone, color: 'text-emerald-400' },
+    { type: 'WINDOWS', label: 'Windows PC',     icon: Monitor,    color: 'text-blue-400' },
+    { type: 'MACOS',   label: 'MacBook / iMac', icon: Laptop,     color: 'text-purple-400' },
+    { type: 'LINUX',   label: 'Linux',          icon: Terminal,   color: 'text-orange-400' },
+    { type: 'UNKNOWN', label: 'Другое',         icon: HelpCircle, color: 'text-gray-400' },
 ];
 
 export default function DeviceSelector({ onSelect, onClose }: DeviceSelectorProps) {
@@ -25,18 +25,25 @@ export default function DeviceSelector({ onSelect, onClose }: DeviceSelectorProp
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-end justify-center bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={onClose}
         >
             <motion.div
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="w-full max-w-md bg-[#12141d] border border-white/10 rounded-[2.5rem] p-6 pb-10 shadow-2xl"
+                className="w-full max-w-md bg-[#12141d] border border-white/10 rounded-[2.5rem] p-6 pb-8 shadow-2xl"
+                onClick={e => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-[20px] font-black text-white uppercase tracking-tight">Твое устройство</h3>
-                    <button onClick={onClose} className="w-8 h-8 bg-white/5 rounded-full flex items-center justify-center">
+                    <h3 className="text-[20px] font-black text-white uppercase tracking-tight">
+                        Твое устройство
+                    </h3>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 bg-white/5 rounded-full flex items-center justify-center active:bg-white/10 transition-colors"
+                    >
                         <X size={18} className="text-white/40" />
                     </button>
                 </div>

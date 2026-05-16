@@ -3,6 +3,7 @@ package com.vpn.user.grpc;
 import com.vpn.common.config.FeignClientConfiguration;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.request.ConfigCreateRequest;
+import com.vpn.common.dto.response.DeviceLimitStatus;
 import com.vpn.common.dto.response.VpnConfigResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
@@ -28,5 +29,10 @@ public interface VpnServiceClient {
     ApiResponse<Object> setDeviceLimit(
             @PathVariable("userId") Long userId,
             @RequestBody Map<String, Object> request
+    );
+
+    @GetMapping("/api/v1/admin/device-limits/{userId}")
+    ApiResponse<DeviceLimitStatus> getDeviceLimit(
+            @PathVariable("userId") Long userId
     );
 }

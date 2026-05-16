@@ -86,12 +86,15 @@ public class DeviceRegistrationBotService {
     }
 
     private DeviceType mapOsToDeviceType(String os) {
-        return switch (os.toUpperCase()) {
-            case "IOS" -> DeviceType.IOS;
-            case "ANDROID" -> DeviceType.ANDROID;
-            case "WINDOWS" -> DeviceType.WINDOWS;
-            case "MACOS" -> DeviceType.MACOS;
-            default -> DeviceType.OTHER;
+        if (os == null) return DeviceType.UNKNOWN;
+        return switch (os.toLowerCase()) {
+            case "ios"                  -> DeviceType.IOS;
+            case "android"              -> DeviceType.ANDROID;
+            case "macos"                -> DeviceType.MACOS;
+            case "tdesktop", "windows"  -> DeviceType.WINDOWS;
+            case "linux"                -> DeviceType.LINUX;
+            case "desktop"              -> DeviceType.DESKTOP;
+            default                     -> DeviceType.UNKNOWN;
         };
     }
 }

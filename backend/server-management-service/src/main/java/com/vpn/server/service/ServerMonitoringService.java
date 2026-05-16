@@ -67,7 +67,7 @@ public class ServerMonitoringService {
 
                 if (metrics != null) {
                     isReachable = true;
-                    estimatedLoad = metrics.getNumGoroutine() / 4;
+                    estimatedLoad = server.getCurrentConnections();
 
                     log.debug("Server {} metrics: latency={}ms, goroutines={}, uptime={}",
                             server.getName(), latency, metrics.getNumGoroutine(), metrics.getUptime());

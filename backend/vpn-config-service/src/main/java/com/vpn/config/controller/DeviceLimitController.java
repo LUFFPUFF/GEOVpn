@@ -1,11 +1,11 @@
 package com.vpn.config.controller;
 
 import com.vpn.common.dto.ApiResponse;
+import com.vpn.common.dto.response.DeviceLimitStatus;
 import com.vpn.common.security.annotations.RequireAdmin;
 import com.vpn.common.security.annotations.RequireUser;
 import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.config.service.DeviceLimitService;
-import com.vpn.config.service.DeviceLimitService.DeviceLimitStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

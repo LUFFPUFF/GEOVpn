@@ -6,7 +6,7 @@ import {
     ChevronRight, Newspaper, Headphones, BookOpen,
     ShieldAlert, User, ShieldCheck, Fingerprint,
     Crown, CheckCircle2, ArrowLeft, X, Monitor, FileText, Shield,
-    Edit2, Save, Gift
+    Edit2, Save, Gift, AlertCircle, Loader2
 } from 'lucide-react';
 
 import ios1 from '../../assets/ios_instruction/1.png';
@@ -31,12 +31,14 @@ const handleLink = (url: string) => {
 };
 
 export default function Profile() {
-    const { user, devices, addDevice, deleteDevice, t } = useUserStore();
+    const { user, devices, configs, deviceLimit, addDevice, deleteDevice, t } = useUserStore();
     const [subPage, setSubPage] = useState<'main' | 'referral' | 'instructions' | 'privacy' | 'agreement'>('main');
     const [showDeviceModal, setShowDeviceModal] = useState(false);
     const [devName, setDevName] = useState('');
     const [devType, setDevType] = useState('IOS');
     const [activeInstruction, setActiveInstruction] = useState<'ios' | 'android' | 'windows' | null>(null);
+    const [deletingUuid, setDeletingUuid] = useState<string | null>(null);
+    const [isAddingDevice, setIsAddingDevice] = useState(false);
 
     const [promoCode, setPromoCode] = useState('');
     const [isApplying, setIsApplying] = useState(false);
@@ -49,6 +51,10 @@ export default function Profile() {
     const initials = user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U';
     const realBalance = user?.balance ? (user.balance / 100).toFixed(0) : '0';
     const inviteLink = `https://t.me/geovpn_bot?start=${user?.referralCode}`;
+
+    const limitReached = deviceLimit?.limitReached ?? false;
+    const activeDevs   = deviceLimit?.activeDevices ?? devices.length;
+    const maxDevs      = deviceLimit?.maxDevices    ?? 3;
 
     const copyAction = (text: string | undefined, message: string) => {
         if (!text) return;
@@ -63,16 +69,68 @@ export default function Profile() {
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
     };
 
+    // Проверяем лимит перед открытием модала
+    const handleAddDeviceClick = () => {
+        if (limitReached) {
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
+            window.Telegram?.WebApp?.showAlert(`Достигнут лимит устройств (${activeDevs}/${maxDevs}). Удалите одно из существующих устройств, чтобы добавить новое.`);
+            return;
+        }
+        setDevName('');
+        setDevType('IOS');
+        setShowDeviceModal(true);
+    };
+
+    // Добавление устройства с проверкой
+    const handleAddDevice = async () => {
+        if (!devName.trim()) return;
+        if (limitReached) {
+            window.Telegram?.WebApp?.showAlert('Достигнут лимит устройств');
+            return;
+        }
+        try {
+            setIsAddingDevice(true);
+            await addDevice(devName.trim(), devType);
+            setShowDeviceModal(false);
+            setDevName('');
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+        } catch (e: any) {
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
+            window.Telegram?.WebApp?.showAlert(e.message || 'Ошибка при создании устройства');
+        } finally {
+            setIsAddingDevice(false);
+        }
+    };
+
+    const handleDeleteDevice = async (uuid: string) => {
+        if (devices.length <= 1) {
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
+            window.Telegram?.WebApp?.showAlert('Нельзя удалить единственное устройство.');
+            return;
+        }
+
+        window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+        setDeletingUuid(uuid);
+
+        try {
+            await deleteDevice(uuid);
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+        } catch (e) {
+            console.error('Delete device failed:', e);
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
+            window.Telegram?.WebApp?.showAlert('Не удалось удалить устройство. Попробуйте ещё раз.');
+        } finally {
+            setDeletingUuid(null);
+        }
+    };
+
     const handleApplyPromo = async () => {
         if (!promoCode.trim()) return;
-
         try {
             setIsApplying(true);
             window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
-
             const updatedUser = await userApi.applyPromo(promoCode.trim());
             useUserStore.setState({ user: updatedUser });
-
             window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
             window.Telegram?.WebApp?.showAlert('Успешно! Вы получили +10 дней к подписке 🎉');
             setPromoCode('');
@@ -90,14 +148,11 @@ export default function Profile() {
             window.Telegram?.WebApp?.showAlert('Код должен содержать минимум 3 символа');
             return;
         }
-
         try {
             setIsSavingCode(true);
             window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
-
             const updatedUser = await userApi.updateReferralCode(editCodeValue.trim());
             useUserStore.setState({ user: updatedUser });
-
             window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
             setIsEditingCode(false);
         } catch (e: any) {
@@ -119,34 +174,19 @@ export default function Profile() {
                     <h2 className="text-[20px] font-black text-white uppercase italic mb-6 leading-tight">Политика конфиденциальности</h2>
                     <div className="space-y-4 text-white/70 text-[13px] leading-relaxed pb-10">
                         <p>Политика конфиденциальности регулирует обработку и защиту пользовательских данных. Собираются идентификаторы аккаунта, техническая информация и история взаимодействий, необходимые для функционирования сервиса. Данные используются для связи с пользователем и улучшения сервиса. Передача информации третьим лицам возможна только в законодательно установленных случаях или с согласия. Администрация принимает разумные меры для защиты данных, но не несёт ответственности за их утрату. Политика может меняться без предупреждения — согласие считается данным при дальнейшем использовании сервиса.</p>
-
                         <p className="text-emerald-500 font-black mt-4">1. Общие положения</p>
-                        <p>1.1. Настоящая Политика конфиденциальности (далее — «Политика») регулирует порядок обработки и защиты информации, которую Пользователь передаёт при использовании сервиса (далее — «Сервис»).</p>
-                        <p>1.2. Используя Сервис, Пользователь подтверждает своё согласие с условиями Политики. Если Пользователь не согласен с условиями — он обязан прекратить использование Сервиса.</p>
-
+                        <p>1.1. Настоящая Политика конфиденциальности регулирует порядок обработки и защиты информации, которую Пользователь передаёт при использовании сервиса.</p>
+                        <p>1.2. Используя Сервис, Пользователь подтверждает своё согласие с условиями Политики.</p>
                         <p className="text-emerald-500 font-black mt-4">2. Сбор информации</p>
-                        <p>2.1. Сервис может собирать следующие типы данных:</p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>идентификаторы аккаунта (логин, ID, никнейм и т.п.);</li>
-                            <li>техническую информацию (IP-адрес, данные о браузере, устройстве и операционной системе);</li>
-                            <li>историю взаимодействий с Сервисом.</li>
-                        </ul>
-                        <p>2.2. Сервис не требует от Пользователя предоставления паспортных данных, документов, фотографий или другой личной информации, кроме минимально необходимой для работы.</p>
-
+                        <p>2.1. Сервис может собирать: идентификаторы аккаунта; техническую информацию (IP-адрес, браузер, устройство); историю взаимодействий.</p>
                         <p className="text-emerald-500 font-black mt-4">3. Использование информации</p>
-                        <p>3.1. Сервис может использовать полученную информацию исключительно для: обеспечения работы функционала; связи с Пользователем (в том числе для уведомлений и поддержки); анализа и улучшения работы Сервиса.</p>
-
+                        <p>3.1. Данные используются для обеспечения работы функционала, связи с пользователем и улучшения сервиса.</p>
                         <p className="text-emerald-500 font-black mt-4">4. Передача информации третьим лицам</p>
-                        <p>4.1. Администрация не передаёт полученные данные третьим лицам, за исключением случаев: если это требуется по закону; если это необходимо для исполнения обязательств перед Пользователем (например, при работе с платёжными системами); если Пользователь сам дал на это согласие.</p>
-
+                        <p>4.1. Данные не передаются третьим лицам, кроме случаев требования закона или необходимости исполнения обязательств.</p>
                         <p className="text-emerald-500 font-black mt-4">5. Хранение и защита данных</p>
-                        <p>5.1. Данные хранятся в течение срока, необходимого для достижения целей обработки. 5.2. Администрация принимает разумные меры для защиты данных, но не гарантирует абсолютную безопасность информации при передаче через интернет.</p>
-
-                        <p className="text-emerald-500 font-black mt-4">6. Отказ от ответственности</p>
-                        <p>6.1. Пользователь понимает и соглашается, что передача информации через интернет всегда сопряжена с рисками. 6.2. Администрация не несёт ответственности за утрату, кражу или раскрытие данных, если это произошло по вине третьих лиц или самого Пользователя.</p>
-
-                        <p className="text-emerald-500 font-black mt-4">7. Изменения в Политике</p>
-                        <p>7.1. Администрация вправе изменять условия Политики без предварительного уведомления. 7.2. Продолжение использования Сервиса после внесения изменений означает согласие Пользователя с новой редакцией Политики.</p>
+                        <p>5.1. Данные хранятся в течение срока, необходимого для достижения целей обработки. Администрация принимает разумные меры для защиты данных.</p>
+                        <p className="text-emerald-500 font-black mt-4">6. Изменения в Политике</p>
+                        <p>6.1. Администрация вправе изменять условия Политики. Продолжение использования Сервиса означает согласие с новой редакцией.</p>
                     </div>
                 </div>
             </div>
@@ -164,53 +204,21 @@ export default function Profile() {
                     <div className="space-y-6 pb-10">
                         <div>
                             <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">1. Общие положения</p>
-                            <p>1.1. Настоящее Пользовательское соглашение (далее — «Соглашение») регулирует порядок использования онлайн-сервиса (далее — «Сервис»), предоставляемого Администрацией.</p>
-                            <p>1.2. Используя Сервис, включая запуск бота, регистрацию, оплату услуг или получение доступа к материалам, Пользователь подтверждает, что полностью ознакомился с условиями настоящего Соглашения и принимает их в полном объёме.</p>
-                            <p>1.3. В случае несогласия с условиями Соглашения Пользователь обязан прекратить использование Сервиса.</p>
+                            <p>Настоящее Соглашение регулирует порядок использования сервиса. Используя сервис, пользователь принимает условия в полном объёме.</p>
                         </div>
                         <div>
-                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">2. Характер услуг и цифровых товаров</p>
-                            <p>2.1. Сервис предоставляет цифровые товары и услуги нематериального характера, включая информационные материалы, обучающие программы, консультации, цифровые продукты и сервисные услуги.</p>
-                            <p>2.2. Материалы могут включать: информацию из открытых источников; авторские материалы Администрации и/или третьих лиц; аналитические обзоры, подборки, рекомендации.</p>
-                            <p>2.3. Пользователь соглашается, что ценность заключается в систематизации, анализе, форме подачи и сопровождении.</p>
-                            <p>2.4. Сервис не гарантирует уникальность отдельных элементов материалов вне Сервиса.</p>
+                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">2. Характер услуг</p>
+                            <p>Сервис предоставляет цифровые товары и услуги нематериального характера.</p>
                         </div>
                         <div>
-                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">3. Отказ от гарантий и ответственности</p>
-                            <p>3.1. Сервис предоставляется на условиях «AS IS» («как есть»).</p>
-                            <p>3.2. Администрация не гарантирует соответствие ожиданиям Пользователя, достижение финансовых результатов или бесперебойную работу.</p>
-                            <p>3.3. Администрация не несёт ответственности за прямые или косвенные убытки, включая упущенную выгоду, тех. сбои или действия третьих лиц.</p>
-                            <p>3.4. Все решения о применении материалов принимаются Пользователем самостоятельно.</p>
+                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">3. Отказ от гарантий</p>
+                            <p>Сервис предоставляется на условиях «AS IS». Администрация не несёт ответственности за прямые или косвенные убытки.</p>
                         </div>
                         <div>
-                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">4. Законность использования</p>
-                            <p>4.1. Сервис не предназначен для поощрения противоправной деятельности. 4.2. Пользователь обязуется использовать Сервис исключительно в рамках законодательства. 4.3. Ответственность полностью возлагается на Пользователя.</p>
+                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">4. Платежи и возвраты</p>
+                            <p>Возврат возможен только если услуга не была оказана по технической вине сервиса. Обращение в поддержку в течение 24 часов.</p>
                         </div>
-                        <div>
-                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">5. Интеллектуальная собственность</p>
-                            <p>5.1. Все материалы охраняются законодательством. 5.2. Пользователю запрещается копировать, распространять, перепродавать или передавать материалы третьим лицам без разрешения. 5.3. Нарушение прав влечет ограничение доступа без компенсации.</p>
-                        </div>
-                        <div>
-                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">6. Ограничение доступа</p>
-                            <p>6.1. Администрация вправе приостановить доступ в случае нарушения Соглашения, злоупотреблений или требований закона. 6.2. Ограничение не освобождает от прошлых обязательств. 6.3. Право отказа в обслуживании при рисках для Сервиса.</p>
-                        </div>
-                        <div>
-                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">7. Платежи и возвраты</p>
-                            <p>7.1. Оплата производится на условиях, указанных в Сервисе. 7.2. В связи с нематериальным характером, возврат после предоставления доступа не осуществляется. 7.3. Возврат возможен только если услуга не была оказана по технической вине Сервиса. 7.4. Обращение в поддержку в течение 24 часов. 7.5. Решение принимается индивидуально. 7.6. Пользователь обязуется не инициировать chargeback без обращения в поддержку.</p>
-                        </div>
-                        <div>
-                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">8. Конфиденциальность</p>
-                            <p>8.1. Сбор минимально необходимых технических данных. 8.2. Разумные меры защиты информации.</p>
-                        </div>
-                        <div>
-                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">9. Изменение условий</p>
-                            <p>9.1. Администрация вправе вносить изменения. 9.2. Актуальная версия публикуется в Сервисе. 9.3. Продолжение использования — согласие с новыми условиями.</p>
-                        </div>
-                        <div>
-                            <p className="text-emerald-500 font-black mb-1 uppercase tracking-widest text-[11px]">10. Контактная информация</p>
-                            <p>10.1. По всем вопросам обращаться в службу поддержки через форму в боте.</p>
-                        </div>
-                        <p className="font-black text-white italic pt-4">Используя Сервис (в том числе запуская бота и/или вводя команду /start), Пользователь подтверждает, что ознакомлен с настоящим Соглашением и принимает его условия в полном объёме.</p>
+                        <p className="font-black text-white italic pt-4">Используя Сервис, Пользователь подтверждает согласие с условиями Соглашения.</p>
                     </div>
                 </div>
             </div>
@@ -247,7 +255,6 @@ export default function Profile() {
                                 <p className="text-[10px] text-white/40 font-bold uppercase mt-0.5">За каждого приведенного друга</p>
                             </div>
                         </div>
-
                         <div className="bg-black/40 backdrop-blur-md border border-white/5 rounded-2xl p-4 flex items-center gap-4">
                             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
                                 <Gift size={18} className="text-emerald-500" />
@@ -261,7 +268,6 @@ export default function Profile() {
 
                     <div className="relative z-10 mb-2">
                         <p className="text-[10px] text-white/40 font-black uppercase mb-2 ml-1 tracking-widest">Ваш личный промокод</p>
-
                         <div className="flex flex-col gap-2 p-1.5 bg-black/40 border border-white/10 rounded-[1.25rem] backdrop-blur-md">
                             <div className="flex items-center justify-between pl-3 h-12">
                                 {!isEditingCode ? (
@@ -271,11 +277,7 @@ export default function Profile() {
                                         </span>
                                         <div className="flex gap-1 pr-1">
                                             <button
-                                                onClick={() => {
-                                                    setEditCodeValue(user?.referralCode || '');
-                                                    setIsEditingCode(true);
-                                                    window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
-                                                }}
+                                                onClick={() => { setEditCodeValue(user?.referralCode || ''); setIsEditingCode(true); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }}
                                                 className="w-10 h-10 flex items-center justify-center text-white/40 active:text-white transition-colors outline-none"
                                             >
                                                 <Edit2 size={16} />
@@ -300,10 +302,7 @@ export default function Profile() {
                                             autoFocus
                                         />
                                         <div className="flex gap-1 pr-1">
-                                            <button
-                                                onClick={() => { setIsEditingCode(false); setEditCodeValue(''); }}
-                                                className="w-10 h-10 flex items-center justify-center text-white/40 active:text-white transition-colors outline-none"
-                                            >
+                                            <button onClick={() => { setIsEditingCode(false); setEditCodeValue(''); }} className="w-10 h-10 flex items-center justify-center text-white/40 active:text-white transition-colors outline-none">
                                                 <X size={18} />
                                             </button>
                                             <button
@@ -318,7 +317,6 @@ export default function Profile() {
                                 )}
                             </div>
                         </div>
-
                         <button
                             onClick={() => copyAction(inviteLink, t.link_copied)}
                             className="w-full mt-3 py-4 bg-white/5 border border-white/10 text-white rounded-xl font-black text-[12px] uppercase tracking-widest active:bg-white/10 transition-all flex items-center justify-center gap-2"
@@ -330,18 +328,16 @@ export default function Profile() {
 
                 <div className="bg-[#12141d] border border-emerald-500/20 rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
-
                     <p className="text-[12px] text-white font-black uppercase mb-3 relative z-10 flex items-center gap-2">
                         <Gift size={16} className="text-emerald-500" /> Есть промокод?
                     </p>
-
                     <div className="flex gap-2 relative z-10 bg-black/40 p-1.5 rounded-[1.25rem] border border-white/5">
                         <input
                             type="text"
                             placeholder="ВВЕДИТЕ КОД"
                             value={promoCode}
                             onChange={e => setPromoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                            className="flex-1 bg-transparent px-4 text-[14px] font-black outline-none focus:border-emerald-500/50 transition-colors text-white placeholder:text-white/20 uppercase font-mono tracking-widest"
+                            className="flex-1 bg-transparent px-4 text-[14px] font-black outline-none text-white placeholder:text-white/20 uppercase font-mono tracking-widest"
                         />
                         <button
                             onClick={handleApplyPromo}
@@ -356,7 +352,6 @@ export default function Profile() {
                         </button>
                     </div>
                 </div>
-
             </div>
         );
     }
@@ -364,77 +359,29 @@ export default function Profile() {
     if (subPage === 'instructions') {
         const instructionsData = {
             ios: [
-                {
-                    title: "Скачайте приложение",
-                    text: "Перейдите в App Store и установите бесплатное приложение «Happ - Proxy Utility».",
-                    image: ios1
-                },
-                {
-                    title: "Скопируйте подписку",
-                    text: "Вернитесь в это мини-приложение, выберите раздел VPN и нажмите кнопку «Копировать подписку».",
-                    image: ios2
-                },
-                {
-                    title: "Импортируйте ключи",
-                    text: "Откройте скачанное приложение Happ, нажмите на иконку плюса «+» в правом верхнем углу и выберите «Вставить из буфера обмена» (Paste from clipboard).",
-                    image: ios3
-                },
-                {
-                    title: "Подключитесь к серверу",
-                    text: "Выберите нужную локацию из появившегося списка (например, Финляндия) и нажмите на большую кнопку включения в центре экрана.",
-                    image: ios4
-                }
+                { title: "Скачайте приложение", text: "Перейдите в App Store и установите бесплатное приложение «Happ - Proxy Utility».", image: ios1 },
+                { title: "Скопируйте подписку", text: "Вернитесь в это мини-приложение, выберите раздел VPN и нажмите кнопку «Копировать подписку».", image: ios2 },
+                { title: "Импортируйте ключи", text: "Откройте Happ, нажмите «+» и выберите «Вставить из буфера обмена».", image: ios3 },
+                { title: "Подключитесь", text: "Выберите локацию и нажмите кнопку включения.", image: ios4 }
             ],
             android: [
-                {
-                    title: "Скачайте приложение",
-                    text: "Перейдите в Google Play и установите бесплатное приложение «Happ - Proxy Utility».",
-                    image: and1
-                },
-                {
-                    title: "Скопируйте подписку",
-                    text: "Вернитесь в это мини-приложение, выберите раздел VPN и нажмите кнопку «Копировать подписку».",
-                    image: and2
-                },
-                {
-                    title: "Импорт и подключение",
-                    text: "Откройте скачанное приложение Happ, нажмите на иконку плюса «+» в правом верхнем углу и выберите «Вставить из буфера обмена» (Paste from clipboard).",
-                    image: and3
-                }
+                { title: "Скачайте приложение", text: "Перейдите в Google Play и установите «Happ - Proxy Utility».", image: and1 },
+                { title: "Скопируйте подписку", text: "В мини-приложении нажмите «Копировать подписку».", image: and2 },
+                { title: "Импорт и подключение", text: "Откройте Happ, нажмите «+» и выберите «Вставить из буфера обмена».", image: and3 }
             ],
             windows: [
-                {
-                    title: "Скачайте клиент",
-                    text: "Скачайте программу «Happ - Proxy Utility Desktop» и распакуйте архив в удобное место.",
-                    image: win1
-                },
-                {
-                    title: "Скопируйте подписку",
-                    text: "В мини-приложении нажмите «Копировать подписку», чтобы скопировать вашу уникальную ссылку.",
-                    image: win2
-                },
-                {
-                    title: "Настройка серверов",
-                    text: "Откройте настройки подписок в скачанном приложении (раздел «Подписки» -> «Настройки подписки») и вставьте скопированную ссылку.",
-                    image: win3
-                },
-                {
-                    title: "Обновление списка",
-                    text: "Нажмите «Обновить подписку», чтобы загрузить актуальный список доступных серверов.",
-                    image: win4
-                },
-                {
-                    title: "Подключение",
-                    text: "Выберите нужный сервер из списка, нажмите на него правой кнопкой мыши -> «Сделать активным» и обязательно включите «Системный прокси».",
-                    image: win5
-                }
+                { title: "Скачайте клиент", text: "Скачайте «Happ - Proxy Utility Desktop» и распакуйте.", image: win1 },
+                { title: "Скопируйте подписку", text: "В мини-приложении нажмите «Копировать подписку».", image: win2 },
+                { title: "Настройка серверов", text: "Откройте настройки подписок и вставьте скопированную ссылку.", image: win3 },
+                { title: "Обновление списка", text: "Нажмите «Обновить подписку» для загрузки серверов.", image: win4 },
+                { title: "Подключение", text: "Выберите сервер, нажмите «Сделать активным» и включите «Системный прокси».", image: win5 }
             ]
         };
 
         const platforms = [
-            { id: 'ios', name: 'iOS', icon: Smartphone, desc: t.ios_desc || 'Инструкция для iPhone/iPad' },
-            { id: 'android', name: 'Android', icon: Smartphone, desc: t.android_desc || 'Инструкция для смартфонов' },
-            { id: 'windows', name: 'Windows / macOS', icon: Laptop, desc: t.windows_desc || 'Инструкция для ПК' }
+            { id: 'ios',     name: 'iOS',            icon: Smartphone, desc: t.ios_desc     || 'Инструкция для iPhone/iPad' },
+            { id: 'android', name: 'Android',        icon: Smartphone, desc: t.android_desc || 'Инструкция для смартфонов'  },
+            { id: 'windows', name: 'Windows / macOS', icon: Laptop,    desc: t.windows_desc || 'Инструкция для ПК'           }
         ];
 
         return (
@@ -453,7 +400,7 @@ export default function Profile() {
                                 className="w-full flex items-center justify-between bg-[#12141d] border border-white/10 p-4 rounded-2xl active:bg-white/5 transition-all outline-none group"
                             >
                                 <div className="flex items-center gap-4 text-left">
-                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shrink-0 group-active:bg-emerald-500/20 group-active:border-emerald-500/30 group-active:text-emerald-500 transition-colors">
+                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shrink-0 group-active:bg-emerald-500/20 group-active:border-emerald-500/30 transition-colors">
                                         <p.icon size={18} className="text-white/80 group-active:text-emerald-500 transition-colors" />
                                     </div>
                                     <div>
@@ -461,7 +408,7 @@ export default function Profile() {
                                         <p className="text-[10px] text-white/40 font-medium uppercase mt-0.5">{p.desc}</p>
                                     </div>
                                 </div>
-                                <ChevronRight size={16} className="text-white/20 group-active:text-emerald-500 transition-colors" />
+                                <ChevronRight size={16} className="text-white/20" />
                             </button>
                         ))}
                     </div>
@@ -470,32 +417,17 @@ export default function Profile() {
                         <h2 className="text-[20px] font-black text-white uppercase italic mb-6">
                             Настройка {platforms.find(p => p.id === activeInstruction)?.name}
                         </h2>
-
                         <div className="relative border-l-2 border-emerald-500/20 ml-3 space-y-6 pb-6">
                             {instructionsData[activeInstruction].map((step, idx) => (
-                                <div key={idx} className="relative pl-6 animate-in slide-in-from-bottom-2 fade-in" style={{ animationDelay: `${idx * 100}ms`, animationFillMode: 'both' }}>
+                                <div key={idx} className="relative pl-6" style={{ animationDelay: `${idx * 100}ms` }}>
                                     <div className="absolute -left-[17px] top-0 w-8 h-8 rounded-full bg-[#12141d] border-2 border-emerald-500 flex items-center justify-center font-black text-emerald-500 text-sm shadow-[0_0_15px_rgba(16,185,129,0.2)]">
                                         {idx + 1}
                                     </div>
-
                                     <div className="bg-[#12141d] border border-white/10 rounded-3xl p-5 shadow-lg">
-                                        <h3 className="text-[16px] font-black text-white mb-2 leading-tight">
-                                            {step.title}
-                                        </h3>
-                                        <p className="text-[13px] text-white/60 mb-5 leading-relaxed">
-                                            {step.text}
-                                        </p>
-
-                                        <div className="w-full bg-black/40 rounded-xl overflow-hidden border border-white/5 relative">
-                                            <img
-                                                src={step.image}
-                                                alt={`Шаг ${idx + 1}`}
-                                                className="w-full h-auto object-cover"
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                    (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="p-6 text-center text-white/20 text-[10px] font-bold uppercase tracking-widest">Ошибка загрузки изображения</div>`;
-                                                }}
-                                            />
+                                        <h3 className="text-[16px] font-black text-white mb-2 leading-tight">{step.title}</h3>
+                                        <p className="text-[13px] text-white/60 mb-5 leading-relaxed">{step.text}</p>
+                                        <div className="w-full bg-black/40 rounded-xl overflow-hidden border border-white/5">
+                                            <img src={step.image} alt={`Шаг ${idx + 1}`} className="w-full h-auto object-cover" />
                                         </div>
                                     </div>
                                 </div>
@@ -530,8 +462,7 @@ export default function Profile() {
                             </div>
                         </div>
                     </div>
-                    <div className="w-10 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center relative overflow-hidden shrink-0">
-                        <div className="absolute top-0 left-0 w-full h-[1px] bg-emerald-500 animate-[slide-in-from-bottom-full_2s_infinite_alternate]" />
+                    <div className="w-10 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center shrink-0">
                         <Fingerprint size={20} className="text-white/20" />
                     </div>
                 </div>
@@ -580,11 +511,11 @@ export default function Profile() {
             {/* МЕНЮ */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-1 shadow-xl mb-3 shrink-0">
                 {[
-                    { label: t.news, icon: Newspaper, action: () => handleLink('https://t.me/+yuKUzLhYdJVjOWRi') },
-                    { label: t.instructions, icon: BookOpen, action: () => setSubPage('instructions') },
-                    { label: t.support, icon: Headphones, action: () => handleLink('https://t.me/geo_vpn_support') },
-                    { label: "Политика конфиденциальности", icon: Shield, action: () => setSubPage('privacy') },
-                    { label: "Пользовательское соглашение", icon: FileText, action: () => setSubPage('agreement') }
+                    { label: t.news,         icon: Newspaper, action: () => handleLink('https://t.me/+yuKUzLhYdJVjOWRi') },
+                    { label: t.instructions, icon: BookOpen,  action: () => setSubPage('instructions') },
+                    { label: t.support,      icon: Headphones,action: () => handleLink('https://t.me/geo_vpn_support') },
+                    { label: 'Политика конфиденциальности', icon: Shield,   action: () => setSubPage('privacy') },
+                    { label: 'Пользовательское соглашение', icon: FileText, action: () => setSubPage('agreement') },
                 ].map((item, idx, arr) => (
                     <button
                         key={idx}
@@ -602,53 +533,114 @@ export default function Profile() {
 
             {/* УСТРОЙСТВА */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-5 shadow-xl relative overflow-hidden shrink-0 text-white">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-[14px] font-black uppercase italic">{t.my_devices}</h3>
+                <div className="flex justify-between items-center mb-3">
+                    <div>
+                        <h3 className="text-[14px] font-black uppercase italic">{t.my_devices}</h3>
+                        {deviceLimit && (
+                            <p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${limitReached ? 'text-red-400' : 'text-white/30'}`}>
+                                {activeDevs}/{maxDevs} устройств
+                            </p>
+                        )}
+                    </div>
                     <button
-                        onClick={() => setShowDeviceModal(true)}
-                        className="bg-emerald-500 text-black px-3 py-1.5 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all font-black text-[10px] uppercase shadow-lg shadow-emerald-500/20 outline-none"
+                        onClick={handleAddDeviceClick}
+                        className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all font-black text-[10px] uppercase shadow-lg outline-none ${
+                            limitReached
+                                ? 'bg-white/10 text-white/30 cursor-not-allowed shadow-none border border-white/5'
+                                : 'bg-emerald-500 text-black shadow-emerald-500/20'
+                        }`}
                     >
-                        <Plus size={14} strokeWidth={3} /> Добавить
+                        {limitReached ? (
+                            <>
+                                <AlertCircle size={14} /> Лимит
+                            </>
+                        ) : (
+                            <>
+                                <Plus size={14} strokeWidth={3} /> Добавить
+                            </>
+                        )}
                     </button>
                 </div>
+
+                {/* Баннер при достижении лимита */}
+                {limitReached && (
+                    <div className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2">
+                        <AlertCircle size={16} className="text-red-400 shrink-0" />
+                        <p className="text-[11px] text-red-300 font-black uppercase tracking-wide">
+                            Лимит устройств достигнут. Удалите существующее устройство.
+                        </p>
+                    </div>
+                )}
+
                 <div className="space-y-2">
                     {devices.length === 0 ? (
                         <p className="text-white/20 text-center text-[11px] font-medium py-2 uppercase tracking-widest">{t.no_devices}</p>
                     ) : (
-                        devices.map(dev => (
-                            <div key={dev.id} className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-white/5">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 shrink-0 text-white/40">
-                                        {dev.deviceType === 'WINDOWS' ? <Monitor size={14} /> : <Smartphone size={14} />}
+                        devices.map(dev => {
+                            const isDeleting = deletingUuid === dev.uuid;
+                            const hasConfig  = configs.some(c => c.deviceId === dev.id);
+                            return (
+                                <div key={dev.id} className={`flex justify-between items-center bg-black/20 p-3 rounded-xl border transition-opacity ${isDeleting ? 'opacity-40 pointer-events-none' : 'border-white/5'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 shrink-0 text-white/40">
+                                            {dev.deviceType === 'WINDOWS' || dev.deviceType === 'MACOS' || dev.deviceType === 'LINUX' || dev.deviceType === 'DESKTOP'
+                                                ? <Monitor size={14} />
+                                                : <Smartphone size={14} />
+                                            }
+                                        </div>
+                                        <div>
+                                            <p className="text-[13px] font-black truncate max-w-[120px]">{dev.deviceName}</p>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <p className="text-[9px] text-white/30 font-black uppercase tracking-widest">{dev.deviceType}</p>
+                                                {hasConfig && (
+                                                    <span className="text-[8px] text-emerald-500 font-black uppercase tracking-widest">• VPN</span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-[13px] font-black truncate max-w-[120px]">{dev.deviceName}</p>
-                                        <p className="text-[9px] text-white/30 font-black uppercase tracking-widest">{dev.deviceType}</p>
-                                    </div>
+                                    <button
+                                        onClick={() => handleDeleteDevice(dev.uuid)}
+                                        disabled={isDeleting || devices.length <= 1}
+                                        className={`p-2 shrink-0 outline-none transition-colors ${
+                                            devices.length <= 1
+                                                ? 'text-white/10 cursor-not-allowed'
+                                                : 'text-red-500/40 active:text-red-500'
+                                        }`}
+                                    >
+                                        {isDeleting
+                                            ? <Loader2 size={16} className="animate-spin text-white/30" />
+                                            : <Trash2 size={16} />
+                                        }
+                                    </button>
                                 </div>
-                                <button onClick={() => deleteDevice(dev.uuid)} className="text-red-500/40 active:text-red-500 p-2 shrink-0 outline-none transition-colors">
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </div>
 
-            {/* ЦЕНТРАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ */}
+            {/* МОДАЛ ДОБАВЛЕНИЯ УСТРОЙСТВА */}
             {showDeviceModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 animate-in fade-in duration-300">
-                    <div
-                        className="absolute inset-0 bg-black/80 backdrop-blur-md"
-                        onClick={() => setShowDeviceModal(false)}
-                    />
-
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowDeviceModal(false)} />
                     <div className="relative w-full max-w-[340px] bg-[#1a1c26] border border-white/10 rounded-[2.5rem] p-8 shadow-[0_0_40px_-10px_rgba(16,185,129,0.2)] animate-in zoom-in-95 duration-200 text-white">
-                        <h2 className="text-[20px] font-black mb-8 text-center uppercase italic tracking-wide">
-                            {t.new_device}
-                        </h2>
 
-                        <div className="space-y-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-[20px] font-black uppercase italic tracking-wide">{t.new_device}</h2>
+                            <button onClick={() => setShowDeviceModal(false)} className="w-8 h-8 bg-white/5 rounded-full flex items-center justify-center outline-none">
+                                <X size={16} className="text-white/40" />
+                            </button>
+                        </div>
+
+                        {/* Счётчик лимита */}
+                        <div className="mb-5 p-3 bg-white/5 rounded-xl flex items-center justify-between">
+                            <span className="text-[10px] text-white/40 font-black uppercase tracking-widest">Осталось слотов</span>
+                            <span className={`text-[13px] font-black ${(deviceLimit?.remainingSlots ?? 1) <= 1 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                {deviceLimit?.remainingSlots ?? '—'} из {maxDevs}
+                            </span>
+                        </div>
+
+                        <div className="space-y-5">
                             <div className="space-y-2 text-left">
                                 <label className="text-[9px] font-black text-emerald-500 uppercase ml-1 tracking-widest">Название</label>
                                 <input
@@ -663,17 +655,17 @@ export default function Profile() {
                             <div className="space-y-2 text-left">
                                 <label className="text-[9px] font-black text-emerald-500 uppercase ml-1 tracking-widest">Платформа</label>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {['IOS', 'ANDROID', 'WINDOWS'].map(type => (
+                                    {['IOS', 'ANDROID', 'WINDOWS', 'MACOS', 'LINUX', 'UNKNOWN'].map(type => (
                                         <button
                                             key={type}
                                             onClick={() => setDevType(type)}
-                                            className={`py-3 rounded-xl text-[10px] font-black uppercase transition-all border outline-none ${
+                                            className={`py-3 rounded-xl text-[9px] font-black uppercase transition-all border outline-none ${
                                                 devType === type
                                                     ? 'bg-white text-black border-white shadow-lg'
                                                     : 'bg-white/5 text-white/40 border-white/5 active:scale-95'
                                             }`}
                                         >
-                                            {type}
+                                            {type === 'UNKNOWN' ? 'ДРУГОЕ' : type}
                                         </button>
                                     ))}
                                 </div>
@@ -681,16 +673,18 @@ export default function Profile() {
 
                             <div className="pt-2 space-y-3">
                                 <button
-                                    onClick={() => { addDevice(devName, devType); setShowDeviceModal(false); setDevName(''); }}
-                                    className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all outline-none ${
-                                        devName.trim()
+                                    onClick={handleAddDevice}
+                                    disabled={!devName.trim() || isAddingDevice}
+                                    className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all outline-none flex items-center justify-center gap-2 ${
+                                        devName.trim() && !isAddingDevice
                                             ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 active:scale-[0.97]'
                                             : 'bg-white/5 text-white/20 pointer-events-none'
                                     }`}
                                 >
-                                    {t.save}
+                                    {isAddingDevice ? (
+                                        <><Loader2 size={16} className="animate-spin" /> Создание...</>
+                                    ) : t.save}
                                 </button>
-
                                 <button
                                     onClick={() => setShowDeviceModal(false)}
                                     className="w-full py-2 text-[10px] font-black text-white/20 uppercase tracking-[0.2em] active:text-white/60 transition-colors outline-none"

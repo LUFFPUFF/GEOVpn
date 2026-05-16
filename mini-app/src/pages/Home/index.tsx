@@ -8,7 +8,7 @@ import bgImage from '../../assets/vpn-bg.png';
 import { DeviceType } from '../../types/api';
 
 export default function Home() {
-    const { user, deviceLimit, devices, setActiveTab, t, register } = useUserStore();
+    const { user, deviceLimit, devices, configs, setActiveTab, t, register, fetchAll } = useUserStore();
     const [activeSlide, setActiveSlide] = useState(0);
     const [showDeviceSelect, setShowDeviceSelect] = useState(false);
     const [isSettingUp, setIsSettingUp] = useState(false);
@@ -17,15 +17,9 @@ export default function Home() {
     const touchStartY = useRef<number | null>(null);
     const isDragging  = useRef(false);
 
-    // ✅ Фикс бага 1: защита от мигания — пока user не загрузился, показываем лоадер
     const isInitialized = user !== null && user !== undefined;
     const hasSub        = user?.hasActiveSubscription ?? false;
 
-    // ✅ Фикс бага 2: добавляем 3-й слайд "Улучшить подписку" для подписчиков
-    // Порядок слайдов:
-    //   0 — Премиум-карточка (только если hasSub)
-    //   1 — Улучшить подписку (только если hasSub)
-    //   последний — Get Access (всегда)
     const totalSlides = hasSub ? 3 : 1;
 
     const needsDevice = hasSub && devices.length === 0;
@@ -58,20 +52,26 @@ export default function Home() {
     };
 
     const handleDeviceSelected = async (type: DeviceType) => {
+        setShowDeviceSelect(false);
         try {
             if (!user) {
                 await register();
             }
 
+            const limit = await userApi.getDeviceLimit().catch(() => null);
+            if (limit && limit.limitReached) {
+                window.Telegram?.WebApp?.showAlert('Достигнут лимит устройств');
+                return;
+            }
+
             const deviceName = `${type} Device`;
             await userApi.registerDevice(deviceName, type);
 
-            setShowDeviceSelect(false);
+            await fetchAll();
             setActiveTab('payments');
-        } catch (e) {
-            console.error(e);
-            setShowDeviceSelect(false);
-            setActiveTab('payments');
+        } catch (e: any) {
+            console.error('Device registration failed:', e);
+            window.Telegram?.WebApp?.showAlert('Ошибка при создании устройства. Попробуйте ещё раз.');
         }
     };
 
@@ -79,21 +79,35 @@ export default function Home() {
         haptic('medium');
 
         if (needsDevice) {
-            window.Telegram?.WebApp?.showAlert("Сначала создайте устройство во вкладке Профиль!");
+            window.Telegram?.WebApp?.showAlert('Сначала создайте устройство во вкладке Профиль!');
             setActiveTab('profile');
             return;
         }
 
         try {
             setIsSettingUp(true);
-            const deviceId = devices[0].id;
 
-            await userApi.createConfig(deviceId);
+            const existingDeviceIds = new Set(configs.map(c => c.deviceId));
+            const devicesWithoutConfig = devices.filter(d => !existingDeviceIds.has(d.id));
 
+            if (devicesWithoutConfig.length === 0) {
+                setActiveTab('subscriptions');
+                return;
+            }
+
+            for (const device of devicesWithoutConfig) {
+                try {
+                    await userApi.createConfig(device.id);
+                } catch (e) {
+                    console.error(`Failed to create config for device ${device.id}:`, e);
+                }
+            }
+
+            await fetchAll();
             setActiveTab('subscriptions');
         } catch (error) {
-            console.error("Ошибка при подготовке конфигурации:", error);
-            window.Telegram?.WebApp?.showAlert("Не удалось подготовить конфигурацию. Обратитесь в поддержку.");
+            console.error('Ошибка при подготовке конфигурации:', error);
+            window.Telegram?.WebApp?.showAlert('Не удалось подготовить конфигурацию. Обратитесь в поддержку.');
         } finally {
             setIsSettingUp(false);
         }
@@ -130,7 +144,6 @@ export default function Home() {
         isDragging.current  = false;
     };
 
-    // ✅ Фикс бага 1: показываем лоадер пока данные пользователя не загрузились
     if (!isInitialized) {
         return (
             <div
@@ -309,7 +322,6 @@ export default function Home() {
                                     }}
                                 />
 
-                                {/* Градиент снизу */}
                                 <div
                                     style={{
                                         position: 'absolute',
@@ -319,7 +331,6 @@ export default function Home() {
                                     }}
                                 />
 
-                                {/* Кнопка "Улучшить подписку" */}
                                 <div
                                     style={{
                                         position: 'absolute',
@@ -343,7 +354,7 @@ export default function Home() {
                         </div>
                     )}
 
-                    {/* ─── Последний слайд: Get Access (для незарегистрированных) ─── */}
+                    {/* ─── Последний слайд: Get Access ─── */}
                     <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
                         <div
                             className="relative overflow-hidden rounded-[2.5rem] border border-white/10 shadow-2xl"
@@ -361,7 +372,6 @@ export default function Home() {
                                 }}
                             />
 
-                            {/* Градиент снизу */}
                             <div
                                 style={{
                                     position: 'absolute',
@@ -371,7 +381,6 @@ export default function Home() {
                                 }}
                             />
 
-                            {/* Кнопка "Оформить доступ" */}
                             <div
                                 style={{
                                     position: 'absolute',
@@ -390,14 +399,6 @@ export default function Home() {
                                     <span>{t.get_access}</span>
                                     <ChevronRight size={20} />
                                 </button>
-                                <AnimatePresence>
-                                    {showDeviceSelect && (
-                                        <DeviceSelector
-                                            onSelect={handleDeviceSelected}
-                                            onClose={() => setShowDeviceSelect(false)}
-                                        />
-                                    )}
-                                </AnimatePresence>
                             </div>
                         </div>
                     </div>
@@ -418,6 +419,15 @@ export default function Home() {
                     ))}
                 </div>
             )}
+
+            <AnimatePresence>
+                {showDeviceSelect && (
+                    <DeviceSelector
+                        onSelect={handleDeviceSelected}
+                        onClose={() => setShowDeviceSelect(false)}
+                    />
+                )}
+            </AnimatePresence>
 
         </div>
     );

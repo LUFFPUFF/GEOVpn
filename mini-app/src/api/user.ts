@@ -19,7 +19,7 @@ export const userApi = {
     registerDevice: (deviceName: string, deviceType: string) =>
         apiClient.post<ApiResponse<DeviceResponse>>('/devices', { deviceName, deviceType }).then(r => r.data.data),
 
-    deleteDevice: (deviceId: number) => apiClient.delete(`/devices/${deviceId}`),
+    deleteDevice: (deviceUuid: string) => apiClient.delete(`/devices/${deviceUuid}/permanent`),
 
     getDeviceLimit: () => apiClient.get<ApiResponse<DeviceLimitStatus>>('/configs/limits/me').then(r => r.data.data),
 
@@ -28,10 +28,9 @@ export const userApi = {
     createConfig: (deviceId: number, countryCode = 'FI') =>
         apiClient.post<ApiResponse<VpnConfigResponse>>('/configs', { deviceId, countryCode }).then(r => r.data.data),
 
-    getLeaderboard: () => apiClient.get<ApiResponse<LeaderboardEntry[]>>('/users/leaderboard').then(r => r.data.data),
+    revokeConfig: (deviceId: number) => apiClient.delete(`/configs/configs/${deviceId}`),
 
-    syncDevice: (platform: string) =>
-        apiClient.post<ApiResponse<DeviceResponse>>('/devices/sync', { platform }).then(r => r.data.data),
+    getLeaderboard: () => apiClient.get<ApiResponse<LeaderboardEntry[]>>('/users/leaderboard').then(r => r.data.data),
 
     register: (telegramId: number, firstName: string, username?: string, referralCode?: string) =>
         apiClient.post<ApiResponse<UserResponse>>('/users/register', {
@@ -41,12 +40,6 @@ export const userApi = {
             referralCode
         }).then(r => r.data.data),
 
-    syncOnStart: (platform: DeviceType): Promise<UserResponse> => {
-        return apiClient.post<ApiResponse<UserResponse>>('/devices/sync', {
-            platform
-        }).then(r => r.data.data);
-    },
-
     applyPromo: (code: string) =>
         apiClient.post<ApiResponse<UserResponse>>('/users/me/apply-promo', null, {
             params: { code }
@@ -55,5 +48,5 @@ export const userApi = {
     updateReferralCode: (code: string) =>
         apiClient.put<ApiResponse<UserResponse>>('/users/me/referral-code', null, {
             params: { code }
-        }).then(r => r.data.data)
+        }).then(r => r.data.data),
 };

@@ -1,5 +1,6 @@
 package com.vpn.config.service;
 
+import com.vpn.common.dto.response.DeviceLimitStatus;
 import com.vpn.config.domain.entity.DeviceLimit;
 import com.vpn.config.exception.DeviceLimitExceededException;
 import com.vpn.config.repository.DeviceLimitRepository;
@@ -125,15 +126,5 @@ public class DeviceLimitService {
 
     public boolean isLimitExceeded(Long userId) {
         return countActiveDevices(userId) >= getMaxDevices(userId);
-    }
-
-    @lombok.Builder
-    @lombok.Data
-    public static class DeviceLimitStatus {
-        private Long userId;
-        private int maxDevices;
-        private int activeDevices;
-        private int remainingSlots;
-        private boolean limitReached;
     }
 }

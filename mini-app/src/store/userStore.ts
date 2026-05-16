@@ -12,56 +12,57 @@ import {
 
 export type TabId = 'home' | 'profile' | 'payments' | 'subscriptions' | 'leaderboard' | 'deposit';
 
-function detectDeviceType(): string {
-    const ua = navigator.userAgent.toLowerCase();
-    if (/iphone|ipad|ipod/.test(ua)) return 'IOS';
-    if (/android/.test(ua)) return 'ANDROID';
-    return 'WINDOWS';
-}
-
 interface UserStore {
-    user:    UserResponse | null;
-    devices: DeviceResponse[];
-    configs: VpnConfigResponse[];
-    leaderboard: LeaderboardEntry[];
-    deviceLimit: DeviceLimitStatus | null;
-    activeTab: TabId;
-    loading:   boolean;
-    error:     string | null;
+    user:         UserResponse | null;
+    devices:      DeviceResponse[];
+    configs:      VpnConfigResponse[];
+    leaderboard:  LeaderboardEntry[];
+    deviceLimit:  DeviceLimitStatus | null;
+    activeTab:    TabId;
+    loading:      boolean;
+    error:        string | null;
 
     lang: Lang;
-    t: typeof TRANSLATIONS.ru;
+    t:    typeof TRANSLATIONS.ru;
     setLanguage: (lang: Lang) => void;
 
-    fetchAll:            () => Promise<void>;
-    setActiveTab:        (tab: TabId) => void;
+    fetchAll:             () => Promise<void>;
+    register:             () => Promise<void>;
+    setActiveTab:         (tab: TabId) => void;
     purchaseSubscription: (planId: string, months?: number, promo?: boolean) => Promise<boolean>;
-    addDevice:           (name: string, type: string) => Promise<void>;
-    deleteDevice:        (uuid: string) => Promise<void>;
-    createConfig:        (deviceId: number, country?: string) => Promise<void>;
-    fetchLeaderboard:    () => Promise<void>;
+    addDevice:            (name: string, type: string) => Promise<void>;
+    deleteDevice:         (uuid: string) => Promise<void>;
+    createConfig:         (deviceId: number, country?: string) => Promise<void>;
+    fetchLeaderboard:     () => Promise<void>;
 }
 
 export const useUserStore = create<UserStore>((set, get) => ({
-    user:      null,
-    devices:   [],
-    configs:   [],
+    user:        null,
+    devices:     [],
+    configs:     [],
     leaderboard: [],
     deviceLimit: null,
-    activeTab: 'home',
-    loading:   false,
-    error:     null,
+    activeTab:   'home',
+    loading:     false,
+    error:       null,
 
     lang: 'ru',
-    t: TRANSLATIONS.ru,
+    t:    TRANSLATIONS.ru,
+
+    setLanguage: (newLang: Lang) => {
+        set({ lang: newLang, t: TRANSLATIONS[newLang] });
+        window.Telegram?.WebApp?.CloudStorage.setItem('lang', newLang);
+    },
+
+    setActiveTab: (tab) => set({ activeTab: tab }),
 
     register: async () => {
-        const tg = window.Telegram?.WebApp;
+        const tg          = window.Telegram?.WebApp;
         const userDetails = tg?.initDataUnsafe?.user;
-        const startParam = tg?.initDataUnsafe?.start_param;
+        const startParam  = tg?.initDataUnsafe?.start_param;
 
         if (!userDetails) {
-            console.error("No telegram user data found");
+            console.error('[register] No telegram user data');
             return;
         }
 
@@ -73,39 +74,29 @@ export const useUserStore = create<UserStore>((set, get) => ({
                 startParam
             );
             set({ user: newUser });
-            await get().fetchAll();
         } catch (e) {
-            console.error("Registration failed", e);
+            console.error('[register] Failed:', e);
+            throw e;
         }
     },
 
-    setLanguage: (newLang: Lang) => {
-        set({
-            lang: newLang,
-            t: TRANSLATIONS[newLang]
-        });
-        window.Telegram?.WebApp?.CloudStorage.setItem('lang', newLang);
-    },
-
-    setActiveTab: (tab) => set({ activeTab: tab }),
-
     fetchAll: async () => {
-        set({ loading: true });
+        set({ loading: true, error: null });
         try {
             const [profile, devices, configs, limit] = await Promise.all([
                 userApi.getProfile().catch(() => null),
                 userApi.getDevices().catch(() => []),
                 userApi.getConfigs().catch(() => []),
-                userApi.getDeviceLimit().catch(() => null)
+                userApi.getDeviceLimit().catch(() => null),
             ]);
 
-            set({ user: profile, devices, configs, deviceLimit: limit, loading: false });
-
-            if (profile?.hasActiveSubscription && configs.length === 0 && devices.length > 0) {
-                console.log("Healing: Active sub found but no config. Requesting...");
-                const newConfig = await userApi.createConfig(devices[0].id);
-                set(state => ({ configs: [newConfig] }));
-            }
+            set({
+                user:        profile,
+                devices,
+                configs,
+                deviceLimit: limit,
+                loading:     false,
+            });
         } catch (error: any) {
             set({ error: error.message, loading: false });
         }
@@ -116,15 +107,17 @@ export const useUserStore = create<UserStore>((set, get) => ({
             const data = await userApi.getLeaderboard();
             set({ leaderboard: data });
         } catch (e) {
-            console.error('Leaderboard error', e);
+            console.error('[fetchLeaderboard]', e);
         }
     },
 
-    purchaseSubscription: async (planId: string, months = 1, promo = false) => {
+    purchaseSubscription: async (planId, months = 1, promo = false) => {
         set({ loading: true });
         try {
             const updatedUser = await userApi.purchaseSubscription(planId, months, promo);
             set({ user: updatedUser, loading: false });
+            const limit = await userApi.getDeviceLimit().catch(() => null);
+            set({ deviceLimit: limit });
             return true;
         } catch (e) {
             set({ loading: false });
@@ -133,23 +126,45 @@ export const useUserStore = create<UserStore>((set, get) => ({
     },
 
     addDevice: async (name, type) => {
+        const { deviceLimit } = get();
+        if (deviceLimit && deviceLimit.limitReached) {
+            throw new Error('Достигнут лимит устройств');
+        }
         const device = await userApi.registerDevice(name, type);
         set(s => ({ devices: [...s.devices, device] }));
+        const limit = await userApi.getDeviceLimit().catch(() => null);
+        set({ deviceLimit: limit });
     },
 
     deleteDevice: async (uuid) => {
-        const dev = get().devices.find(d => d.uuid === uuid);
+        const { devices, configs } = get();
+        const dev = devices.find(d => d.uuid === uuid);
         if (!dev) return;
-        await userApi.deleteDevice(dev.id);
-        set(s => ({ devices: s.devices.filter(d => d.uuid !== uuid) }));
+
+        if (configs.some(c => c.deviceId === dev.id)) {
+            await userApi.revokeConfig(dev.id).catch(e =>
+                console.error('[deleteDevice] Failed to revoke config:', e)
+            );
+        }
+
+        await userApi.deleteDevice(dev.uuid);
+
+        set(s => ({
+            devices: s.devices.filter(d => d.uuid !== uuid),
+            configs: s.configs.filter(c => c.deviceId !== dev.id),
+        }));
+
+        const limit = await userApi.getDeviceLimit().catch(() => null);
+        set({ deviceLimit: limit });
     },
 
-    createConfig: async (deviceId, country = 'FI') => {
+    createConfig: async (deviceId, country = 'RU') => {
         try {
             const config = await userApi.createConfig(deviceId, country);
             set(s => ({ configs: [config, ...s.configs] }));
         } catch (e) {
-            console.error('Failed to create config:', e);
+            console.error('[createConfig] Failed for deviceId:', deviceId, e);
+            throw e;
         }
     },
 }));

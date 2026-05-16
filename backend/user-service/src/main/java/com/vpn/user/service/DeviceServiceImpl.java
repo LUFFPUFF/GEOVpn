@@ -1,7 +1,9 @@
 package com.vpn.user.service;
 
 import com.vpn.common.constant.AppConstants;
+import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.enums.DeviceType;
+import com.vpn.common.dto.response.DeviceLimitStatus;
 import com.vpn.common.util.ValidationUtils;
 import com.vpn.user.domain.entity.Device;
 import com.vpn.user.dto.mapper.DeviceMapper;
@@ -10,6 +12,7 @@ import com.vpn.common.dto.response.DeviceResponse;
 import com.vpn.user.exception.DeviceNotFoundException;
 import com.vpn.user.exception.MaxDevicesExceededException;
 import com.vpn.user.exception.UserNotFoundException;
+import com.vpn.user.grpc.VpnServiceClient;
 import com.vpn.user.repository.DeviceRepository;
 import com.vpn.user.repository.UserRepository;
 import com.vpn.user.service.interf.DeviceService;
@@ -33,6 +36,7 @@ public class DeviceServiceImpl implements DeviceService {
     private final DeviceRepository deviceRepository;
     private final UserRepository userRepository;
     private final DeviceMapper deviceMapper;
+    private final VpnServiceClient vpnServiceClient;
 
     @Override
     @Transactional
@@ -50,9 +54,10 @@ public class DeviceServiceImpl implements DeviceService {
         }
 
         long activeDevicesCount = deviceRepository.countActiveDevicesByUserId(request.getUserId());
-        if (activeDevicesCount >= AppConstants.MAX_DEVICES_PER_USER) {
+        int maxAllowed = getMaxDevicesForUser(request.getUserId());
+        if (activeDevicesCount >= maxAllowed) {
             log.warn("Max devices limit exceeded: userId={}, current={}, max={}",
-                    request.getUserId(), activeDevicesCount, AppConstants.MAX_DEVICES_PER_USER);
+                    request.getUserId(), activeDevicesCount, maxAllowed);
             throw new MaxDevicesExceededException(request.getUserId());
         }
 
@@ -194,6 +199,7 @@ public class DeviceServiceImpl implements DeviceService {
                 .orElse(false);
     }
 
+    @Deprecated
     @Transactional
     public DeviceResponse syncDeviceWithPlatform(Long userId, String platform) {
         DeviceType type = mapPlatformToDeviceType(platform);
@@ -206,21 +212,36 @@ public class DeviceServiceImpl implements DeviceService {
 
         DeviceCreateRequest request = DeviceCreateRequest.builder()
                 .userId(userId)
-                .deviceName(type.name() + " Device")
+                .deviceName(type.name().charAt(0) + type.name().substring(1).toLowerCase() + " Device")
                 .deviceType(type)
                 .build();
+
         return createDevice(request);
     }
 
+    private int getMaxDevicesForUser(Long userId) {
+        try {
+            ApiResponse<DeviceLimitStatus> response = vpnServiceClient.getDeviceLimit(userId);
+            if (response != null && response.getData() != null) {
+                return response.getData().getMaxDevices();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch device limit for userId={}, using default=1", userId, e);
+        }
+        return 1;
+    }
+
+    @Deprecated
     private DeviceType mapPlatformToDeviceType(String platform) {
-        if (platform == null) return DeviceType.OTHER;
+        if (platform == null) return DeviceType.UNKNOWN;
         return switch (platform.toLowerCase()) {
-            case "ios" -> DeviceType.IOS;
-            case "android" -> DeviceType.ANDROID;
-            case "macos" -> DeviceType.MACOS;
-            case "tdesktop", "windows" -> DeviceType.WINDOWS;
-            case "linux" -> DeviceType.LINUX;
-            default -> DeviceType.OTHER;
+            case "ios"                  -> DeviceType.IOS;
+            case "android"              -> DeviceType.ANDROID;
+            case "macos"                -> DeviceType.MACOS;
+            case "tdesktop", "windows"  -> DeviceType.WINDOWS;
+            case "linux"                -> DeviceType.LINUX;
+            case "desktop"              -> DeviceType.DESKTOP;
+            default                     -> DeviceType.UNKNOWN;
         };
     }
 }

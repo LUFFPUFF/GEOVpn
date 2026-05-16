@@ -1,6 +1,6 @@
 export type UserRole = 'USER' | 'ADMIN' | 'SERVICE';
 export type SubscriptionType = 'PAYG' | 'BASIC' | 'STANDARD' | 'FAMILY' | 'BUSINESS' | 'UNLIMITED';
-export type DeviceType = 'IOS' | 'ANDROID' | 'WINDOWS' | 'MACOS' | 'LINUX' | 'OTHER';
+export type DeviceType = 'IOS' | 'ANDROID' | 'WINDOWS' | 'MACOS' | 'LINUX' | 'DESKTOP' | 'UNKNOWN';
 
 export interface UserResponse {
     id: number;

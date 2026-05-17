@@ -6,6 +6,7 @@ import {
     Loader2, Copy, ExternalLink, HelpCircle, ChevronRight, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiClient } from '../../api/client';
 
 export default function Subscriptions() {
     const { configs, user, setActiveTab } = useUserStore();
@@ -36,9 +37,19 @@ export default function Subscriptions() {
         setTimeout(() => setIsConnecting(false), 2000);
     };
 
-    const handleCopyLink = () => {
+    const handleCopyLink = async () => {
         if (!activeConfig) return;
-        navigator.clipboard.writeText(activeConfig.subscriptionUrl);
+
+        try {
+            const uuid = activeConfig.subscriptionUrl.split('/subscription/')[1];
+            const response = await apiClient.get<string>(`/configs/encrypted-sub/${uuid}`, {
+                responseType: 'text',
+            });
+            await navigator.clipboard.writeText(response.data);
+        } catch {
+            await navigator.clipboard.writeText(activeConfig.subscriptionUrl);
+        }
+
         setCopyStatus(true);
         window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
         setTimeout(() => setCopyStatus(false), 3000);
@@ -205,7 +216,7 @@ export default function Subscriptions() {
 
                             <div className="space-y-4">
                                 {[
-                                    { s: '01', t: 'Скопируйте вашу уникальную ссылку выше' },
+                                    { s: '01', t: 'Нажмите «Скопировать ссылку» выше' },
                                     { s: '02', t: `Откройте приложение ${platform.app}` },
                                     { s: '03', t: 'Нажмите «Add Subscription» или иконку «+»' },
                                     { s: '04', t: 'Вставьте ссылку и сохраните' }

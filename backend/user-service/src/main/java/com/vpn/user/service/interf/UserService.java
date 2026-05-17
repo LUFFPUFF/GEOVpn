@@ -52,4 +52,6 @@ public interface UserService {
     UserResponse applyPromoCode(Long telegramId, String code);
 
     UserResponse updateReferralCode(Long telegramId, String newCode);
+
+    UserResponse claimEasterEgg(Long telegramId);
 }

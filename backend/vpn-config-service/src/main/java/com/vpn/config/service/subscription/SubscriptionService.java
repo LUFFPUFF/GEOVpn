@@ -67,16 +67,48 @@ public class SubscriptionService {
 
         List<String> lines = new ArrayList<>();
 
-        lines.add("#profile-title: base64:" + b64("GeoVPN | " + userDto.getSubscriptionType().name()));
+        lines.add("#profile-title: base64:" + b64("🛡 GeoVPN | " + userDto.getSubscriptionType().name()));
 
         long unixExpire = userDto.getSubscriptionExpiresAt() != null
                 ? java.time.ZonedDateTime.parse(userDto.getSubscriptionExpiresAt() + "Z").toEpochSecond()
                 : 0;
 
         lines.add("#subscription-userinfo: upload=0; download=0; total=0; expire=" + unixExpire);
+        lines.add("#profile-update-interval: 1");
+
+        lines.add("#hide-settings: 1");
+
+        lines.add("#color-profile: {" +
+                "\"backgroundColors\":[\"#0a0a0f\",\"#1a1c29\",\"#0d1117\"]," +
+                "\"backgroundGradientRotationAngle\":160," +
+                "\"backgroundGradientColorIntensity\":0.9," +
+                "\"backgroundImageType\":\"gradient\"," +
+                "\"buttonColor\":\"#10b981\"," +
+                "\"buttonTextColor\":\"#ffffff\"," +
+                "\"buttonTimerColor\":\"#ffffff\"," +
+                "\"serverRowBackgroundColor\":\"#12141d99\"," +
+                "\"serverRowTitleTextColor\":\"#ffffff\"," +
+                "\"serverRowSubTitleTextColor\":\"#6b7280\"," +
+                "\"serverRowChevronColor\":\"#00000000\"," +
+                "\"selectedServerRowColor\":\"#10b98133\"," +
+                "\"subsHeaderColor\":\"#1a1c29ff\"," +
+                "\"subscriptionInfoBackgroundColor\":\"#0d1117ff\"," +
+                "\"subscriptionInfoTextColor\":\"#ffffffff\"," +
+                "\"subscriptionTrafficBackgroundColor\":\"#10b98133\"," +
+                "\"disclosureHeaderTextColor\":\"#ffffffff\"," +
+                "\"disclosureSubHeaderTextColor\":\"#9ca3afff\"," +
+                "\"supportIconColor\":\"#10b981ff\"," +
+                "\"profileWebPageIconColor\":\"#10b981ff\"," +
+                "\"topBarButtonsColor\":\"#ffffffff\"," +
+                "\"subHeaderButtonColor\":\"#ffffffff\"," +
+                "\"additionalOptionsButtonColor\":\"#ffffffff\"," +
+                "\"powerIconColor\":\"#0a0a0fff\"," +
+                "\"elipseColors\":[\"#10b981ff\",\"#3b82f6cc\",\"#8b5cf6aa\"]," +
+                "\"buttonImageType\":\"dark\"" +
+                "}");
 
         assert userDto.getSubscriptionExpiresAt() != null;
-        lines.add("#announce: base64:" + b64("Ваш ключ GeoVPN активен до " + userDto.getSubscriptionExpiresAt().toLocalDate()));
+        lines.add("#announce: base64:" + b64(buildAnnounce(userDto.getSubscriptionExpiresAt().toLocalDate().toString(), userDto.getSubscriptionType().name())));
         lines.add("#support-url: https://t.me/geovp_support_bot");
         lines.add("");
 
@@ -245,6 +277,24 @@ public class SubscriptionService {
         return "vless://00000000-0000-0000-0000-000000000001@1.1.1.1:443"
                 + "?encryption=none&security=none"
                 + "#🌐%20Личный%20кабинет%20/%20Оплата";
+    }
+
+    private String buildAnnounce(String expireDate, String planName) {
+        String plan = switch (planName) {
+            case "BASIC"     -> "Base 1 устройство";
+            case "STANDARD"  -> "Standard 3 устройства";
+            case "FAMILY"    -> "Family 5 устройств";
+            case "BUSINESS"  -> "Business 10 устройств";
+            case "UNLIMITED" -> "Unlimited ∞";
+            default          -> planName;
+        };
+        return String.join("\n",
+                "🛡 GeoVPN — Защита активна",
+                "💳 Тариф: " + plan,
+                "📅 Действует до: " + expireDate,
+                "⚡️ Серверы: EU · FI · NL · DE",
+                "💬 Поддержка: @geovp_support_bot"
+        );
     }
 
     private String b64(String text) {

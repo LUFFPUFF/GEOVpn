@@ -49,4 +49,7 @@ export const userApi = {
         apiClient.put<ApiResponse<UserResponse>>('/users/me/referral-code', null, {
             params: { code }
         }).then(r => r.data.data),
+
+    claimEasterEgg: () =>
+        apiClient.post<ApiResponse<UserResponse>>('/users/me/easter-egg').then(r => r.data.data),
 };

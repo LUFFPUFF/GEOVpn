@@ -59,6 +59,14 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @PostMapping("/me/easter-egg")
+    @RequireUser
+    public ResponseEntity<ApiResponse<UserResponse>> claimEasterEgg() {
+        Long telegramId = SecurityContextHolder.getUserId();
+        UserResponse response = userService.claimEasterEgg(telegramId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     /**
      * Оформление подписки.
      *

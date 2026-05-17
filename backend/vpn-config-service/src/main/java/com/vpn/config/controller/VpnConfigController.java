@@ -19,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -117,15 +116,49 @@ public class VpnConfigController {
     }
 
 
+    /**
+     * Возвращает зашифрованную ссылку вида happ://crypt5/... для копирования.
+     * При зашифрованной ссылке пользователь не видит адрес подписки и конфиги серверов.
+     * Если Happ Crypto API недоступен — возвращает обычный URL подписки как fallback.
+     */
+    @GetMapping(value = "/encrypted-sub/{uuid}", produces = MediaType.TEXT_PLAIN_VALUE)
+    @Public
+    public ResponseEntity<String> getEncryptedSubLink(@PathVariable("uuid") UUID vlessUuid) {
+        String baseUrl = "https://geovp.ru";
+        String subscriptionUrl = baseUrl + "/api/v1/configs/subscription/" + vlessUuid;
+        try {
+            String encryptedLink = encryptHappSubscriptionUrl(subscriptionUrl);
+            log.info("Returning encrypted sub link for uuid={}", vlessUuid);
+            return ResponseEntity.ok(encryptedLink);
+        } catch (Exception e) {
+            log.warn("Crypto API failed, returning plain URL for copy: {}", e.getMessage());
+            return ResponseEntity.ok(subscriptionUrl);
+        }
+    }
+
     @GetMapping(value = "/import-happ/{uuid}", produces = MediaType.TEXT_HTML_VALUE)
     @Public
     public ResponseEntity<String> redirectHapp(@PathVariable("uuid") UUID vlessUuid) {
         String baseUrl = "https://geovp.ru";
         String subscriptionUrl = baseUrl + "/api/v1/configs/subscription/" + vlessUuid;
 
-        String encodedUrl = java.net.URLEncoder.encode(subscriptionUrl, java.nio.charset.StandardCharsets.UTF_8);
-        String deepLink = "happ://add-subscription?url=" + encodedUrl;
+        String deepLink;
+        try {
+            deepLink = encryptHappSubscriptionUrl(subscriptionUrl);
+            log.info("Generated encrypted Happ deeplink for uuid={}", vlessUuid);
+        } catch (Exception e) {
+            log.warn("Happ crypto API unavailable, using plain URL fallback: {}", e.getMessage());
+            String encodedUrl = java.net.URLEncoder.encode(subscriptionUrl, java.nio.charset.StandardCharsets.UTF_8);
+            deepLink = "happ://add-subscription?url=" + encodedUrl;
+        }
 
+        String html = getFinalDeepLink(deepLink);
+
+        return ResponseEntity.ok(html);
+    }
+
+    private static String getFinalDeepLink(String deepLink) {
+        final String finalDeepLink = deepLink;
         String html = """
             <!DOCTYPE html>
             <html>
@@ -139,9 +172,44 @@ public class VpnConfigController {
                 </div>
             </body>
             </html>
-            """.formatted(deepLink, deepLink);
+            """.formatted(finalDeepLink, finalDeepLink);
+        return html;
+    }
 
-        return ResponseEntity.ok(html);
+    /**
+     * Шифрует URL подписки через Happ Crypto API и возвращает
+     * зашифрованный диплинк вида happ://crypt5/...
+     *
+     * После добавления такой подписки пользователь не может
+     * редактировать, просматривать или делиться конфигурациями серверов.
+     *
+     * Документация: https://crypto.happ.su
+     * API endpoint:  POST https://crypto.happ.su/api-v2.php
+     *                Body: {"url":"<subscription_url>"}
+     *                Response: happ://crypt5/<encrypted_data>
+     */
+    private String encryptHappSubscriptionUrl(String url) throws Exception {
+        String requestBody = "{\"url\":\"" + url + "\"}";
+
+        java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(5))
+                .build();
+
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("https://crypto.happ.su/api-v2.php"))
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(requestBody))
+                .timeout(java.time.Duration.ofSeconds(5))
+                .build();
+
+        java.net.http.HttpResponse<String> response = client.send(
+                request, java.net.http.HttpResponse.BodyHandlers.ofString());
+
+        String encryptedLink = response.body().trim();
+        if (!encryptedLink.startsWith("happ://")) {
+            throw new RuntimeException("Unexpected Happ crypto API response: " + encryptedLink);
+        }
+        return encryptedLink;
     }
 
     private ResponseEntity<ApiResponse<VpnConfigResponse>> buildConfigNotFoundResponse() {

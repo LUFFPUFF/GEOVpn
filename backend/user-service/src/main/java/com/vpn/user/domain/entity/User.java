@@ -60,6 +60,9 @@ public class User {
     @Builder.Default
     private boolean promoApplied = false;
 
+    @Column(name = "easter_egg_claimed")
+    private boolean easterEggClaimed = false;
+
     public boolean hasActiveSubscription() {
         return subscriptionExpiresAt != null &&
                 subscriptionExpiresAt.isAfter(LocalDateTime.now());

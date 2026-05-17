@@ -112,7 +112,8 @@ public class VpnLinksBuilder {
         for (ServerDto server : directServers) {
             try {
                 String displayName = countryEmoji(server.getCountryCode())
-                        + " " + server.getName();
+                        + " " + ("RU".equalsIgnoreCase(server.getCountryCode()) ? "" : "🚀 ")
+                        + server.getName();
 
                 XhttpParams xhttp = resolveXhttpParams(server);
 
@@ -157,7 +158,7 @@ public class VpnLinksBuilder {
             if ("RU".equalsIgnoreCase(server.getCountryCode())) continue;
 
             try {
-                String title = countryEmoji(server.getCountryCode()) + " " + server.getName() + " | HY2";
+                String title = countryEmoji(server.getCountryCode()) + " 🚀 " + server.getName() + " | HY2";
                 links.add(hysteria2Generator.buildHysteria2Link(server, title));
             } catch (Exception e) {
                 log.warn("Failed to build HY2 link for {}: {}", server.getName(), e.getMessage());
@@ -192,11 +193,7 @@ public class VpnLinksBuilder {
     }
 
     private String buildRelayDisplayName(ServerDto relay, int index) {
-        String emoji = "🇷🇺";
-        if ("UA".equalsIgnoreCase(relay.getCountryCode())) emoji = "🇺🇦";
-        if ("KZ".equalsIgnoreCase(relay.getCountryCode())) emoji = "🇰🇿";
-
-        return emoji + " Антиглушилка #" + index + " | LTE 📶";
+        return "🇪🇺 Антиглушилка #" + index + " | LTE 📶";
     }
 
     private String countryEmoji(String code) {

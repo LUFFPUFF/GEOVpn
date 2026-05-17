@@ -232,6 +232,39 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    @CachePut(value = "users", key = "#telegramId")
+    public UserResponse claimEasterEgg(Long telegramId) {
+        log.info("User {} is claiming easter egg", telegramId);
+
+        User user = userRepository.findByTelegramId(telegramId)
+                .orElseThrow(() -> new UserNotFoundException(telegramId));
+
+        if (user.isEasterEggClaimed()) {
+            throw new RuntimeException("Вы уже получили этот подарок!");
+        }
+
+        user.setEasterEggClaimed(true);
+
+        if (user.getSubscriptionType() == SubscriptionType.PAYG) {
+            user.setSubscriptionType(SubscriptionType.BASIC);
+        }
+
+        LocalDateTime currentExpiry = user.getSubscriptionExpiresAt();
+        if (currentExpiry == null || currentExpiry.isBefore(LocalDateTime.now())) {
+            user.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(2));
+        } else {
+            user.setSubscriptionExpiresAt(currentExpiry.plusDays(2));
+        }
+
+        User savedUser = userRepository.saveAndFlush(user);
+
+        syncVpnLimits(telegramId, savedUser.getSubscriptionType().name(), savedUser);
+
+        return userMapper.toResponse(savedUser);
+    }
+
+    @Override
     @Cacheable(value = "user-stats", key = "#telegramId", unless = "#result == null")
     public UserStatsResponse getUserStats(Long telegramId) {
         ValidationUtils.validateTelegramId(telegramId);

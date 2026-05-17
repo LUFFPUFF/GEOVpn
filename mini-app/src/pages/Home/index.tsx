@@ -3,9 +3,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useUserStore } from '../../store/userStore';
 import { userApi } from '../../api/user';
 import DeviceSelector from '../../components/modals/DeviceSelector';
-import { Crown, Zap, MonitorSmartphone, Globe2, ChevronRight, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Crown, Zap, MonitorSmartphone, Globe2, ChevronRight, ArrowRight, AlertCircle, Loader2, X, CheckCircle2, ShieldAlert } from 'lucide-react';
 import bgImage from '../../assets/vpn-bg.png';
+import bugImage from '../../assets/bug-67.png';
 import { DeviceType } from '../../types/api';
+
+type EggState = 'hidden' | 'playing' | 'loading' | 'success' | 'error';
 
 export default function Home() {
     const { user, deviceLimit, devices, configs, setActiveTab, t, register, fetchAll } = useUserStore();
@@ -13,21 +16,23 @@ export default function Home() {
     const [showDeviceSelect, setShowDeviceSelect] = useState(false);
     const [isSettingUp, setIsSettingUp] = useState(false);
 
+    const [eggState, setEggState] = useState<EggState>('hidden');
+    const [eggClicks, setEggClicks] = useState(0);
+    const [eggErrorMsg, setEggErrorMsg] = useState('');
+
     const touchStartX = useRef<number | null>(null);
     const touchStartY = useRef<number | null>(null);
-    const isDragging  = useRef(false);
+    const isDragging = useRef(false);
 
     const isInitialized = user !== null && user !== undefined;
-    const hasSub        = user?.hasActiveSubscription ?? false;
-
+    const hasSub = user?.hasActiveSubscription ?? false;
     const totalSlides = hasSub ? 3 : 1;
-
     const needsDevice = hasSub && devices.length === 0;
 
     const { daysLeft, expireDateFormatted } = useMemo(() => {
         if (!user?.subscriptionExpiresAt) return { daysLeft: 0, expireDateFormatted: '---' };
         const expire = new Date(user.subscriptionExpiresAt);
-        const diff   = Math.ceil((expire.getTime() - Date.now()) / 86_400_000);
+        const diff = Math.ceil((expire.getTime() - Date.now()) / 86_400_000);
         return {
             daysLeft: diff > 0 ? diff : 0,
             expireDateFormatted: expire.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -35,16 +40,23 @@ export default function Home() {
     }, [user]);
 
     const activeDevs = deviceLimit?.activeDevices ?? devices.length;
-    const maxDevs    = deviceLimit?.maxDevices    ?? 3;
+    const maxDevs = deviceLimit?.maxDevices ?? 3;
 
     const stats = [
-        { icon: Zap,               val: '∞',                       label: t.traffic   },
-        { icon: MonitorSmartphone, val: `${activeDevs}/${maxDevs}`, label: t.devices   },
-        { icon: Globe2,            val: t.all_locations,            label: t.locations },
+        { icon: Zap, val: '∞', label: t?.traffic || 'Трафик' },
+        { icon: MonitorSmartphone, val: `${activeDevs}/${maxDevs}`, label: t?.devices || 'Устройства' },
+        { icon: Globe2, val: t?.all_locations || 'Все', label: t?.locations || 'Локации' },
     ];
 
-    const haptic = (s: 'light' | 'medium' = 'light') =>
-        window.Telegram?.WebApp?.HapticFeedback.impactOccurred(s);
+    const haptic = (s: 'light' | 'medium' | 'heavy' | 'success' | 'error' = 'light') => {
+        const tg = window.Telegram?.WebApp;
+        if (!tg) return;
+        if (s === 'success' || s === 'error') {
+            tg.HapticFeedback.notificationOccurred(s);
+        } else {
+            tg.HapticFeedback.impactOccurred(s);
+        }
+    };
 
     const handleGetAccess = () => {
         haptic('medium');
@@ -114,24 +126,63 @@ export default function Home() {
     };
 
     const goNext = useCallback(() => {
-        if (activeSlide < totalSlides - 1) { setActiveSlide(p => p + 1); haptic(); }
+        if (activeSlide < totalSlides - 1) {
+            setActiveSlide(p => p + 1);
+            haptic('light');
+        } else {
+            haptic('heavy');
+            setEggState('playing');
+            setEggClicks(0);
+        }
     }, [activeSlide, totalSlides]);
 
     const goPrev = useCallback(() => {
-        if (activeSlide > 0) { setActiveSlide(p => p - 1); haptic(); }
+        if (activeSlide > 0) {
+            setActiveSlide(p => p - 1);
+            haptic('light');
+        } else {
+            haptic('heavy');
+            setEggState('playing');
+            setEggClicks(0);
+        }
     }, [activeSlide]);
+
+    const handleEggClick = async () => {
+        if (eggState !== 'playing') return;
+
+        haptic('light');
+        const newCount = eggClicks + 1;
+        setEggClicks(newCount);
+
+        if (newCount >= 67) {
+            setEggState('loading');
+            haptic('medium');
+            try {
+                await userApi.claimEasterEgg();
+                await fetchAll();
+                setEggState('success');
+                haptic('success');
+            } catch (e: any) {
+                setEggErrorMsg(e.response?.data?.message || 'Похоже, вы уже забирали этот бонус.');
+                setEggState('error');
+                haptic('error');
+            }
+        }
+    };
 
     const onTouchStart = (e: React.TouchEvent) => {
         touchStartX.current = e.touches[0].clientX;
         touchStartY.current = e.touches[0].clientY;
-        isDragging.current  = false;
+        isDragging.current = false;
     };
+
     const onTouchMove = (e: React.TouchEvent) => {
         if (!touchStartX.current || !touchStartY.current) return;
         const dx = Math.abs(e.touches[0].clientX - touchStartX.current);
         const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
         if (dx > dy && dx > 8) isDragging.current = true;
     };
+
     const onTouchEnd = (e: React.TouchEvent) => {
         if (!isDragging.current || touchStartX.current === null) {
             touchStartX.current = touchStartY.current = null;
@@ -141,7 +192,7 @@ export default function Home() {
         if (dist > 50) goNext();
         else if (dist < -50) goPrev();
         touchStartX.current = touchStartY.current = null;
-        isDragging.current  = false;
+        isDragging.current = false;
     };
 
     if (!isInitialized) {
@@ -155,9 +206,10 @@ export default function Home() {
         );
     }
 
-    return (
-        <div className="flex flex-col pt-2">
+    const eggProgress = Math.min((eggClicks / 67) * 100, 100);
 
+    return (
+        <div className="flex flex-col pt-2 relative">
             <div
                 className="overflow-hidden"
                 onTouchStart={onTouchStart}
@@ -172,8 +224,6 @@ export default function Home() {
                         width: `${totalSlides * 100}%`,
                     }}
                 >
-
-                    {/* ─── Слайд 0: Премиум-карточка (только для подписчиков) ─── */}
                     {hasSub && (
                         <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
                             <div className="relative overflow-hidden rounded-[2.5rem] p-6 border border-white/10 bg-gradient-to-b from-[#12141d] to-[#0a0a0f] shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
@@ -303,7 +353,6 @@ export default function Home() {
                         </div>
                     )}
 
-                    {/* ─── Слайд 1: Улучшить подписку (только для подписчиков) ─── */}
                     {hasSub && (
                         <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
                             <div
@@ -354,7 +403,6 @@ export default function Home() {
                         </div>
                     )}
 
-                    {/* ─── Последний слайд: Get Access ─── */}
                     <div className="flex flex-col px-2 pb-4" style={{ width: `${100 / totalSlides}%` }}>
                         <div
                             className="relative overflow-hidden rounded-[2.5rem] border border-white/10 shadow-2xl"
@@ -411,7 +459,7 @@ export default function Home() {
                     {Array.from({ length: totalSlides }).map((_, i) => (
                         <div
                             key={i}
-                            onClick={() => { setActiveSlide(i); haptic(); }}
+                            onClick={() => { setActiveSlide(i); haptic('light'); }}
                             className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${
                                 activeSlide === i ? 'w-10 bg-white' : 'w-2 bg-white/20'
                             }`}
@@ -421,14 +469,150 @@ export default function Home() {
             )}
 
             <AnimatePresence>
-                {showDeviceSelect && (
-                    <DeviceSelector
-                        onSelect={handleDeviceSelected}
-                        onClose={() => setShowDeviceSelect(false)}
-                    />
+                {eggState !== 'hidden' && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.8, y: 50, opacity: 0 }}
+                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                            exit={{ scale: 0.8, y: 50, opacity: 0 }}
+                            transition={{ type: "spring", bounce: 0.4, duration: 0.6 }}
+                            className="w-full max-w-sm relative flex flex-col items-center text-center"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-br from-rose-500/20 via-[#12141d] to-amber-500/20 rounded-[2.5rem] blur-xl" />
+
+                            <div className="relative bg-[#0d0e15]/90 border border-white/10 rounded-[2.5rem] p-6 w-full shadow-[0_0_50px_rgba(244,63,94,0.15)] overflow-hidden flex flex-col items-center">
+
+                                <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent bg-[length:20px_20px]" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)' }} />
+
+                                <button
+                                    onClick={() => setEggState('hidden')}
+                                    className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center bg-white/5 border border-white/10 rounded-full text-white/40 hover:text-white hover:bg-white/10 transition-all z-10"
+                                >
+                                    <X size={16} />
+                                </button>
+
+                                {eggState === 'playing' && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                        className="flex flex-col items-center w-full z-10"
+                                    >
+                                        <div className="w-16 h-16 relative flex items-center justify-center mb-4">
+                                            <div className="absolute inset-0 bg-rose-500/20 rounded-2xl blur animate-pulse" />
+                                            <div className="relative bg-gradient-to-br from-rose-500/10 to-transparent border border-rose-500/30 w-full h-full rounded-2xl flex items-center justify-center">
+                                                <ShieldAlert className="text-rose-400" size={32} />
+                                            </div>
+                                        </div>
+
+                                        <h3 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-amber-400 uppercase tracking-widest mb-2">
+                                            Системный Баг
+                                        </h3>
+                                        <p className="text-white/60 text-xs mb-6 px-4 leading-relaxed">
+                                            Мы не стали его убирать. Решите загадку и разблокируйте <b className="text-white">2 дня Premium</b>!
+                                        </p>
+
+                                        <motion.div
+                                            whileTap={{ scale: 0.85, rotate: (Math.random() - 0.5) * 10 }}
+                                            onClick={handleEggClick}
+                                            className="relative mb-8 cursor-pointer select-none tap-target"
+                                        >
+                                            <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full" />
+                                            <img
+                                                src={bugImage}
+                                                alt="Riddle"
+                                                className="w-40 h-40 object-contain relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]"
+                                                draggable="false"
+                                            />
+                                        </motion.div>
+
+                                        <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-4">
+                                            <div className="flex justify-between items-end mb-2">
+                                                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Процесс взлома</span>
+                                                <span className="text-[14px] font-black text-white">{eggClicks} <span className="text-white/40 text-[10px]">/ 67</span></span>
+                                            </div>
+                                            <div className="h-2 w-full bg-black/50 rounded-full overflow-hidden border border-white/5 relative">
+                                                <motion.div
+                                                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-rose-500 to-amber-400"
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${eggProgress}%` }}
+                                                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {eggState === 'loading' && (
+                                    <div className="flex flex-col items-center justify-center py-10 z-10">
+                                        <Loader2 size={48} className="text-amber-400 animate-spin mb-4" />
+                                        <p className="text-sm font-black text-white/70 uppercase tracking-widest animate-pulse">Применение эксплоита...</p>
+                                    </div>
+                                )}
+
+                                {eggState === 'success' && (
+                                    <motion.div
+                                        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                                        className="flex flex-col items-center w-full z-10 py-4"
+                                    >
+                                        <div className="w-24 h-24 relative flex items-center justify-center mb-6">
+                                            <div className="absolute inset-0 bg-emerald-500/30 rounded-full blur-2xl animate-pulse" />
+                                            <div className="relative bg-emerald-500 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.5)]">
+                                                <CheckCircle2 size={36} />
+                                            </div>
+                                        </div>
+                                        <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">
+                                            Взлом успешен!
+                                        </h3>
+                                        <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest mb-6">
+                                            +2 дня Premium добавлено
+                                        </p>
+                                        <button
+                                            onClick={() => setEggState('hidden')}
+                                            className="w-full py-4 bg-white text-black rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-transform"
+                                        >
+                                            Продолжить
+                                        </button>
+                                    </motion.div>
+                                )}
+
+                                {eggState === 'error' && (
+                                    <motion.div
+                                        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                                        className="flex flex-col items-center w-full z-10 py-4"
+                                    >
+                                        <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mb-6">
+                                            <ShieldAlert className="text-red-500" size={32} />
+                                        </div>
+                                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
+                                            Доступ закрыт
+                                        </h3>
+                                        <p className="text-white/60 text-sm mb-6 px-2">
+                                            {eggErrorMsg}
+                                        </p>
+                                        <button
+                                            onClick={() => setEggState('hidden')}
+                                            className="w-full py-4 bg-white/10 text-white rounded-2xl font-black text-[13px] uppercase tracking-[0.1em] active:scale-[0.98] transition-transform"
+                                        >
+                                            Понятно
+                                        </button>
+                                    </motion.div>
+                                )}
+
+                            </div>
+                        </motion.div>
+                    </motion.div>
                 )}
             </AnimatePresence>
 
+            <AnimatePresence>
+                {showDeviceSelect && (
+                    <DeviceSelector onSelect={handleDeviceSelected} onClose={() => setShowDeviceSelect(false)} />
+                )}
+            </AnimatePresence>
         </div>
     );
 }

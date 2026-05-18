@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { useUserStore } from '../../store/userStore';
-import { Trophy, Medal, Award, Users, Star, Crown, Zap, TrendingUp } from 'lucide-react';
+import { Trophy, Medal, Award, Users, Star, Crown, Zap, TrendingUp, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Leaderboard() {
@@ -19,10 +19,7 @@ export default function Leaderboard() {
 
     const containerVariants = {
         hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: { staggerChildren: 0.1 }
-        }
+        visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
     };
 
     const itemVariants = {

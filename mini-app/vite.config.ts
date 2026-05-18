@@ -15,6 +15,16 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/api/v1/configs': {
+        target: 'http://localhost:8083',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/v1/subscription': {
+        target: 'http://localhost:8083',
+        changeOrigin: true,
+        secure: false,
+      },
       '/api/v1/users': {
         target: 'http://localhost:8082',
         changeOrigin: true,

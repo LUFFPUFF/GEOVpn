@@ -73,7 +73,6 @@ export default function App() {
                 }}
             />
 
-            {/* Затемнение */}
             <div
                 style={{
                     position: 'absolute',
@@ -84,7 +83,6 @@ export default function App() {
                 }}
             />
 
-            {/* Основной flex-контейнер */}
             <div
                 style={{
                     position: 'relative',
@@ -96,12 +94,10 @@ export default function App() {
                     color: 'white',
                 }}
             >
-                {/* Хедер — фиксированная высота, не сжимается */}
                 <div style={{ flexShrink: 0 }}>
                     <Header />
                 </div>
 
-                {/* Скролл-область — занимает всё свободное место */}
                 <main
                     style={{
                         flex: 1,
@@ -124,7 +120,6 @@ export default function App() {
                     {activeTab === 'leaderboard'   && <Leaderboard />}
                 </main>
 
-                {/* Навбар — фиксированная высота, не сжимается */}
                 <div style={{ flexShrink: 0 }}>
                     <BottomNav />
                 </div>

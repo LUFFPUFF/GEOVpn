@@ -1,0 +1,63 @@
+server:
+  port: 8084
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/geovpn_db
+    username: admin
+    password: admin
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+service:
+  security:
+    internal-secret: 53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3
+    admins: 858441917,970667053
+    admin-token: YRqDAzgXLn29n/LcBnYYu7tQzgYEEikl0X5TYHrrwyiWgo+lBtlaJSD5MGp2j3YLB9u/xZu3jgK+540nyvpESA==
+
+vpn:
+  monitoring:
+    health-check-interval-ms: 10000
+    timeout-ms: 2000
+    xray-grpc-port: 62789
+
+SERVER_MGM_SERVICE_URL: localhost:8084
+VPN_CONFIG_SERVICE_URL: localhost:8083
+BILLING_SERVICE_URL: localhost:8085
+USER_SERVICE_URL: localhost:8082
+
+logging:
+  level:
+    root: INFO
+    com.vpn: DEBUG
+    org.hibernate.SQL: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

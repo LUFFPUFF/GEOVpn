@@ -1,0 +1,129 @@
+server:
+  port: 8083
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/geovpn_db
+    username: admin
+    password: admin
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+service:
+  security:
+    internal-secret: 53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3
+    admins: 858441917,970667053
+    admin-token: YRqDAzgXLn29n/LcBnYYu7tQzgYEEikl0X5TYHrrwyiWgo+lBtlaJSD5MGp2j3YLB9u/xZu3jgK+540nyvpESA==
+
+SERVER_MGM_SERVICE_URL: localhost:8084
+VPN_CONFIG_SERVICE_URL: localhost:8083
+BILLING_SERVICE_URL: localhost:8085
+USER_SERVICE_URL: localhost:8082
+
+logging:
+  level:
+    root: INFO
+    com.vpn: DEBUG
+    org.hibernate.SQL: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+vpn:
+  relay:
+    ru:
+      ip: 158.160.42.244
+    panel:
+      url: ${VPN_RELAY_PANEL_URL}
+      username: ${VPN_RELAY_USER}
+      password: ${VPN_RELAY_PASS}
+      inbound-id: ${VPN_RELAY_INBOUND_ID}
+  panel:
+    url: ${VPN_MAIN_PANEL_URL}
+    username: ${VPN_MAIN_PANEL_USER}
+    password: ${VPN_MAIN_PANEL_PASS}
+    inbound-id: ${VPN_MAIN_INBOUND_ID}
+
+  config:
+    vless:
+      default-sni: "www.microsoft.com"
+      default-fingerprint: "chrome"
+      flow: "xtls-rprx-vision"
+      network-type: "tcp"
+      relay-server-address: "http://158.160.42.244:2053/"
+      relay-server-port: 443
+
+    hysteria2:
+      enabled: true
+      port: 15594
+      password: 25bfe47e
+      sni: www.bing.com
+      obfs:
+        type: salamander
+        password: ""
+      tls:
+        insecure: true
+
+    qr-code:
+      enabled: true
+      size: 512
+      format: PNG
+
+    selection:
+      weights:
+        latency: 0.30
+        load: 0.20
+        geography: 0.25
+        health: 0.15
+        protocol: 0.10
+      geography-bonus:
+        default:
+          LV: 25
+          FI: 20
+          NL: 15
+          DE: 12
+          PL: 10
+          EE: 18
+          SE: 17
+        EU:
+          NL: 25
+          DE: 23
+          FR: 20
+          UK: 18
+          PL: 15
+        ASIA:
+          SG: 25
+          JP: 23
+          HK: 20
+          KR: 18
+
+    latency:
+      multiplier: 0.5
+      max-acceptable-ms: 200

@@ -11,7 +11,7 @@ import { DeviceType } from '../../types/api';
 type EggState = 'hidden' | 'playing' | 'loading' | 'success' | 'error';
 
 export default function Home() {
-    const { user, deviceLimit, devices, configs, setActiveTab, t, register, fetchAll } = useUserStore();
+    const { user, deviceLimit, devices, configs, setActiveTab, t, register, fetchAll, loading } = useUserStore();
     const [activeSlide, setActiveSlide] = useState(0);
     const [showDeviceSelect, setShowDeviceSelect] = useState(false);
     const [isSettingUp, setIsSettingUp] = useState(false);
@@ -65,25 +65,57 @@ export default function Home() {
 
     const handleDeviceSelected = async (type: DeviceType) => {
         setShowDeviceSelect(false);
+        const upperType = type.toUpperCase();
+        const deviceName = `${upperType} Device`;
+
         try {
-            if (!user) {
+            const currentUser = useUserStore.getState().user;
+            if (!currentUser) {
+                console.log("Юзера в стейте нет. Регистрируем...");
                 await register();
             }
 
             const limit = await userApi.getDeviceLimit().catch(() => null);
             if (limit && limit.limitReached) {
-                window.Telegram?.WebApp?.showAlert('Достигнут лимит устройств');
+                safeAlert('Достигнут лимит устройств');
                 return;
             }
 
-            const deviceName = `${type} Device`;
-            await userApi.registerDevice(deviceName, type);
-
+            await userApi.registerDevice(deviceName, upperType);
             await fetchAll();
             setActiveTab('payments');
+
         } catch (e: any) {
-            console.error('Device registration failed:', e);
-            window.Telegram?.WebApp?.showAlert('Ошибка при создании устройства. Попробуйте ещё раз.');
+            const errorMsg = e.response?.data?.error?.message || e.message;
+            console.warn("Ошибка при создании устройства:", errorMsg);
+
+            if (errorMsg && errorMsg.includes("User not found")) {
+                console.log("Бэкенд потерял юзера. Принудительная регистрация и повтор...");
+                try {
+                    await register();
+                    await userApi.registerDevice(deviceName, upperType);
+                    await fetchAll();
+                    setActiveTab('payments');
+                    return;
+                } catch (retryError: any) {
+                    console.error("Повторная попытка провалилась:", retryError);
+                    safeAlert("Системная ошибка регистрации. Обновите страницу.");
+                }
+            } else {
+                safeAlert(errorMsg || 'Ошибка при создании устройства.');
+            }
+        }
+    };
+
+    const safeAlert = (msg: string) => {
+        try {
+            if (window.Telegram?.WebApp?.showAlert && !import.meta.env.DEV) {
+                window.Telegram.WebApp.showAlert(msg);
+            } else {
+                window.alert(msg);
+            }
+        } catch (err) {
+            window.alert(msg);
         }
     };
 
@@ -91,35 +123,50 @@ export default function Home() {
         haptic('medium');
 
         if (needsDevice) {
-            window.Telegram?.WebApp?.showAlert('Сначала создайте устройство во вкладке Профиль!');
+            safeAlert('Сначала создайте устройство во вкладке Профиль!');
             setActiveTab('profile');
             return;
         }
 
+        setIsSettingUp(true);
         try {
-            setIsSettingUp(true);
+            const currentDevices = useUserStore.getState().devices;
+            const currentConfigs = useUserStore.getState().configs;
 
-            const existingDeviceIds = new Set(configs.map(c => c.deviceId));
-            const devicesWithoutConfig = devices.filter(d => !existingDeviceIds.has(d.id));
+            const existingDeviceIds = new Set(currentConfigs.map(c => c.deviceId));
+            const devicesWithoutConfig = currentDevices.filter(d => !existingDeviceIds.has(d.id));
 
-            if (devicesWithoutConfig.length === 0) {
-                setActiveTab('subscriptions');
-                return;
-            }
+            if (devicesWithoutConfig.length > 0) {
+                let hasError = false;
 
-            for (const device of devicesWithoutConfig) {
-                try {
-                    await userApi.createConfig(device.id);
-                } catch (e) {
-                    console.error(`Failed to create config for device ${device.id}:`, e);
+                for (const device of devicesWithoutConfig) {
+                    try {
+                        await userApi.createConfig(device.id);
+                    } catch (e) {
+                        console.error(`Ошибка генерации конфига для устройства ${device.id}:`, e);
+                        hasError = true;
+                    }
+                }
+
+                await fetchAll();
+
+                const updatedConfigs = useUserStore.getState().configs;
+
+                if (updatedConfigs.length === 0) {
+                    safeAlert('Сбой генерации ключей. Пожалуйста, попробуйте еще раз.');
+                    return;
+                }
+
+                if (hasError) {
+                    safeAlert('Некоторые ключи не удалось создать, но вы можете подключить готовые.');
                 }
             }
 
-            await fetchAll();
             setActiveTab('subscriptions');
+
         } catch (error) {
-            console.error('Ошибка при подготовке конфигурации:', error);
-            window.Telegram?.WebApp?.showAlert('Не удалось подготовить конфигурацию. Обратитесь в поддержку.');
+            console.error('Критическая ошибка подготовки:', error);
+            safeAlert('Системная ошибка. Попробуйте еще раз.');
         } finally {
             setIsSettingUp(false);
         }
@@ -196,14 +243,16 @@ export default function Home() {
     };
 
     if (!isInitialized) {
-        return (
-            <div
-                className="flex items-center justify-center"
-                style={{ height: 'calc(var(--tg-height, 100dvh) - 180px)' }}
-            >
-                <Loader2 size={28} className="animate-spin text-white/30" />
-            </div>
-        );
+        if (loading) {
+            return (
+                <div
+                    className="flex items-center justify-center"
+                    style={{ height: 'calc(var(--tg-height, 100dvh) - 180px)' }}
+                >
+                    <Loader2 size={28} className="animate-spin text-white/30" />
+                </div>
+            );
+        }
     }
 
     const eggProgress = Math.min((eggClicks / 67) * 100, 100);

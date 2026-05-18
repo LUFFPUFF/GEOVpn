@@ -466,22 +466,18 @@ public class UserServiceImpl implements UserService {
 
     private int getPlanCost(String planName) {
         return switch (planName.toUpperCase()) {
-            case "BASIC"     -> 15000;
-            case "STANDARD"  -> 40000;
-            case "FAMILY"    -> 70000;
-            case "BUSINESS"  -> 200000;
-            case "UNLIMITED" -> 300000;
-            default -> throw new IllegalArgumentException("Unknown subscription plan: " + planName);
+            case "BASIC"     -> 10000;
+            case "STANDARD"  -> 15000;
+            case "FAMILY"    -> 35000;
+            default -> throw new IllegalArgumentException("Unknown plan");
         };
     }
 
     private int getMaxDevicesForPlan(String planName) {
         return switch (planName.toUpperCase()) {
             case "BASIC"     -> 1;
-            case "STANDARD"  -> 3;
-            case "FAMILY"    -> 5;
-            case "BUSINESS"  -> 15;
-            case "UNLIMITED" -> 100;
+            case "STANDARD"  -> 2;
+            case "FAMILY"    -> 3;
             default          -> 1;
         };
     }

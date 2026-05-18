@@ -1,95 +1,220 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useUserStore } from '../../store/userStore';
-import { Trophy, Medal, Award, Users, Star } from 'lucide-react';
+import { Trophy, Medal, Award, Users, Star, Crown, Zap, TrendingUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Leaderboard() {
-    const { leaderboard, fetchLeaderboard, t } = useUserStore();
+    const { leaderboard, fetchLeaderboard, t, user, setActiveTab } = useUserStore();
 
     useEffect(() => {
         fetchLeaderboard();
     }, [fetchLeaderboard]);
 
+    const topThree = useMemo(() => leaderboard.slice(0, 3), [leaderboard]);
+    const others = useMemo(() => leaderboard.slice(3), [leaderboard]);
     const isWinnerDay = leaderboard.length > 0 && leaderboard[0].isWinner;
 
-    return (
-        <div className="flex flex-col h-[78vh] relative overflow-y-auto custom-scrollbar pb-24 pt-2 px-1">
+    const haptic = (s: 'light' | 'medium' = 'light') =>
+        window.Telegram?.WebApp?.HapticFeedback.impactOccurred(s);
 
-            <div className="mb-6 text-center">
-                <h2 className="text-[32px] font-black uppercase italic text-white tracking-tighter leading-none mb-2">{t.hall_of_fame}</h2>
-                <p className="text-white/40 text-[12px] font-bold uppercase tracking-widest">
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: { staggerChildren: 0.1 }
+        }
+    };
+
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1 }
+    };
+
+    return (
+        <div className="flex flex-col h-[85vh] relative overflow-y-auto custom-scrollbar pb-32 pt-2 px-3">
+
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[300px] bg-primary/5 blur-[120px] pointer-events-none" />
+
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-8 text-center relative z-10"
+            >
+                <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1 rounded-full mb-3">
+                    <TrendingUp size={12} className="text-primary" />
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/50">Live Rankings</span>
+                </div>
+                <h2 className="text-[36px] font-black uppercase italic text-white tracking-tighter leading-none mb-2">
+                    {t.hall_of_fame}
+                </h2>
+                <p className="text-primary font-bold text-[11px] uppercase tracking-[0.3em]">
                     {isWinnerDay ? t.winner_last_month : t.top_partners}
                 </p>
-            </div>
+            </motion.div>
 
-            {isWinnerDay && leaderboard.length > 0 && (
-                <div className="bg-gradient-to-b from-amber-500/20 to-[#12141d] border border-amber-500/30 rounded-[2rem] p-8 shadow-[0_0_40px_rgba(251,191,36,0.15)] relative overflow-hidden mb-6 text-center">
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] h-[100px] bg-amber-500/30 blur-[60px] pointer-events-none" />
-                    <Trophy size={64} className="text-amber-400 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(251,191,36,0.6)] animate-bounce" />
-                    <h3 className="text-amber-400 text-[14px] font-black uppercase tracking-[0.2em] mb-1">{t.king_of_vpn}</h3>
-                    <h2 className="text-[28px] font-black text-white leading-none mb-4">{leaderboard[0].firstName}</h2>
-                    <div className="inline-flex items-center gap-2 bg-black/40 border border-white/10 px-4 py-2 rounded-xl">
-                        <Users size={16} className="text-white/50" />
-                        <span className="text-[16px] font-black text-white">{leaderboard[0].referralCount}</span>
-                        <span className="text-[12px] font-bold text-white/50 uppercase">{t.invitations}</span>
-                    </div>
-                </div>
-            )}
-
-            {!isWinnerDay && (
-                <div className="space-y-3">
-                    {leaderboard.map((user, index) => {
-                        const isFirst = index === 0;
-                        const isSecond = index === 1;
-                        const isThird = index === 2;
-
-                        let borderClass = "border-white/5";
-                        let bgClass = "bg-[#12141d]";
-                        let icon = <span className="font-black text-white/20 text-[18px]">#{index + 1}</span>;
-
-                        if (isFirst) {
-                            borderClass = "border-amber-500/30 shadow-[0_0_20px_rgba(251,191,36,0.1)]";
-                            bgClass = "bg-gradient-to-r from-amber-500/10 to-[#12141d]";
-                            icon = <Trophy size={24} className="text-amber-400 drop-shadow-md" />;
-                        } else if (isSecond) {
-                            borderClass = "border-slate-300/30 shadow-[0_0_15px_rgba(203,213,225,0.05)]";
-                            bgClass = "bg-gradient-to-r from-slate-300/10 to-[#12141d]";
-                            icon = <Medal size={24} className="text-slate-300 drop-shadow-md" />;
-                        } else if (isThird) {
-                            borderClass = "border-orange-400/30 shadow-[0_0_15px_rgba(251,146,60,0.05)]";
-                            bgClass = "bg-gradient-to-r from-orange-400/10 to-[#12141d]";
-                            icon = <Award size={24} className="text-orange-400 drop-shadow-md" />;
-                        }
-
-                        return (
-                            <div key={index} className={`flex items-center justify-between p-5 rounded-[1.5rem] border ${bgClass} ${borderClass} transition-all`}>
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full bg-black/40 border border-white/5 flex items-center justify-center shrink-0">
-                                        {icon}
-                                    </div>
-                                    <div>
-                                        <h4 className={`text-[16px] font-black leading-none mb-1 ${isFirst ? 'text-amber-400' : 'text-white'}`}>
-                                            {user.firstName}
-                                        </h4>
-                                        {user.username && <p className="text-[11px] text-white/40 font-medium">@{user.username}</p>}
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[20px] font-black text-white leading-none">{user.referralCount}</p>
-                                    <p className="text-[9px] text-white/30 font-black uppercase tracking-widest mt-1">{t.friends}</p>
+            <div className="grid grid-cols-3 gap-2 items-end mb-8 relative z-10 min-h-[200px]">
+                {topThree[1] && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }}
+                        className="flex flex-col items-center"
+                    >
+                        <div className="relative mb-3">
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-400/20 to-transparent border border-slate-400/30 flex items-center justify-center overflow-hidden">
+                                <span className="text-white font-black text-xl">{topThree[1].firstName.charAt(0)}</span>
+                                <div className="absolute bottom-0 right-0 bg-slate-400 p-1 rounded-tl-lg">
+                                    <Medal size={10} className="text-slate-900" />
                                 </div>
                             </div>
-                        );
-                    })}
-
-                    {leaderboard.length === 0 && (
-                        <div className="text-center bg-[#12141d] border border-white/5 rounded-[2rem] p-8 mt-10">
-                            <Star size={40} className="text-white/20 mx-auto mb-4" />
-                            <h3 className="text-[18px] font-black text-white mb-2">{t.leaderboard_empty}</h3>
-                            <p className="text-[13px] text-white/40">{t.leaderboard_empty_desc}</p>
                         </div>
-                    )}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-3 w-full text-center backdrop-blur-md">
+                            <p className="text-white font-black text-[11px] truncate mb-1">{topThree[1].firstName}</p>
+                            <p className="text-slate-400 font-mono text-[14px] font-black">{topThree[1].referralCount}</p>
+                        </div>
+                    </motion.div>
+                )}
+
+                {topThree[0] && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", bounce: 0.5 }}
+                        className="flex flex-col items-center relative z-20"
+                    >
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2">
+                            <motion.div animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 2 }}>
+                                <Crown size={32} className="text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]" />
+                            </motion.div>
+                        </div>
+                        <div className="relative mb-4">
+                            <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-amber-400/30 via-amber-400/5 to-transparent border-2 border-amber-400/50 flex items-center justify-center shadow-[0_0_30px_rgba(251,191,36,0.2)]">
+                                <span className="text-white font-black text-2xl">{topThree[0].firstName.charAt(0)}</span>
+                            </div>
+                        </div>
+                        <div className="bg-amber-400 border border-amber-500 rounded-2xl p-4 w-full text-center shadow-lg shadow-amber-400/20">
+                            <p className="text-black font-black text-[13px] truncate mb-1">{topThree[0].firstName}</p>
+                            <div className="flex items-center justify-center gap-1">
+                                <Zap size={12} className="text-black fill-current" />
+                                <p className="text-black font-mono text-[18px] font-black">{topThree[0].referralCount}</p>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+
+                {topThree[2] && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}
+                        className="flex flex-col items-center"
+                    >
+                        <div className="relative mb-3">
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-400/20 to-transparent border border-orange-400/30 flex items-center justify-center">
+                                <span className="text-white font-black text-xl">{topThree[2].firstName.charAt(0)}</span>
+                                <div className="absolute bottom-0 right-0 bg-orange-400 p-1 rounded-tl-lg">
+                                    <Award size={10} className="text-orange-900" />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-3 w-full text-center backdrop-blur-md">
+                            <p className="text-white font-black text-[11px] truncate mb-1">{topThree[2].firstName}</p>
+                            <p className="text-orange-400 font-mono text-[14px] font-black">{topThree[2].referralCount}</p>
+                        </div>
+                    </motion.div>
+                )}
+            </div>
+
+            <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="space-y-2 relative z-10"
+            >
+                {others.map((partner, index) => {
+                    const rank = index + 4;
+                    const isMe = partner.username === user?.username;
+
+                    return (
+                        <motion.div
+                            key={index}
+                            variants={itemVariants}
+                            whileTap={{ scale: 0.98 }}
+                            className={`group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 ${
+                                isMe
+                                    ? 'bg-primary/10 border-primary/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
+                                    : 'bg-[#0d0e12] border-white/5 hover:border-white/10'
+                            }`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-white/10 transition-colors">
+                                    <span className="text-[14px] font-mono font-black text-white/20 group-hover:text-white/40">
+                                        {rank < 10 ? `0${rank}` : rank}
+                                    </span>
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="text-[14px] font-black text-white leading-none">
+                                            {partner.firstName}
+                                        </h4>
+                                        {isMe && (
+                                            <span className="text-[8px] bg-primary text-black px-1.5 py-0.5 rounded font-black uppercase">Вы</span>
+                                        )}
+                                    </div>
+                                    {partner.username && (
+                                        <p className="text-[10px] text-white/30 font-medium mt-1 uppercase tracking-widest">
+                                            @{partner.username}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <div className="text-right">
+                                    <p className="text-[18px] font-black text-white leading-none font-mono">
+                                        {partner.referralCount}
+                                    </p>
+                                    <p className="text-[8px] text-white/20 font-black uppercase tracking-widest mt-1">
+                                        {t.friends}
+                                    </p>
+                                </div>
+                                <ChevronRight size={14} className="text-white/10" />
+                            </div>
+                        </motion.div>
+                    );
+                })}
+
+                {leaderboard.length === 0 && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                        className="text-center bg-white/5 border border-white/5 rounded-[2.5rem] p-12 mt-4"
+                    >
+                        <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/5">
+                            <Star size={32} className="text-white/10" />
+                        </div>
+                        <h3 className="text-[20px] font-black text-white mb-2 uppercase italic">{t.leaderboard_empty}</h3>
+                        <p className="text-[13px] text-white/30 px-6">{t.leaderboard_empty_desc}</p>
+                    </motion.div>
+                )}
+            </motion.div>
+
+            <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="mt-8 p-6 bg-gradient-to-r from-primary/20 to-blue-500/10 border border-primary/20 rounded-[2.5rem] relative overflow-hidden"
+            >
+                <div className="absolute -right-4 -bottom-4 opacity-10 rotate-12">
+                    <Trophy size={100} />
                 </div>
-            )}
+                <div className="relative z-10">
+                    <h4 className="text-white font-black uppercase italic text-[18px] mb-1">Стань королем VPN</h4>
+                    <p className="text-white/50 text-[11px] leading-snug mb-4">
+                        Приглашай друзей, копи бонусы и занимай первое место в зале славы GEO VPN!
+                    </p>
+                    <button
+                        onClick={() => { setActiveTab?.('profile'); haptic('medium'); }}
+                        className="px-6 py-3 bg-white text-black rounded-xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all"
+                    >
+                        {t.referral_invite}
+                    </button>
+                </div>
+            </motion.div>
+
         </div>
     );
 }

@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useUserStore } from '../../store/userStore';
 import { userApi } from '../../api/user';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Smartphone, Laptop, Plus, Trash2, Share2,
     ChevronRight, Newspaper, Headphones, BookOpen,
     ShieldAlert, User, ShieldCheck, Fingerprint,
     Crown, CheckCircle2, ArrowLeft, X, Monitor, FileText, Shield,
-    Edit2, Save, Gift, AlertCircle, Loader2
+    Edit2, Save, Gift, AlertCircle, Loader2, Sparkles
 } from 'lucide-react';
 
 import ios1 from '../../assets/ios_instruction/1.png';
@@ -31,7 +32,7 @@ const handleLink = (url: string) => {
 };
 
 export default function Profile() {
-    const { user, devices, configs, deviceLimit, addDevice, deleteDevice, t } = useUserStore();
+    const { user, devices, configs, deviceLimit, addDevice, deleteDevice, t, setActiveTab } = useUserStore();
     const [subPage, setSubPage] = useState<'main' | 'referral' | 'instructions' | 'privacy' | 'agreement'>('main');
     const [showDeviceModal, setShowDeviceModal] = useState(false);
     const [devName, setDevName] = useState('');
@@ -52,9 +53,20 @@ export default function Profile() {
     const realBalance = user?.balance ? (user.balance / 100).toFixed(0) : '0';
     const inviteLink = `https://t.me/geovpn_bot?start=${user?.referralCode}`;
 
-    const limitReached = deviceLimit?.limitReached ?? false;
-    const activeDevs   = deviceLimit?.activeDevices ?? devices.length;
-    const maxDevs      = deviceLimit?.maxDevices    ?? 3;
+    const activeDevs = deviceLimit?.activeDevices ?? devices.length;
+
+    const maxDevs = useMemo(() => {
+        if (!user?.subscriptionType) return 1;
+        const type = String(user.subscriptionType).toUpperCase();
+        switch (type) {
+            case 'BASIC':    return 1;
+            case 'STANDARD': return 2;
+            case 'FAMILY':   return 3;
+            default:         return deviceLimit?.maxDevices ?? 1;
+        }
+    }, [user, deviceLimit]);
+
+    const limitReached = activeDevs >= maxDevs;
 
     const copyAction = (text: string | undefined, message: string) => {
         if (!text) return;
@@ -69,7 +81,6 @@ export default function Profile() {
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
     };
 
-    // Проверяем лимит перед открытием модала
     const handleAddDeviceClick = () => {
         if (limitReached) {
             window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
@@ -81,7 +92,6 @@ export default function Profile() {
         setShowDeviceModal(true);
     };
 
-    // Добавление устройства с проверкой
     const handleAddDevice = async () => {
         if (!devName.trim()) return;
         if (limitReached) {
@@ -125,12 +135,21 @@ export default function Profile() {
     };
 
     const handleApplyPromo = async () => {
+        if (!user?.hasActiveSubscription) {
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
+            window.Telegram?.WebApp?.showAlert('Активация промокода доступна только пользователям с активной подпиской. Сначала оформите любой тариф.');
+            return;
+        }
+
         if (!promoCode.trim()) return;
+
         try {
             setIsApplying(true);
             window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+
             const updatedUser = await userApi.applyPromo(promoCode.trim());
             useUserStore.setState({ user: updatedUser });
+
             window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
             window.Telegram?.WebApp?.showAlert('Успешно! Вы получили +10 дней к подписке 🎉');
             setPromoCode('');
@@ -328,29 +347,41 @@ export default function Profile() {
 
                 <div className="bg-[#12141d] border border-emerald-500/20 rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-[40px] rounded-full pointer-events-none" />
+
                     <p className="text-[12px] text-white font-black uppercase mb-3 relative z-10 flex items-center gap-2">
                         <Gift size={16} className="text-emerald-500" /> Есть промокод?
                     </p>
-                    <div className="flex gap-2 relative z-10 bg-black/40 p-1.5 rounded-[1.25rem] border border-white/5">
-                        <input
-                            type="text"
-                            placeholder="ВВЕДИТЕ КОД"
-                            value={promoCode}
-                            onChange={e => setPromoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                            className="flex-1 bg-transparent px-4 text-[14px] font-black outline-none text-white placeholder:text-white/20 uppercase font-mono tracking-widest"
-                        />
-                        <button
-                            onClick={handleApplyPromo}
-                            disabled={isApplying || !promoCode.trim()}
-                            className={`px-6 h-12 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg ${
-                                promoCode.trim() && !isApplying
-                                    ? 'bg-emerald-500 text-black active:scale-95 shadow-emerald-500/20'
-                                    : 'bg-white/5 text-white/20 cursor-not-allowed shadow-none border border-white/5'
-                            }`}
-                        >
-                            {isApplying ? '...' : 'Ок'}
-                        </button>
-                    </div>
+
+                    {!user?.hasActiveSubscription ? (
+                        <div className="relative z-10 p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-3">
+                            <AlertCircle size={18} className="text-white/20" />
+                            <p className="text-[10px] text-white/40 font-black uppercase leading-tight tracking-wider">
+                                Активация доступна только <br />
+                                <span className="text-emerald-500/50">после покупки подписки</span>
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="flex gap-2 relative z-10 bg-black/40 p-1.5 rounded-[1.25rem] border border-white/5">
+                            <input
+                                type="text"
+                                placeholder="ВВЕДИТЕ КОД"
+                                value={promoCode}
+                                onChange={e => setPromoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                                className="flex-1 bg-transparent px-4 text-[14px] font-black outline-none focus:border-emerald-500/50 transition-colors text-white placeholder:text-white/20 uppercase font-mono tracking-widest"
+                            />
+                            <button
+                                onClick={handleApplyPromo}
+                                disabled={isApplying || !promoCode.trim()}
+                                className={`px-6 h-12 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg ${
+                                    promoCode.trim() && !isApplying
+                                        ? 'bg-emerald-500 text-black active:scale-95 shadow-emerald-500/20'
+                                        : 'bg-white/5 text-white/20 cursor-not-allowed shadow-none border border-white/5'
+                                }`}
+                            >
+                                {isApplying ? '...' : 'Ок'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -531,46 +562,50 @@ export default function Profile() {
                 ))}
             </div>
 
-            {/* УСТРОЙСТВА */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-5 shadow-xl relative overflow-hidden shrink-0 text-white">
                 <div className="flex justify-between items-center mb-3">
                     <div>
                         <h3 className="text-[14px] font-black uppercase italic">{t.my_devices}</h3>
-                        {deviceLimit && (
-                            <p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${limitReached ? 'text-red-400' : 'text-white/30'}`}>
-                                {activeDevs}/{maxDevs} устройств
-                            </p>
-                        )}
+                        <p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${limitReached ? 'text-amber-400' : 'text-white/30'}`}>
+                            {activeDevs}/{maxDevs} устройств
+                        </p>
                     </div>
                     <button
                         onClick={handleAddDeviceClick}
                         className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all font-black text-[10px] uppercase shadow-lg outline-none ${
                             limitReached
-                                ? 'bg-white/10 text-white/30 cursor-not-allowed shadow-none border border-white/5'
+                                ? 'bg-white/10 text-white/30 cursor-not-allowed border border-white/5'
                                 : 'bg-emerald-500 text-black shadow-emerald-500/20'
                         }`}
                     >
-                        {limitReached ? (
-                            <>
-                                <AlertCircle size={14} /> Лимит
-                            </>
-                        ) : (
-                            <>
-                                <Plus size={14} strokeWidth={3} /> Добавить
-                            </>
-                        )}
+                        {limitReached ? <><AlertCircle size={14} /> Лимит</> : <><Plus size={14} strokeWidth={3} /> Добавить</>}
                     </button>
                 </div>
 
-                {/* Баннер при достижении лимита */}
-                {limitReached && (
-                    <div className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2">
-                        <AlertCircle size={16} className="text-red-400 shrink-0" />
-                        <p className="text-[11px] text-red-300 font-black uppercase tracking-wide">
-                            Лимит устройств достигнут. Удалите существующее устройство.
-                        </p>
-                    </div>
-                )}
+                <AnimatePresence>
+                    {limitReached && (
+                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
+                            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl relative overflow-hidden text-left">
+                                <div className="absolute -right-4 -top-4 w-16 h-16 bg-amber-500/10 blur-xl rounded-full" />
+                                <div className="flex items-start gap-3 relative z-10">
+                                    <ShieldAlert size={18} className="text-amber-500 shrink-0" />
+                                    <div className="flex-1">
+                                        <p className="text-white text-[13px] font-black uppercase italic">Все слоты заняты</p>
+                                        <p className="text-white/50 text-[11px] mt-1">
+                                            Вы достигли лимита устройств. Удалите текущее или перейдите на более мощный план.
+                                        </p>
+                                        <button
+                                            onClick={() => setActiveTab('payments')}
+                                            className="mt-3 flex items-center gap-2 text-amber-400 font-black text-[10px] uppercase"
+                                        >
+                                            <Sparkles size={12} /> Увеличить лимит
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 <div className="space-y-2">
                     {devices.length === 0 ? (

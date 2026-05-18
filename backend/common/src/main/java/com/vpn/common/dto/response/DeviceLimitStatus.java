@@ -1,7 +1,14 @@
 package com.vpn.common.dto.response;
 
-@lombok.Builder
-@lombok.Data
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class DeviceLimitStatus {
     private Long userId;
     private int maxDevices;

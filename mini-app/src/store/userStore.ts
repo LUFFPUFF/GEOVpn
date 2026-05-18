@@ -21,10 +21,12 @@ interface UserStore {
     activeTab:    TabId;
     loading:      boolean;
     error:        string | null;
+    profileTab:   'main' | 'referral' | 'instructions' | 'privacy' | 'agreement';
 
     lang: Lang;
     t:    typeof TRANSLATIONS.ru;
     setLanguage: (lang: Lang) => void;
+    setProfileTab: (tab: 'main' | 'referral' | 'instructions' | 'privacy' | 'agreement') => void;
 
     fetchAll:             () => Promise<void>;
     register:             () => Promise<void>;
@@ -43,8 +45,9 @@ export const useUserStore = create<UserStore>((set, get) => ({
     leaderboard: [],
     deviceLimit: null,
     activeTab:   'home',
-    loading:     false,
+    loading:     true,
     error:       null,
+    profileTab:  'main',
 
     lang: 'ru',
     t:    TRANSLATIONS.ru,
@@ -54,6 +57,8 @@ export const useUserStore = create<UserStore>((set, get) => ({
         window.Telegram?.WebApp?.CloudStorage.setItem('lang', newLang);
     },
 
+    setProfileTab: (tab) => set({ profileTab: tab, activeTab: 'profile' }),
+
     setActiveTab: (tab) => set({ activeTab: tab }),
 
     register: async () => {
@@ -61,21 +66,47 @@ export const useUserStore = create<UserStore>((set, get) => ({
         const userDetails = tg?.initDataUnsafe?.user;
         const startParam  = tg?.initDataUnsafe?.start_param;
 
-        if (!userDetails) {
+        let telegramId: number;
+        let firstName: string;
+        let username: string | undefined;
+
+        // Если мы на локалке и данных ТГ нет - берем заглушку
+        if (import.meta.env.DEV && !userDetails?.id) {
+            console.warn("⚠️ LOCAL DEV MODE: Using mocked user for registration");
+            telegramId = 858441917;
+            firstName = "Local Tester";
+            username = "local_tester";
+        }
+        else if (userDetails?.id) {
+            telegramId = userDetails.id;
+            firstName = userDetails.first_name;
+            username = userDetails.username;
+        }
+        else {
             console.error('[register] No telegram user data');
-            return;
+            throw new Error("Не удалось получить данные Telegram");
         }
 
         try {
+            set({ loading: true });
             const newUser = await userApi.register(
-                userDetails.id,
-                userDetails.first_name,
-                userDetails.username,
+                telegramId,
+                firstName,
+                username,
                 startParam
             );
-            set({ user: newUser });
-        } catch (e) {
+            set({ user: newUser, loading: false });
+        } catch (e: any) {
             console.error('[register] Failed:', e);
+            set({ loading: false });
+
+            if (e.response?.status === 400 || e.response?.status === 409) {
+                const profile = await userApi.getProfile().catch(() => null);
+                if (profile) {
+                    set({ user: profile });
+                    return;
+                }
+            }
             throw e;
         }
     },

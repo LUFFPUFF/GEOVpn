@@ -1,5 +1,7 @@
 package com.vpn.config.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vpn.common.constant.ErrorCode;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ErrorResponse;
@@ -142,23 +144,20 @@ public class VpnConfigController {
         String baseUrl = "https://geovp.ru";
         String subscriptionUrl = baseUrl + "/api/v1/configs/subscription/" + vlessUuid;
 
-        String deepLink;
+        String finalDeepLink;
         try {
-            deepLink = encryptHappSubscriptionUrl(subscriptionUrl);
-            log.info("Generated encrypted Happ deeplink for uuid={}", vlessUuid);
+            String encryptedLink = encryptHappSubscriptionUrl(subscriptionUrl);
+
+            String encodedEncrypted = java.net.URLEncoder.encode(encryptedLink, java.nio.charset.StandardCharsets.UTF_8);
+            finalDeepLink = "happ://add-sub?url=" + encodedEncrypted;
+
+            log.info("Generated encrypted auto-import deeplink for uuid={}", vlessUuid);
         } catch (Exception e) {
             log.warn("Happ crypto API unavailable, using plain URL fallback: {}", e.getMessage());
             String encodedUrl = java.net.URLEncoder.encode(subscriptionUrl, java.nio.charset.StandardCharsets.UTF_8);
-            deepLink = "happ://add-subscription?url=" + encodedUrl;
+            finalDeepLink = "happ://add-sub?url=" + encodedUrl;
         }
 
-        String html = getFinalDeepLink(deepLink);
-
-        return ResponseEntity.ok(html);
-    }
-
-    private static String getFinalDeepLink(String deepLink) {
-        final String finalDeepLink = deepLink;
         String html = """
             <!DOCTYPE html>
             <html>
@@ -173,7 +172,8 @@ public class VpnConfigController {
             </body>
             </html>
             """.formatted(finalDeepLink, finalDeepLink);
-        return html;
+
+        return ResponseEntity.ok(html);
     }
 
     /**
@@ -205,12 +205,20 @@ public class VpnConfigController {
         java.net.http.HttpResponse<String> response = client.send(
                 request, java.net.http.HttpResponse.BodyHandlers.ofString());
 
-        String encryptedLink = response.body().trim();
-        if (!encryptedLink.startsWith("happ://")) {
-            throw new RuntimeException("Unexpected Happ crypto API response: " + encryptedLink);
+        String body = response.body().trim();
+
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(body);
+
+        if (node.has("encrypted_link")) {
+            return node.get("encrypted_link").asText();
         }
-        return encryptedLink;
+
+        if (body.startsWith("happ://")) return body;
+
+        throw new RuntimeException("Invalid Crypto API response: " + body);
     }
+
 
     private ResponseEntity<ApiResponse<VpnConfigResponse>> buildConfigNotFoundResponse() {
         ErrorResponse errorResponse = ErrorResponse.builder()

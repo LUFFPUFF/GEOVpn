@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useUserStore } from '../../store/userStore';
 import {
     Download, Rocket, Smartphone, Laptop, Tv,
@@ -9,10 +9,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../../api/client';
 
 export default function Subscriptions() {
-    const { configs, user, setActiveTab } = useUserStore();
+    const { configs, user, devices, setActiveTab } = useUserStore();
     const [step, setStep] = useState(1);
     const [isConnecting, setIsConnecting] = useState(false);
     const [copyStatus, setCopyStatus] = useState(false);
+
+    const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
 
     const platform = useMemo(() => {
         const ua = navigator.userAgent.toLowerCase();
@@ -22,13 +24,24 @@ export default function Subscriptions() {
         return { id: 'pc', name: 'PC / Windows', icon: Laptop, app: 'Happ Desktop', link: 'https://github.com/Happ-proxy/happ-desktop/releases/latest' };
     }, []);
 
-    const activeConfig = configs[0];
+    useEffect(() => {
+        if (configs.length > 0 && !selectedDeviceId) {
+            setSelectedDeviceId(configs[0].deviceId);
+        }
+    }, [configs, selectedDeviceId]);
+
+    const activeConfig = configs.find(c => c.deviceId === selectedDeviceId) || configs[0];
 
     const handleAutoConnect = () => {
         if (!activeConfig) return;
         setIsConnecting(true);
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('heavy');
-        const redirectUrl = activeConfig.subscriptionUrl.replace('/subscription/', '/import-happ/');
+
+        const parts = activeConfig.subscriptionUrl.split('/subscription/');
+        const uuid = parts[parts.length - 1];
+
+        const redirectUrl = `https://geovp.ru/api/v1/subscription/${uuid}/import-happ`;
+
         if (window.Telegram?.WebApp) {
             window.Telegram.WebApp.openLink(redirectUrl);
         } else {
@@ -40,15 +53,7 @@ export default function Subscriptions() {
     const handleCopyLink = async () => {
         if (!activeConfig) return;
 
-        try {
-            const uuid = activeConfig.subscriptionUrl.split('/subscription/')[1];
-            const response = await apiClient.get<string>(`/configs/encrypted-sub/${uuid}`, {
-                responseType: 'text',
-            });
-            await navigator.clipboard.writeText(response.data);
-        } catch {
-            await navigator.clipboard.writeText(activeConfig.subscriptionUrl);
-        }
+        await navigator.clipboard.writeText(activeConfig.subscriptionUrl);
 
         setCopyStatus(true);
         window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
@@ -166,6 +171,33 @@ export default function Subscriptions() {
                         <div className="bg-gradient-to-b from-[#1a1c29] to-[#0a0a0f] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
                             <h3 className="text-[22px] font-black text-white uppercase italic mb-6 text-center tracking-tight">Шаг 3. Подключение</h3>
 
+                            {configs.length > 1 && (
+                                <div className="mb-6 -mx-2">
+                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-3 text-center">
+                                        Выберите устройство
+                                    </p>
+                                    <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2 justify-start px-2">
+                                        {configs.map((c) => {
+                                            const dev = devices.find(d => d.id === c.deviceId);
+                                            const isActive = activeConfig?.deviceId === c.deviceId;
+                                            return (
+                                                <button
+                                                    key={c.id}
+                                                    onClick={() => { setSelectedDeviceId(c.deviceId); haptic('light'); }}
+                                                    className={`px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all flex-shrink-0 ${
+                                                        isActive
+                                                            ? 'bg-emerald-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                                                            : 'bg-white/5 border border-white/10 text-white/50 active:bg-white/10'
+                                                    }`}
+                                                >
+                                                    {dev?.deviceName || `Устр. ${c.deviceId}`}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
                             <button
                                 onClick={handleAutoConnect}
                                 disabled={isConnecting || configs.length === 0}
@@ -216,9 +248,9 @@ export default function Subscriptions() {
 
                             <div className="space-y-4">
                                 {[
-                                    { s: '01', t: 'Нажмите «Скопировать ссылку» выше' },
-                                    { s: '02', t: `Откройте приложение ${platform.app}` },
-                                    { s: '03', t: 'Нажмите «Add Subscription» или иконку «+»' },
+                                    { s: '01', t: 'Выше выберите нужное устройство (если их несколько)' },
+                                    { s: '02', t: 'Нажмите «Скопировать ссылку»' },
+                                    { s: '03', t: `Откройте приложение ${platform.app} и нажмите «+»` },
                                     { s: '04', t: 'Вставьте ссылку и сохраните' }
                                 ].map((item, idx) => (
                                     <div key={idx} className="flex items-start gap-4">

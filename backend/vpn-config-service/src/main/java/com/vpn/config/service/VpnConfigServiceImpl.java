@@ -69,7 +69,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     private final UserServiceClient          userServiceClient;
     private final VpnLinksBuilder            vpnLinksBuilder;
 
-    @Value("${vpn.subscription.base-url:https://ways-parent-nokia-europe.trycloudflare.com}")
+    @Value("${vpn.subscription.base-url:https://geovp.ru}")
     private String subscriptionBaseUrl;
 
     @Override

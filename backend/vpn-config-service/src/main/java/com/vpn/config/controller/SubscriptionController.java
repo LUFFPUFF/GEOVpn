@@ -1,9 +1,8 @@
 package com.vpn.config.controller;
 
-import com.vpn.common.security.annotations.RequireUser;
+import com.vpn.common.security.annotations.Public;
 import com.vpn.config.domain.entity.VpnConfiguration;
 import com.vpn.config.repository.VpnConfigurationRepository;
-import com.vpn.config.service.DeviceLimitService;
 import com.vpn.config.service.DeviceSessionService;
 import com.vpn.config.service.subscription.SubscriptionHeaderBuilder;
 import com.vpn.common.dto.enums.ConfigStatus;
@@ -20,6 +19,7 @@ import org.springframework.web.servlet.view.RedirectView;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.UUID;
 
 @Slf4j
@@ -31,13 +31,13 @@ public class SubscriptionController {
     private final SubscriptionService subscriptionService;
     private final SubscriptionHeaderBuilder headerBuilder;
     private final VpnConfigurationRepository configRepository;
-    private final DeviceLimitService deviceLimitService;
     private final DeviceSessionService deviceSessionService;
 
     /**
      * Эндпоинт подписки для VPN-клиентов
      * GET /api/v1/subscription/{vlessUuid}
      */
+    @Public
     @GetMapping("/{vlessUuid}")
     public ResponseEntity<String> getSubscription(
             @PathVariable UUID vlessUuid,
@@ -72,7 +72,68 @@ public class SubscriptionController {
     }
 
     /**
-     * Эндпоинт для автоматического добавления (встраивания) подписки в клиент Happ.
+     * Зашифрованный авто-импорт в Happ через Happ Crypto API.
+     * Возвращает HTML-страницу с редиректом на happ://crypt5/...
+     * URL совпадает с тем, что строит фронтенд:
+     *   subscriptionUrl + "/import-happ"
+     *   → /api/v1/subscription/{uuid}/import-happ
+     */
+    @Public
+    @GetMapping(value = "/{vlessUuid}/import-happ", produces = "text/html; charset=utf-8")
+    public ResponseEntity<String> importHappEncrypted(@PathVariable UUID vlessUuid) {
+        log.info("Encrypted auto-import request for UUID: {}", vlessUuid);
+
+        boolean exists = configRepository.findByVlessUuid(vlessUuid)
+                .map(c -> c.getStatus() == ConfigStatus.ACTIVE)
+                .orElse(false);
+
+        if (!exists) {
+            throw new ConfigNotFoundException("Active config not found");
+        }
+
+        String subscriptionUrl = "https://geovp.ru/api/v1/subscription/" + vlessUuid;
+        String deepLink;
+
+        try {
+            String encrypted = encryptHappSubscriptionUrl(subscriptionUrl);
+            deepLink = "happ://add-sub?url=" + URLEncoder.encode(encrypted, StandardCharsets.UTF_8);
+            log.info("Successfully generated encrypted deeplink for {}", vlessUuid);
+        } catch (Exception e) {
+            log.warn("Happ Crypto API failed, using plain fallback: {}", e.getMessage());
+            deepLink = "happ://add-sub?url=" + URLEncoder.encode(subscriptionUrl, StandardCharsets.UTF_8);
+        }
+
+        String html = "<!DOCTYPE html><html>" +
+                "<head><meta charset=\"UTF-8\"><title>GeoVPN Import</title></head>" +
+                "<body style=\"background:#0a0a0f;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;margin:0;\">" +
+                "<div style=\"text-align:center;\">" +
+                "<div style=\"font-size:50px;margin-bottom:20px;\">🚀</div>" +
+                "<h2>Открываем Happ Proxy...</h2>" +
+                "<a href=\"" + deepLink + "\" style=\"display:inline-block;margin-top:20px;padding:15px 30px;background:#ed8936;color:white;text-decoration:none;border-radius:12px;font-weight:bold;\">ОТКРЫТЬ HAPP</a>" +
+                "<script>window.location.href = \"" + deepLink + "\";</script>" +
+                "</div></body></html>";
+
+        return ResponseEntity.ok(html);
+    }
+
+
+    /**
+     * Возвращает зашифрованную ссылку happ://crypt5/... для копирования с фронта.
+     */
+    @Public
+    @GetMapping(value = "/{vlessUuid}/encrypted-link", produces = "text/plain; charset=utf-8")
+    public ResponseEntity<String> getEncryptedLink(@PathVariable UUID vlessUuid) {
+        String subscriptionUrl = "https://geovp.ru/api/v1/subscription/" + vlessUuid;
+        try {
+            return ResponseEntity.ok(encryptHappSubscriptionUrl(subscriptionUrl));
+        } catch (Exception e) {
+            log.warn("Crypto API failed for encrypted-link, returning plain url: {}", e.getMessage());
+            return ResponseEntity.ok(subscriptionUrl);
+        }
+    }
+
+    /**
+     * Эндпоинт для автоматического добавления (встраивания) подписки в клиент Happ (legacy).
      */
     @GetMapping("/{vlessUuid}/import/happ")
     public RedirectView importToHapp(@PathVariable UUID vlessUuid) {
@@ -114,5 +175,41 @@ public class SubscriptionController {
         }
 
         return URLEncoder.encode(subscriptionUrl, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Шифрует URL через Happ Crypto API → happ://crypt5/...
+     * Зашифрованная подписка скрывает адреса серверов от пользователя.
+     */
+    private String encryptHappSubscriptionUrl(String url) throws Exception {
+        String requestBody = "{\"url\":\"" + url + "\"}";
+
+        java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("https://crypto.happ.su/api-v2.php"))
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(requestBody))
+                .timeout(Duration.ofSeconds(5))
+                .build();
+
+        java.net.http.HttpResponse<String> response = client.send(
+                request, java.net.http.HttpResponse.BodyHandlers.ofString());
+
+        String body = response.body().trim();
+
+        if (body.startsWith("{")) {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(body);
+            if (node.has("encrypted_link")) {
+                return node.get("encrypted_link").asText();
+            }
+        }
+
+        if (body.startsWith("happ://")) return body;
+
+        throw new RuntimeException("Happ Crypto API error: " + body);
     }
 }

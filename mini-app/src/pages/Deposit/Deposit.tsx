@@ -4,7 +4,7 @@ import { useUserStore } from "../../store/userStore";
 import { billingApi } from "../../api/billing";
 import { CreditCard, ChevronLeft, Wallet, Zap } from 'lucide-react';
 
-const QUICK_AMOUNTS = [75, 150, 350, 1000];
+const QUICK_AMOUNTS = [100, 150, 350, 1000];
 
 export default function Deposit() {
     const { user, t, lang, setActiveTab } = useUserStore();

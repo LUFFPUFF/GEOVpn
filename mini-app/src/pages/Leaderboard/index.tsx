@@ -30,10 +30,8 @@ export default function Leaderboard() {
     return (
         <div className="flex flex-col h-[85vh] relative overflow-y-auto custom-scrollbar pb-32 pt-2 px-3">
 
-            {/* ФОНОВОЕ СВЕЧЕНИЕ */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[300px] bg-emerald-500/5 blur-[120px] pointer-events-none" />
 
-            {/* ЗАГОЛОВОК */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -47,7 +45,6 @@ export default function Leaderboard() {
                 </p>
             </motion.div>
 
-            {/* ОСНОВНОЙ КОНТЕНТ */}
             {leaderboard.length === 0 ? (
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -62,10 +59,8 @@ export default function Leaderboard() {
                 </motion.div>
             ) : (
                 <>
-                    {/* ПОДИУМ (TOP 3) */}
                     <div className="grid grid-cols-3 gap-2 items-end mb-8 relative z-10 min-h-[200px]">
 
-                        {/* 2 МЕСТО */}
                         <div className="flex flex-col items-center">
                             {topThree[1] ? (
                                 <motion.div
@@ -88,7 +83,6 @@ export default function Leaderboard() {
                             ) : <div className="w-full h-16 bg-white/5 rounded-2xl border border-white/5 border-dashed opacity-10" />}
                         </div>
 
-                        {/* 1 МЕСТО */}
                         <div className="flex flex-col items-center relative z-20">
                             {topThree[0] ? (
                                 <motion.div
@@ -116,7 +110,6 @@ export default function Leaderboard() {
                             ) : null}
                         </div>
 
-                        {/* 3 МЕСТО */}
                         <div className="flex flex-col items-center">
                             {topThree[2] ? (
                                 <motion.div
@@ -140,7 +133,6 @@ export default function Leaderboard() {
                         </div>
                     </div>
 
-                    {/* СПИСОК ОСТАЛЬНЫХ (ОТ 4 МЕСТА) */}
                     <motion.div
                         variants={containerVariants}
                         initial="hidden"
@@ -203,7 +195,6 @@ export default function Leaderboard() {
                 </>
             )}
 
-            {/* КАРТОЧКА ПРИЗЫВА К ДЕЙСТВИЮ */}
             <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}

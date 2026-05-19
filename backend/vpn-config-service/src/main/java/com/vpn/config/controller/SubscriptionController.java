@@ -95,12 +95,11 @@ public class SubscriptionController {
         String deepLink;
 
         try {
-            String encrypted = encryptHappSubscriptionUrl(subscriptionUrl);
-            deepLink = "happ://add-sub?url=" + URLEncoder.encode(encrypted, StandardCharsets.UTF_8);
+            deepLink = encryptHappSubscriptionUrl(subscriptionUrl);
             log.info("Successfully generated encrypted deeplink for {}", vlessUuid);
         } catch (Exception e) {
             log.warn("Happ Crypto API failed, using plain fallback: {}", e.getMessage());
-            deepLink = "happ://add-sub?url=" + URLEncoder.encode(subscriptionUrl, StandardCharsets.UTF_8);
+            deepLink = subscriptionUrl.replaceFirst("^https?://", "happ://");
         }
 
         String html = "<!DOCTYPE html><html>" +
@@ -137,8 +136,11 @@ public class SubscriptionController {
      */
     @GetMapping("/{vlessUuid}/import/happ")
     public RedirectView importToHapp(@PathVariable UUID vlessUuid) {
-        String encodedUrl = getEncodedSubscriptionUrl(vlessUuid);
-        String deepLink = "happ://add-sub?url=" + encodedUrl;
+        String subscriptionUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/v1/subscription/" + vlessUuid)
+                .toUriString();
+
+        String deepLink = subscriptionUrl.replaceFirst("^http(s)?://", "happ://");
         return new RedirectView(deepLink);
     }
 

@@ -265,12 +265,18 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .toList();
 
         int deviceIndex = sortedDeviceIds.indexOf(deviceId);
-
         int deviceNumber = deviceIndex >= 0 ? deviceIndex + 1 : sortedDeviceIds.size();
 
+        String baseName;
+        if (username != null && !username.trim().isEmpty()) {
+            baseName = username + "_" + userId;
+        } else {
+            baseName = "tg_" + userId;
+        }
+
         return deviceNumber <= 1
-                ? username
-                : username + " - устр. " + deviceNumber;
+                ? baseName
+                : baseName + " - устр. " + deviceNumber;
     }
 
     @Override

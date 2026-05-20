@@ -57,6 +57,10 @@ service:
     admin-token: ${ADMIN_TOKEN}
   bot-token: ${TELEGRAM_BOT_TOKEN}
   channel-id: ${TELEGRAM_CHANNEL_ID}
+  telegram:
+    proxy:
+      host: ${TELEGRAM_PROXY_HOST}
+      port: ${TELEGRAM_PROXY_PORT}
 
 logging:
   level:

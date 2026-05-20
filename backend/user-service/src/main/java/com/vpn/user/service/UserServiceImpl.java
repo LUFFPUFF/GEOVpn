@@ -57,6 +57,7 @@ public class UserServiceImpl implements UserService {
     private final ReferralService referralService;
     private final TrafficServiceClient trafficServiceClient;
     private final VpnServiceClient vpnServiceClient;
+    private final RestTemplate restTemplate;
 
     private static final int REGISTRATION_BONUS = 0;
 
@@ -427,7 +428,6 @@ public class UserServiceImpl implements UserService {
         String url = "https://api.telegram.org/bot" + botToken + "/getChatMember?chat_id=" + channelId + "&user_id=" + telegramId;
 
         try {
-            RestTemplate restTemplate = new RestTemplate();
             JsonNode response = restTemplate.getForObject(url, JsonNode.class);
 
             if (response != null && response.get("ok").asBoolean()) {

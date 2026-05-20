@@ -18,9 +18,9 @@ telegram:
     token: ${TELEGRAM_BOT_TOKEN}
     channel-id: ${TELEGRAM_CHANNEL_ID}
     channel-url: ${TELEGRAM_CHANNEL_URL}
-  proxy:
-    host: ${TELEGRAM_PROXY_HOST}
-    port: ${TELEGRAM_PROXY_PORT}
+    proxy:
+      host: ${TELEGRAM_PROXY_HOST}
+      port: ${TELEGRAM_PROXY_PORT}
 
 services:
   internal-secret: ${INTERNAL_SECRET}

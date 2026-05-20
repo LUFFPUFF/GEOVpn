@@ -56,4 +56,6 @@ public interface UserService {
     UserResponse claimEasterEgg(Long telegramId);
 
     UserResponse purchaseExtraSlot(Long telegramId);
+
+    boolean isUserMemberOfChannel(Long telegramId);
 }

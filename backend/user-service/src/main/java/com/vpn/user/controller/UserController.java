@@ -75,6 +75,13 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @GetMapping("/me/membership")
+    @RequireUser
+    public ResponseEntity<ApiResponse<Boolean>> checkMembership() {
+        Long telegramId = SecurityContextHolder.getUserId();
+        return ResponseEntity.ok(ApiResponse.success(userService.isUserMemberOfChannel(telegramId)));
+    }
+
     /**
      * Оформление подписки.
      *

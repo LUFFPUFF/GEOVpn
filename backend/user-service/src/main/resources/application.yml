@@ -55,6 +55,9 @@ service:
     internal-secret: ${INTERNAL_SECRET}
     admins: ${ADMIN_USER_IDS}
     admin-token: ${ADMIN_TOKEN}
+  bot-token: ${TELEGRAM_BOT_TOKEN}
+  channel-id: ${TELEGRAM_CHANNEL_ID}
+
 logging:
   level:
     root: ${LOG_LEVEL}
@@ -79,3 +82,4 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+

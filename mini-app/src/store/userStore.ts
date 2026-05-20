@@ -3,7 +3,6 @@ import { userApi } from '../api/user';
 import { TRANSLATIONS, Lang } from '../utils/translations';
 import {
     UserResponse,
-    UserStatsResponse,
     DeviceResponse,
     VpnConfigResponse,
     DeviceLimitStatus,
@@ -22,15 +21,17 @@ interface UserStore {
     loading:      boolean;
     error:        string | null;
     profileTab:   'main' | 'referral' | 'instructions' | 'privacy' | 'agreement';
+    isMember:     boolean;
 
     lang: Lang;
     t:    typeof TRANSLATIONS.ru;
     setLanguage: (lang: Lang) => void;
     setProfileTab: (tab: 'main' | 'referral' | 'instructions' | 'privacy' | 'agreement') => void;
 
+    checkMembership:      () => Promise<void>;
     fetchAll:             () => Promise<void>;
     register:             () => Promise<void>;
-    regenerateConfig: (deviceId: number) => Promise<void>;
+    regenerateConfig:     (deviceId: number) => Promise<void>;
     setActiveTab:         (tab: TabId) => void;
     purchaseSubscription: (planId: string, months?: number, promo?: boolean) => Promise<boolean>;
     purchaseExtraSlot:    () => Promise<void>;
@@ -50,6 +51,7 @@ export const useUserStore = create<UserStore>((set, get) => ({
     loading:     true,
     error:       null,
     profileTab:  'main',
+    isMember:    true,
 
     lang: 'ru',
     t:    TRANSLATIONS.ru,
@@ -62,6 +64,17 @@ export const useUserStore = create<UserStore>((set, get) => ({
     setProfileTab: (tab) => set({ profileTab: tab, activeTab: 'profile' }),
 
     setActiveTab: (tab) => set({ activeTab: tab }),
+
+    checkMembership: async () => {
+        try {
+            set({ loading: true });
+            const isMember = await userApi.checkMembership();
+            set({ isMember, loading: false });
+        } catch (e) {
+            console.error('[checkMembership] Failed', e);
+            set({ isMember: false, loading: false });
+        }
+    },
 
     register: async () => {
         const tg          = window.Telegram?.WebApp;
@@ -114,19 +127,21 @@ export const useUserStore = create<UserStore>((set, get) => ({
     fetchAll: async () => {
         set({ loading: true, error: null });
         try {
-            const [profile, devices, configs, limit] = await Promise.all([
+            const [profile, devices, configs, limit, isMember] = await Promise.all([
                 userApi.getProfile().catch(() => null),
                 userApi.getDevices().catch(() => []),
                 userApi.getConfigs().catch(() => []),
                 userApi.getDeviceLimit().catch(() => null),
+                userApi.checkMembership().catch(() => false),
             ]);
 
             set({
-                user: profile,
+                user:        profile,
                 devices,
                 configs,
                 deviceLimit: limit,
-                loading: false,
+                isMember,
+                loading:     false,
             });
         } catch (error: any) {
             set({ error: error.message, loading: false });

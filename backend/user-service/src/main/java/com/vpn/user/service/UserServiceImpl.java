@@ -1,5 +1,6 @@
 package com.vpn.user.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.vpn.common.dto.TrafficSessionDto;
 import com.vpn.common.dto.TrafficSummaryDto;
 import com.vpn.common.dto.response.LeaderboardEntryDto;
@@ -24,6 +25,7 @@ import com.vpn.user.service.interf.ReferralService;
 import com.vpn.user.service.interf.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -34,6 +36,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -56,6 +59,12 @@ public class UserServiceImpl implements UserService {
     private final VpnServiceClient vpnServiceClient;
 
     private static final int REGISTRATION_BONUS = 0;
+
+    @Value("${service.bot-token}")
+    private String botToken;
+
+    @Value("${service.channel-id}")
+    private String channelId;
 
     @Override
     @Transactional
@@ -411,6 +420,24 @@ public class UserServiceImpl implements UserService {
         syncVpnLimits(telegramId, planName, savedUser);
 
         return userMapper.toResponse(savedUser);
+    }
+
+    @Override
+    public boolean isUserMemberOfChannel(Long telegramId) {
+        String url = "https://api.telegram.org/bot" + botToken + "/getChatMember?chat_id=" + channelId + "&user_id=" + telegramId;
+
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            JsonNode response = restTemplate.getForObject(url, JsonNode.class);
+
+            if (response != null && response.get("ok").asBoolean()) {
+                String status = response.get("result").get("status").asText();
+                return List.of("member", "administrator", "creator").contains(status);
+            }
+        } catch (Exception e) {
+            log.error("Error checking TG membership: {}", e.getMessage());
+        }
+        return false;
     }
 
     @Override

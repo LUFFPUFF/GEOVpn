@@ -41,7 +41,7 @@ public class SubscriptionBanner {
     private String formatPlan(String plan) {
         return switch (plan) {
             case "BASIC"     -> "Base 1/1";
-            case "STANDARD"  -> "Standard 3/3";
+            case "STANDARD"  -> "Standard 2/2";
             case "FAMILY"    -> "Family 5/5";
             case "BUSINESS"  -> "Business 10/10";
             case "UNLIMITED" -> "Unlimited ∞";

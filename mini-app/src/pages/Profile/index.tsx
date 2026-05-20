@@ -7,7 +7,8 @@ import {
     ChevronRight, Newspaper, Headphones, BookOpen,
     ShieldAlert, User, ShieldCheck, Fingerprint,
     Crown, CheckCircle2, ArrowLeft, X, Monitor, FileText, Shield,
-    Edit2, Save, Gift, AlertCircle, Loader2, Sparkles
+    Edit2, Save, Gift, AlertCircle, Loader2, Sparkles,
+    Lock
 } from 'lucide-react';
 
 import ios1 from '../../assets/ios_instruction/1.png';
@@ -53,19 +54,16 @@ export default function Profile() {
     const realBalance = user?.balance ? (user.balance / 100).toFixed(0) : '0';
     const inviteLink = `https://t.me/geovpn_bot?start=${user?.referralCode}`;
 
-    const activeDevs = deviceLimit?.activeDevices ?? devices.length;
+    const isExpired = useMemo(() => {
+        if (!user?.subscriptionExpiresAt) return true;
+        return new Date(user.subscriptionExpiresAt).getTime() < new Date().getTime();
+    }, [user]);
 
     const maxDevs = useMemo(() => {
-        if (!user?.subscriptionType) return 1;
-        const type = String(user.subscriptionType).toUpperCase();
-        switch (type) {
-            case 'BASIC':    return 1;
-            case 'STANDARD': return 2;
-            case 'FAMILY':   return 3;
-            default:         return deviceLimit?.maxDevices ?? 1;
-        }
-    }, [user, deviceLimit]);
+        return deviceLimit?.maxDevices ?? 1;
+    }, [deviceLimit]);
 
+    const activeDevs = devices.length;
     const limitReached = activeDevs >= maxDevs;
 
     const copyAction = (text: string | undefined, message: string) => {
@@ -83,8 +81,8 @@ export default function Profile() {
 
     const handleAddDeviceClick = () => {
         if (limitReached) {
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
-            window.Telegram?.WebApp?.showAlert(`Достигнут лимит устройств (${activeDevs}/${maxDevs}). Удалите одно из существующих устройств, чтобы добавить новое.`);
+            window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+            setActiveTab('manage_subscription');
             return;
         }
         setDevName('');
@@ -296,7 +294,11 @@ export default function Profile() {
                                         </span>
                                         <div className="flex gap-1 pr-1">
                                             <button
-                                                onClick={() => { setEditCodeValue(user?.referralCode || ''); setIsEditingCode(true); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }}
+                                                onClick={() => {
+                                                    setEditCodeValue(user?.referralCode || '');
+                                                    setIsEditingCode(true);
+                                                    window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
+                                                }}
                                                 className="w-10 h-10 flex items-center justify-center text-white/40 active:text-white transition-colors outline-none"
                                             >
                                                 <Edit2 size={16} />
@@ -427,7 +429,9 @@ export default function Profile() {
                         {platforms.map(p => (
                             <button
                                 key={p.id}
-                                onClick={() => { setActiveInstruction(p.id as any); window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }}
+                                onClick={() => {
+                                    setActiveInstruction(p.id as any);
+                                    window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }}
                                 className="w-full flex items-center justify-between bg-[#12141d] border border-white/10 p-4 rounded-2xl active:bg-white/5 transition-all outline-none group"
                             >
                                 <div className="flex items-center gap-4 text-left">
@@ -523,6 +527,31 @@ export default function Profile() {
                 </div>
             </div>
 
+            {!isExpired && user?.hasActiveSubscription && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-1 shadow-xl mb-3 shrink-0 animate-in zoom-in duration-300">
+                    <button
+                        onClick={() => {
+                            window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+                            setActiveTab('manage_subscription');
+                        }}
+                        className="w-full flex justify-between items-center p-4 active:bg-emerald-500/5 transition-all text-white outline-none"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center shrink-0 text-black shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+                                <ShieldCheck size={20} />
+                            </div>
+                            <div className="text-left">
+                                <span className="block text-[14px] font-black uppercase italic leading-tight">Управление подпиской</span>
+                                <span className="block text-[9px] text-emerald-500/60 font-black uppercase mt-0.5 tracking-widest">Настройки и устройства</span>
+                            </div>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                            <ChevronRight size={16} className="text-emerald-500" />
+                        </div>
+                    </button>
+                </div>
+            )}
+
             {/* ПАРТНЕРКА */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-1 shadow-xl mb-3 shrink-0">
                 <button onClick={() => setSubPage('referral')} className="w-full flex justify-between items-center p-4 active:bg-white/5 transition-all text-white outline-none">
@@ -566,39 +595,43 @@ export default function Profile() {
                 <div className="flex justify-between items-center mb-3">
                     <div>
                         <h3 className="text-[14px] font-black uppercase italic">{t.my_devices}</h3>
-                        <p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${limitReached ? 'text-amber-400' : 'text-white/30'}`}>
-                            {activeDevs}/{maxDevs} устройств
+                        <p className={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${isExpired ? 'text-red-500' : limitReached ? 'text-amber-400' : 'text-white/30'}`}>
+                            {isExpired ? 'Доступ заблокирован' : `${activeDevs}/${maxDevs} устройств`}
                         </p>
                     </div>
+
                     <button
                         onClick={handleAddDeviceClick}
                         className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all font-black text-[10px] uppercase shadow-lg outline-none ${
-                            limitReached
-                                ? 'bg-white/10 text-white/30 cursor-not-allowed border border-white/5'
+                            isExpired || limitReached
+                                ? 'bg-white/10 text-white/30 border border-white/5'
                                 : 'bg-emerald-500 text-black shadow-emerald-500/20'
                         }`}
                     >
-                        {limitReached ? <><AlertCircle size={14} /> Лимит</> : <><Plus size={14} strokeWidth={3} /> Добавить</>}
+                        {isExpired ? <><Lock size={14} /> Истекла</> : limitReached ? <><AlertCircle size={14} /> Лимит</> : <><Plus size={14} strokeWidth={3} /> Добавить</>}
                     </button>
                 </div>
 
                 <AnimatePresence>
-                    {limitReached && (
+                    {(isExpired || limitReached) && (
                         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
-                            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl relative overflow-hidden text-left">
-                                <div className="absolute -right-4 -top-4 w-16 h-16 bg-amber-500/10 blur-xl rounded-full" />
+                            <div className={`p-4 rounded-2xl relative overflow-hidden text-left border ${isExpired ? 'bg-red-500/10 border-red-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
                                 <div className="flex items-start gap-3 relative z-10">
-                                    <ShieldAlert size={18} className="text-amber-500 shrink-0" />
+                                    {isExpired ? <ShieldAlert size={18} className="text-red-500 shrink-0" /> : <ShieldAlert size={18} className="text-amber-500 shrink-0" />}
                                     <div className="flex-1">
-                                        <p className="text-white text-[13px] font-black uppercase italic">Все слоты заняты</p>
+                                        <p className="text-white text-[13px] font-black uppercase italic">
+                                            {isExpired ? 'Подписка неактивна' : 'Все слоты заняты'}
+                                        </p>
                                         <p className="text-white/50 text-[11px] mt-1">
-                                            Вы достигли лимита устройств. Удалите текущее или перейдите на более мощный план.
+                                            {isExpired
+                                                ? 'Срок действия вашего тарифа закончился. Обновите подписку, чтобы продолжить пользоваться VPN.'
+                                                : 'Вы достигли лимита устройств. Удалите текущее или перейдите на более мощный план.'}
                                         </p>
                                         <button
                                             onClick={() => setActiveTab('payments')}
-                                            className="mt-3 flex items-center gap-2 text-amber-400 font-black text-[10px] uppercase"
+                                            className={`mt-3 flex items-center gap-2 font-black text-[10px] uppercase ${isExpired ? 'text-red-500' : 'text-amber-400'}`}
                                         >
-                                            <Sparkles size={12} /> Увеличить лимит
+                                            <Sparkles size={12} /> {isExpired ? 'Продлить подписку' : 'Увеличить лимит'}
                                         </button>
                                     </div>
                                 </div>
@@ -607,7 +640,7 @@ export default function Profile() {
                     )}
                 </AnimatePresence>
 
-                <div className="space-y-2">
+                <div className={`space-y-2 ${isExpired ? 'opacity-50' : ''}`}>
                     {devices.length === 0 ? (
                         <p className="text-white/20 text-center text-[11px] font-medium py-2 uppercase tracking-widest">{t.no_devices}</p>
                     ) : (

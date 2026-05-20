@@ -89,7 +89,7 @@ public class VpnConfigController {
     /**
      * Перевыпуск подписки (смена UUID).
      */
-    @PutMapping("/configs/{deviceId}/regenerate")
+    @PutMapping("/{deviceId}/regenerate")
     @RequireUser
     public ResponseEntity<ApiResponse<VpnConfigResponse>> regenerateConfig(
             @RequestHeader("X-User-Id") Long telegramId,

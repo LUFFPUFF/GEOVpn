@@ -52,4 +52,9 @@ export const userApi = {
 
     claimEasterEgg: () =>
         apiClient.post<ApiResponse<UserResponse>>('/users/me/easter-egg').then(r => r.data.data),
+
+    purchaseExtraSlot: () => apiClient.post<ApiResponse<UserResponse>>('/users/me/purchase-slot').then(r => r.data.data),
+
+    regenerateConfig: (deviceId: number) =>
+        apiClient.put<ApiResponse<VpnConfigResponse>>(`/configs/${deviceId}/regenerate`, { preferredCountry: 'RU' }).then(r => r.data.data),
 };

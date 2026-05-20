@@ -3,7 +3,9 @@ package com.vpn.config.domain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -33,6 +35,10 @@ public class DeviceLimit {
 
     @Column(name = "plan_name")
     private String planName;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "extra_device_ids", columnDefinition = "jsonb")
+    private String extraDeviceIds = "[]";
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

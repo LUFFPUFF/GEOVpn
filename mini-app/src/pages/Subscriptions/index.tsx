@@ -214,28 +214,28 @@ export default function Subscriptions() {
                                 <span className="text-[10px] opacity-50 font-bold uppercase tracking-widest">Запустить в {platform.app}</span>
                             </button>
 
-                            <div className="flex items-center gap-4 my-8">
-                                <div className="h-px bg-white/10 flex-1" />
-                                <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">Manual</span>
-                                <div className="h-px bg-white/10 flex-1" />
-                            </div>
+                            {/*<div className="flex items-center gap-4 my-8">*/}
+                            {/*    <div className="h-px bg-white/10 flex-1" />*/}
+                            {/*    <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">Manual</span>*/}
+                            {/*    <div className="h-px bg-white/10 flex-1" />*/}
+                            {/*</div>*/}
 
-                            <button
-                                onClick={handleCopyLink}
-                                disabled={configs.length === 0}
-                                className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between px-6 active:bg-white/10 transition-all group disabled:opacity-20"
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-active:text-emerald-500 transition-colors">
-                                        {copyStatus ? <Check size={20} className="text-emerald-500" /> : <Copy size={20} className="text-white/40" />}
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="text-[13px] font-black text-white">{copyStatus ? 'Скопировано!' : 'Скопировать ссылку'}</p>
-                                        <p className="text-[9px] text-white/30 font-bold uppercase mt-0.5">Для ручной вставки</p>
-                                    </div>
-                                </div>
-                                <ChevronRight size={18} className="text-white/20" />
-                            </button>
+                            {/*<button*/}
+                            {/*    onClick={handleCopyLink}*/}
+                            {/*    disabled={configs.length === 0}*/}
+                            {/*    className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between px-6 active:bg-white/10 transition-all group disabled:opacity-20"*/}
+                            {/*>*/}
+                            {/*    <div className="flex items-center gap-4">*/}
+                            {/*        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-active:text-emerald-500 transition-colors">*/}
+                            {/*            {copyStatus ? <Check size={20} className="text-emerald-500" /> : <Copy size={20} className="text-white/40" />}*/}
+                            {/*        </div>*/}
+                            {/*        <div className="text-left">*/}
+                            {/*            <p className="text-[13px] font-black text-white">{copyStatus ? 'Скопировано!' : 'Скопировать ссылку'}</p>*/}
+                            {/*            <p className="text-[9px] text-white/30 font-bold uppercase mt-0.5">Для ручной вставки</p>*/}
+                            {/*        </div>*/}
+                            {/*    </div>*/}
+                            {/*    <ChevronRight size={18} className="text-white/20" />*/}
+                            {/*</button>*/}
                         </div>
 
                         <div className="bg-[#12141d] border border-white/10 rounded-[2.5rem] p-6 shadow-xl">
@@ -249,9 +249,9 @@ export default function Subscriptions() {
                             <div className="space-y-4">
                                 {[
                                     { s: '01', t: 'Выше выберите нужное устройство (если их несколько)' },
-                                    { s: '02', t: 'Нажмите «Скопировать ссылку»' },
-                                    { s: '03', t: `Откройте приложение ${platform.app} и нажмите «+»` },
-                                    { s: '04', t: 'Вставьте ссылку и сохраните' }
+                                    { s: '02', t: 'Нажмите «Авто-импорт»' },
+                                    { s: '03', t: `Разрешите открыть приложение ${platform.app}` },
+                                    { s: '04', t: 'Профиль добавится автоматически' }
                                 ].map((item, idx) => (
                                     <div key={idx} className="flex items-start gap-4">
                                         <span className="text-[11px] font-black text-emerald-500 mt-1 font-mono">{item.s}</span>

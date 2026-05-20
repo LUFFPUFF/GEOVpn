@@ -169,6 +169,8 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 config.getRelayLinks().size(),
                 config.getHy2Links() != null ? "yes" : "no");
 
+        deviceLimitService.markAsExtraDeviceIfNecessary(tgId, config.getDeviceId());
+
         return VpnConfigResponse.builder()
                 .id(config.getId())
                 .deviceId(request.getDeviceId())
@@ -337,24 +339,37 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     @Transactional
     @CachePut(value = "vpn-configs", key = "#deviceId")
     public VpnConfigResponse regenerateConfig(Long deviceId, ConfigRegenerateRequest request) {
-        log.info("Regenerating config for device={}", deviceId);
+        log.info("Regenerating config for deviceId={}", deviceId);
 
-        VpnConfiguration old = configRepository
+        VpnConfiguration oldConfig = configRepository
                 .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
                 .orElseThrow(() -> new ConfigNotFoundException(deviceId));
 
-        old.revoke();
-        configRepository.save(old);
+        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
+        for (ServerDto server : allServers) {
+            try {
+                xuiClient.removeClient(server, oldConfig.getVlessUuid().toString());
+                log.info("Successfully removed OLD uuid={} from server={}", oldConfig.getVlessUuid(), server.getName());
+            } catch (Exception e) {
+                log.warn("Failed to remove OLD uuid from XUI server={}: {}", server.getName(), e.getMessage());
+            }
+        }
+
+        oldConfig.revoke();
+        configRepository.save(oldConfig);
+        redisCacheService.delete("vpn:meta:" + oldConfig.getVlessUuid());
 
         ConfigCreateRequest createRequest = ConfigCreateRequest.builder()
-                .userId(old.getUserId())
-                .userTelegramId(old.getUserId())
+                .userId(oldConfig.getUserId())
+                .userTelegramId(oldConfig.getUserId())
                 .deviceId(deviceId)
                 .preferredCountry(request.getPreferredCountry())
-                .deviceOs(old.getDeviceOs())
-                .deviceName(old.getDeviceName())
+                .deviceOs(oldConfig.getDeviceOs())
+                .deviceName(oldConfig.getDeviceName())
                 .userLocation("RU")
                 .build();
+
+        log.info("Old config revoked and cleaned up. Creating new config for device={}", deviceId);
 
         return createConfig(createRequest);
     }

@@ -11,6 +11,7 @@ import Payments from './pages/Payments';
 import Deposit from './pages/Deposit/Deposit'
 import Subscriptions from './pages/Subscriptions';
 import Leaderboard from './pages/Leaderboard';
+import ManageSubscription from './pages/ManageSubscription/ManageSubscription';
 
 import bgVideo from './assets/fon/video10.mp4';
 
@@ -118,6 +119,7 @@ export default function App() {
                     {activeTab === 'deposit'       && <Deposit />}
                     {activeTab === 'subscriptions' && <Subscriptions />}
                     {activeTab === 'leaderboard'   && <Leaderboard />}
+                    {activeTab === 'manage_subscription' && <ManageSubscription />}
                 </main>
 
                 <div style={{ flexShrink: 0 }}>

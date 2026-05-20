@@ -46,6 +46,7 @@ public class SubscriptionService {
 
     private final VpnConfigurationRepository configRepository;
     private final UserServiceClient         userServiceClient;
+    private final SubscriptionBanner bannerBuilder;
 
     /**
      * Генерирует полную подписку для пользователя по любому из его UUID.
@@ -59,9 +60,6 @@ public class SubscriptionService {
                 .orElseThrow(() -> new ConfigNotFoundException("Active config not found: " + vlessUuid));
 
         Long userId = rootConfig.getUserId();
-        List<VpnConfiguration> userConfigs = configRepository
-                .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE);
-
         var userDto = userServiceClient.getUserByTelegramId(userId).getData();
 
         List<String> lines = new ArrayList<>();
@@ -85,14 +83,11 @@ public class SubscriptionService {
         lines.add("#hide-settings: 1");
         lines.add("#ping-result: icon");
 
-        assert userDto.getSubscriptionExpiresAt() != null;
-        lines.add("#announce: GeoVPN активен до " + userDto.getSubscriptionExpiresAt().toLocalDate());
+        lines.add("#announce: base64:" + b64(bannerBuilder.build(userId)));
         lines.add("#support-url: https://t.me/geovp_support_bot");
         lines.add("");
 
-        for (VpnConfiguration deviceConfig : userConfigs) {
-            appendDeviceLinks(lines, deviceConfig);
-        }
+        appendDeviceLinks(lines, rootConfig);
 
         lines.add(paymentLink());
         String raw = String.join("\n", lines);

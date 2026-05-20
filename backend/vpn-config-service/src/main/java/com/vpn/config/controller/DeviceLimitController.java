@@ -2,7 +2,9 @@ package com.vpn.config.controller;
 
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.response.DeviceLimitStatus;
+import com.vpn.common.security.UserRole;
 import com.vpn.common.security.annotations.RequireAdmin;
+import com.vpn.common.security.annotations.RequireAnyRole;
 import com.vpn.common.security.annotations.RequireUser;
 import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.config.service.DeviceLimitService;
@@ -56,6 +58,14 @@ public class DeviceLimitController {
 
         return ResponseEntity.ok(
                 ApiResponse.success(deviceLimitService.getStatus(userId)));
+    }
+
+    @PostMapping("/api/v1/admin/device-limits/{userId}/add-slot")
+    @RequireAnyRole({UserRole.ADMIN, UserRole.SERVICE})
+    public ResponseEntity<ApiResponse<Void>> addSlot(@PathVariable Long userId) {
+        log.info("Adding extra slot for user: {}", userId);
+        deviceLimitService.addExtraSlot(userId);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @PutMapping("/api/v1/admin/device-limits/{userId}/plan")
@@ -175,11 +185,10 @@ public class DeviceLimitController {
 
     @Getter
     public enum Plan {
+        DAILY(1),
         BASIC(1),
-        STANDARD(3),
-        FAMILY(5),
-        BUSINESS(10),
-        UNLIMITED(100);
+        STANDARD(2),
+        FAMILY(3);
 
         private final int maxDevices;
 

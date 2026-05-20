@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -130,7 +131,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    @CachePut(value = "users", key = "#p0")
+    @Caching(evict = {
+            @CacheEvict(value = "users", key = "#p0"),
+            @CacheEvict(value = "user-stats", key = "#p0")
+    })
     public UserResponse addBalance(Long telegramId, Integer amount) {
         ValidationUtils.validateTelegramId(telegramId);
         ValidationUtils.validatePositive(amount, "Amount");
@@ -144,7 +148,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    @CachePut(value = "users", key = "#p0")
+    @Caching(evict = {
+            @CacheEvict(value = "users", key = "#p0"),
+            @CacheEvict(value = "user-stats", key = "#p0")
+    })
     public UserResponse deductBalance(Long telegramId, Integer amount) {
         ValidationUtils.validateTelegramId(telegramId);
         ValidationUtils.validatePositive(amount, "Amount");
@@ -354,43 +361,81 @@ public class UserServiceImpl implements UserService {
 
         if (promo && "BASIC".equalsIgnoreCase(planName)) {
             if (user.getSubscriptionType() != SubscriptionType.PAYG) {
-                log.warn("Promo denied: user {} already has subscription {}", telegramId, user.getSubscriptionType());
-                return userMapper.toResponse(user);
+                throw new RuntimeException("Бесплатный период доступен только для новых пользователей без подписки.");
             }
-
             log.info("Granting FREE promo BASIC month to user {}", telegramId);
 
             user.setSubscriptionType(SubscriptionType.BASIC);
-            user.extendSubscription(1, SubscriptionType.BASIC);
+            user.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(30));
+            user.setPromoApplied(true);
 
             User savedUser = userRepository.saveAndFlush(user);
-            log.info("Saved user {} with subscriptionType={}", telegramId, savedUser.getSubscriptionType());
-
             syncVpnLimits(telegramId, "BASIC", savedUser);
             return userMapper.toResponse(savedUser);
         }
 
-        int totalCost = getPlanCost(planName) * months;
+        int newPlanCost = getPlanCost(planName);
+        double baseDays = "DAILY".equalsIgnoreCase(planName) ? 1.0 : 30.0;
+        int purchasePrice = newPlanCost * months;
 
-        if (totalCost > 0) {
-            if (!user.hasSufficientBalance(totalCost)) {
-                throw new InsufficientBalanceException(totalCost, user.getBalance());
-            }
-            user.deductBalance(totalCost);
+        if (!user.hasSufficientBalance(purchasePrice)) {
+            throw new InsufficientBalanceException(purchasePrice, user.getBalance());
         }
 
-        SubscriptionType type;
-        try {
-            type = SubscriptionType.valueOf(planName.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            type = SubscriptionType.BASIC;
+        LocalDateTime now = LocalDateTime.now();
+        double remainingMoney = 0;
+
+        if (user.getSubscriptionExpiresAt() != null && user.getSubscriptionExpiresAt().isAfter(now)) {
+            double oldBaseDays = "DAILY".equalsIgnoreCase(user.getSubscriptionType().name()) ? 1.0 : 30.0;
+            double currentDailyPrice = getPlanCost(user.getSubscriptionType().name()) / oldBaseDays;
+
+            long remainingDays = java.time.Duration.between(now, user.getSubscriptionExpiresAt()).toDays();
+            remainingMoney = remainingDays * currentDailyPrice;
         }
 
+        double totalBudget = remainingMoney + purchasePrice;
+        double newDailyPrice = newPlanCost / baseDays;
+        long totalDaysAvailable = (long) (totalBudget / newDailyPrice);
+
+        long minDays = (long) (baseDays * months);
+        if (totalDaysAvailable < minDays) {
+            totalDaysAvailable = minDays;
+        }
+
+        user.deductBalance(purchasePrice);
+        SubscriptionType type = SubscriptionType.valueOf(planName.toUpperCase());
         user.setSubscriptionType(type);
-        user.extendSubscription(months, type);
+        user.setSubscriptionExpiresAt(now.plusDays(totalDaysAvailable));
 
         User savedUser = userRepository.saveAndFlush(user);
         syncVpnLimits(telegramId, planName, savedUser);
+
+        return userMapper.toResponse(savedUser);
+    }
+
+    @Override
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    public UserResponse purchaseExtraSlot(Long telegramId) {
+        log.info("User {} purchasing extra device slot", telegramId);
+
+        User user = userRepository.findByTelegramId(telegramId)
+                .orElseThrow(() -> new UserNotFoundException(telegramId));
+
+        int slotPrice = 10000;
+
+        if (!user.hasSufficientBalance(slotPrice)) {
+            throw new InsufficientBalanceException(slotPrice, user.getBalance());
+        }
+
+        user.deductBalance(slotPrice);
+        User savedUser = userRepository.save(user);
+
+        try {
+            vpnServiceClient.addExtraDeviceSlot(telegramId);
+        } catch (Exception e) {
+            log.error("Failed to add extra slot in VPN service for user {}", telegramId, e);
+            throw new RuntimeException("Ошибка синхронизации лимитов. Попробуйте позже.");
+        }
 
         return userMapper.toResponse(savedUser);
     }
@@ -466,16 +511,17 @@ public class UserServiceImpl implements UserService {
 
     private int getPlanCost(String planName) {
         return switch (planName.toUpperCase()) {
+            case "DAILY"     -> 600;
             case "BASIC"     -> 10000;
             case "STANDARD"  -> 15000;
             case "FAMILY"    -> 35000;
-            default -> throw new IllegalArgumentException("Unknown plan");
+            default          -> 0;
         };
     }
 
     private int getMaxDevicesForPlan(String planName) {
         return switch (planName.toUpperCase()) {
-            case "BASIC"     -> 1;
+            case "DAILY", "BASIC" -> 1;
             case "STANDARD"  -> 2;
             case "FAMILY"    -> 3;
             default          -> 1;

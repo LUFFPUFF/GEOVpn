@@ -10,7 +10,7 @@ import {
     LeaderboardEntry
 } from '../types/api';
 
-export type TabId = 'home' | 'profile' | 'payments' | 'subscriptions' | 'leaderboard' | 'deposit';
+export type TabId = 'home' | 'profile' | 'payments' | 'manage_subscription' | 'leaderboard' | 'deposit' | 'subscriptions';
 
 interface UserStore {
     user:         UserResponse | null;
@@ -30,8 +30,10 @@ interface UserStore {
 
     fetchAll:             () => Promise<void>;
     register:             () => Promise<void>;
+    regenerateConfig: (deviceId: number) => Promise<void>;
     setActiveTab:         (tab: TabId) => void;
     purchaseSubscription: (planId: string, months?: number, promo?: boolean) => Promise<boolean>;
+    purchaseExtraSlot:    () => Promise<void>;
     addDevice:            (name: string, type: string) => Promise<void>;
     deleteDevice:         (uuid: string) => Promise<void>;
     createConfig:         (deviceId: number, country?: string) => Promise<void>;
@@ -70,43 +72,41 @@ export const useUserStore = create<UserStore>((set, get) => ({
         let firstName: string;
         let username: string | undefined;
 
-        // Если мы на локалке и данных ТГ нет - берем заглушку
         if (import.meta.env.DEV && !userDetails?.id) {
-            console.warn("⚠️ LOCAL DEV MODE: Using mocked user for registration");
             telegramId = 858441917;
             firstName = "Local Tester";
             username = "local_tester";
-        }
-        else if (userDetails?.id) {
+        } else if (userDetails?.id) {
             telegramId = userDetails.id;
             firstName = userDetails.first_name;
             username = userDetails.username;
-        }
-        else {
-            console.error('[register] No telegram user data');
+        } else {
             throw new Error("Не удалось получить данные Telegram");
         }
 
         try {
             set({ loading: true });
-            const newUser = await userApi.register(
-                telegramId,
-                firstName,
-                username,
-                startParam
-            );
+            const newUser = await userApi.register(telegramId, firstName, username, startParam);
             set({ user: newUser, loading: false });
         } catch (e: any) {
-            console.error('[register] Failed:', e);
             set({ loading: false });
-
             if (e.response?.status === 400 || e.response?.status === 409) {
                 const profile = await userApi.getProfile().catch(() => null);
-                if (profile) {
-                    set({ user: profile });
-                    return;
-                }
+                if (profile) set({ user: profile });
+                return;
             }
+            throw e;
+        }
+    },
+
+    regenerateConfig: async (deviceId) => {
+        try {
+            const newConfig = await userApi.regenerateConfig(deviceId);
+            set(s => ({
+                configs: s.configs.map(c => c.deviceId === deviceId ? newConfig : c)
+            }));
+        } catch (e) {
+            console.error('[regenerateConfig] Failed', e);
             throw e;
         }
     },
@@ -122,11 +122,11 @@ export const useUserStore = create<UserStore>((set, get) => ({
             ]);
 
             set({
-                user:        profile,
+                user: profile,
                 devices,
                 configs,
                 deviceLimit: limit,
-                loading:     false,
+                loading: false,
             });
         } catch (error: any) {
             set({ error: error.message, loading: false });
@@ -146,10 +146,25 @@ export const useUserStore = create<UserStore>((set, get) => ({
         set({ loading: true });
         try {
             const updatedUser = await userApi.purchaseSubscription(planId, months, promo);
-            set({ user: updatedUser, loading: false });
             const limit = await userApi.getDeviceLimit().catch(() => null);
-            set({ deviceLimit: limit });
+            set({ user: updatedUser, deviceLimit: limit, loading: false });
             return true;
+        } catch (e) {
+            set({ loading: false });
+            throw e;
+        }
+    },
+
+    purchaseExtraSlot: async () => {
+        set({ loading: true });
+        try {
+            const updatedUser = await userApi.purchaseExtraSlot();
+            const limit = await userApi.getDeviceLimit().catch(() => null);
+            set({
+                user: updatedUser,
+                deviceLimit: limit,
+                loading: false
+            });
         } catch (e) {
             set({ loading: false });
             throw e;
@@ -173,9 +188,7 @@ export const useUserStore = create<UserStore>((set, get) => ({
         if (!dev) return;
 
         if (configs.some(c => c.deviceId === dev.id)) {
-            await userApi.revokeConfig(dev.id).catch(e =>
-                console.error('[deleteDevice] Failed to revoke config:', e)
-            );
+            await userApi.revokeConfig(dev.id).catch(() => {});
         }
 
         await userApi.deleteDevice(dev.uuid);

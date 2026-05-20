@@ -1,0 +1,1 @@
+ALTER TABLE device_limits ADD COLUMN extra_device_ids JSONB DEFAULT '[]';

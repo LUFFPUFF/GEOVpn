@@ -54,4 +54,6 @@ public interface UserService {
     UserResponse updateReferralCode(Long telegramId, String newCode);
 
     UserResponse claimEasterEgg(Long telegramId);
+
+    UserResponse purchaseExtraSlot(Long telegramId);
 }

@@ -3,6 +3,7 @@ package com.vpn.bot.core;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
@@ -14,10 +15,11 @@ public class GeoVpnBot extends TelegramLongPollingBot {
     private final UpdateDispatcher dispatcher;
 
     public GeoVpnBot(
+            DefaultBotOptions options,
             @Value("${telegram.bot.token}") String botToken,
             @Value("${telegram.bot.username}") String botUsername,
             UpdateDispatcher dispatcher) {
-        super(botToken);
+        super(options, botToken);
         this.botUsername = botUsername;
         this.dispatcher = dispatcher;
     }

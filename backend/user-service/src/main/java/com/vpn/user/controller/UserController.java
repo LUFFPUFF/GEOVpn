@@ -67,6 +67,14 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @PostMapping("/me/purchase-slot")
+    @RequireUser
+    public ResponseEntity<ApiResponse<UserResponse>> purchaseSlot() {
+        Long telegramId = SecurityContextHolder.getUserId();
+        UserResponse response = userService.purchaseExtraSlot(telegramId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     /**
      * Оформление подписки.
      *

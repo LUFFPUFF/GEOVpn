@@ -39,7 +39,6 @@ public class SubscriptionHeaderBuilder {
     @Value("${vpn.provider-id:geo-vpn-default-id}")
     private String providerId;
 
-
     public HttpHeaders build(Long userId) {
         HttpHeaders headers = new HttpHeaders();
         Optional<DeviceLimit> limitOpt = deviceLimitRepository.findByUserId(userId);
@@ -47,17 +46,14 @@ public class SubscriptionHeaderBuilder {
         long totalBytes = 100L * 1024 * 1024 * 1024;
         long expireTs = 0;
 
-        if (limitOpt.isPresent()) {
-            DeviceLimit limit = limitOpt.get();
-            if (limit.getExpiresAt() != null) {
-                expireTs = limit.getExpiresAt().toEpochSecond(ZoneOffset.UTC);
-            }
+        if (limitOpt.isPresent() && limitOpt.get().getExpiresAt() != null) {
+            expireTs = limitOpt.get().getExpiresAt().toEpochSecond(ZoneOffset.UTC);
         }
 
         headers.set("profile-title", "base64:" + b64("Geo VPN | " + userId));
         headers.set("profile-update-interval", "1");
         headers.set("support-url", supportUrl);
-        headers.set("profile-web-page-url", "https://t.me/geovpn_bot");
+        headers.set("profile-web-page-url", websiteUrl);
         headers.set("providerid", providerId);
 
         headers.set("subscription-userinfo",
@@ -68,19 +64,30 @@ public class SubscriptionHeaderBuilder {
         headers.set("subscriptions-collapse", "0");
         headers.set("hide-settings", "1");
 
+        headers.set("subscriptions-sort-type", "ping");
+        headers.set("subscription-pin", "1");
+
+        headers.set("tun-enable", "1");
+        headers.set("app-auto-start", "1");
+
         headers.set("subscription-autoconnect", "1");
         headers.set("subscription-autoconnect-type", "lowestdelay");
         headers.set("subscription-auto-update-open-enable", "1");
+
+        headers.set("exclude-local-networks-enable", "1");
+        headers.set("exclude-apns-enable", "1");
+
+        String themeJson = "{\"backgroundGradientRotationAngle\":37.1,\"serverRowBackgroundColor\":\"#21003D67\",\"subsHeaderColor\":\"#42296DFF\",\"profileWebPageIconColor\":\"#A2B8FFFF\",\"selectedServerRowColor\":\"#3E2F62B5\",\"disclosureSubHeaderTextColor\":\"#C1C2E2FF\",\"buttonTextColor\":\"#FFFFFFFF\",\"buttonTimerColor\":\"#FFFFFFFF\",\"subscriptionInfoBackgroundColor\":\"#21003CFF\",\"backgroundColors\":[\"#3D2A7DFF\",\"#6557BAFF\",\"#9377FF7F\"],\"disclosureHeaderTextColor\":\"#FFFFFFFF\",\"backgroundGradientColorIntensity\":1,\"additionalOptionsButtonColor\":\"#FFFFFFFF\",\"buttonImageType\":\"light\",\"serverRowSubTitleTextColor\":\"#C1C2E2FF\",\"supportIconColor\":\"#FFFFFFFF\",\"topBarButtonsColor\":\"#FFFFFFFF\",\"subscriptionTrafficBackgroundColor\":\"#533EA7FF\",\"subHeaderButtonColor\":\"#FFFFFFFF\",\"buttonColor\":\"#9377FFFF\",\"powerIconColor\":\"#3D2A7DFF\",\"subscriptionInfoTextColor\":\"#FFFFFFFF\",\"serverRowTitleTextColor\":\"#FFFFFFFF\",\"backgroundImageType\":\"system\",\"elipseColors\":[\"#00B460FF\",\"#CF72FFE0\",\"#FFDD00FF\"],\"serverRowChevronColor\":\"#FFFFFFFF\"}";
+        headers.set("color-profile", themeJson);
 
         if (expireTs > 0) {
             headers.set("sub-expire", "1");
             headers.set("notification-subs-expire", "1");
         }
-
         headers.set("sub-info-color", "green");
         headers.set("sub-info-text", b64("🛡️ Ваше соединение защищено Geo VPN"));
         headers.set("sub-info-button-text", b64("Продлить"));
-        headers.set("sub-info-button-link", "https://t.me/geovpn_bot?start=renew");
+        headers.set("sub-info-button-link", upgradeUrl);
 
         headers.set("fragmentation-enable", "1");
         headers.set("fragmentation-packets", "tlshello");
@@ -107,11 +114,8 @@ public class SubscriptionHeaderBuilder {
         headers.set("sub-info-button-link", upgradeUrl);
 
         headers.set("hide-settings", "1");
-
         headers.set("subscription-autoconnect", "0");
-
-        headers.set("content-disposition",
-                "attachment; filename=\"geovpn-blocked.txt\"");
+        headers.set("content-disposition", "attachment; filename=\"geovpn-blocked.txt\"");
 
         return headers;
     }

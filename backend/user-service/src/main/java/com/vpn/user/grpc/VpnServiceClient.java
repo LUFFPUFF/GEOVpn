@@ -35,4 +35,7 @@ public interface VpnServiceClient {
     ApiResponse<DeviceLimitStatus> getDeviceLimit(
             @PathVariable("userId") Long userId
     );
+
+    @PostMapping("/api/v1/admin/device-limits/{userId}/add-slot")
+    ApiResponse<Void> addExtraDeviceSlot(@PathVariable("userId") Long userId);
 }

@@ -8,7 +8,7 @@ export default function Leaderboard() {
 
     useEffect(() => {
         fetchLeaderboard();
-    }, [fetchLeaderboard]);
+    }, []);
 
     const topThree = useMemo(() => leaderboard.slice(0, 3), [leaderboard]);
     const others = useMemo(() => leaderboard.slice(3), [leaderboard]);
@@ -205,7 +205,7 @@ export default function Leaderboard() {
                     <Trophy size={100} />
                 </div>
                 <div className="relative z-10">
-                    <h4 className="text-white font-black uppercase italic text-[18px] mb-1">Стань королем VPN</h4>
+                    <h4 className="text-white font-black uppercase italic text-[18px] mb-1">Стань королём VPN</h4>
                     <p className="text-white/50 text-[11px] leading-snug mb-4">
                         Приглашай друзей, копи бонусы и занимай первое место в зале славы GEO VPN!
                     </p>

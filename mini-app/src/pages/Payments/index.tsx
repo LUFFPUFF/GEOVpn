@@ -350,7 +350,7 @@ export default function Payments() {
                     Вопросы по оплате или работе сервиса
                 </p>
                 <button
-                    onClick={() => window.Telegram.WebApp.openTelegramLink('https://t.me/geovpn_support')}
+                    onClick={() => window.Telegram.WebApp.openTelegramLink('https://t.me/geo_vpn_support')}
                     className="bg-emerald-500 text-black px-8 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-emerald-500/10"
                 >
                     Написать в поддержку

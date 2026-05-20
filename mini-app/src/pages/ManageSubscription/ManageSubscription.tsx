@@ -42,6 +42,12 @@ export default function ManageSubscription() {
         return new Date(user.subscriptionExpiresAt).getTime() < new Date().getTime();
     }, [user]);
 
+    const daysLeft = useMemo(() => {
+        if (!user?.subscriptionExpiresAt) return 0;
+        const diff = new Date(user.subscriptionExpiresAt).getTime() - new Date().getTime();
+        return Math.max(0, Math.ceil(diff / (1000 * 3600 * 24)));
+    }, [user]);
+
     useEffect(() => {
         if (isExpired) {
             setActiveTab('payments');
@@ -51,17 +57,17 @@ export default function ManageSubscription() {
 
     if (isExpired) return null;
 
-    const daysLeft = useMemo(() => {
-        if (!user?.subscriptionExpiresAt) return 0;
-        const diff = new Date(user.subscriptionExpiresAt).getTime() - new Date().getTime();
-        return Math.max(0, Math.ceil(diff / (1000 * 3600 * 24)));
-    }, [user]);
-
     const handleAutoConnect = (deviceId: number) => {
         const config = configs.find(c => c.deviceId === deviceId);
         if (!config) return;
-        const uuid = config.subscriptionUrl.split('/').pop();
-        window.Telegram?.WebApp?.openLink(`https://geovp.ru/api/v1/subscription/${uuid}/import-happ`);
+        const parts = config.subscriptionUrl.split('/subscription/');
+        const uuid = parts[parts.length - 1];
+        const redirectUrl = `https://geovp.ru/api/v1/subscription/${uuid}/import-happ`;
+        if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.openLink(redirectUrl);
+        } else {
+            window.open(redirectUrl, '_blank');
+        }
     };
 
     const copyToClipboard = (text: string) => {

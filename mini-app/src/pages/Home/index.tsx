@@ -92,7 +92,7 @@ export default function Home() {
                 await userApi.createConfig(dev.id);
             }
             await fetchAll();
-            setActiveTab('manage_subscription');
+            setActiveTab('subscriptions');
         } catch (error) {
             console.error(error);
         } finally {

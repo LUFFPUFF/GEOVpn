@@ -33,21 +33,22 @@ export default function Subscriptions() {
     const activeConfig = configs.find(c => c.deviceId === selectedDeviceId) || configs[0];
 
     const handleAutoConnect = () => {
-        if (!activeConfig) return;
+        if (!activeConfig?.subscriptionUrl) return;
         setIsConnecting(true);
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('heavy');
 
-        const parts = activeConfig.subscriptionUrl.split('/subscription/');
-        const uuid = parts[parts.length - 1];
+        const urlParts = activeConfig.subscriptionUrl.split('/');
+        const uuid = urlParts[urlParts.length - 1];
 
         const redirectUrl = `https://geovp.ru/api/v1/subscription/${uuid}/import-happ`;
 
         if (window.Telegram?.WebApp) {
             window.Telegram.WebApp.openLink(redirectUrl);
         } else {
-            window.open(redirectUrl, '_blank');
+            window.location.href = redirectUrl;
         }
-        setTimeout(() => setIsConnecting(false), 2000);
+
+        setTimeout(() => setIsConnecting(false), 3000);
     };
 
     const handleCopyLink = async () => {
@@ -64,7 +65,7 @@ export default function Subscriptions() {
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred(s);
 
     return (
-        <div className="flex flex-col h-[85vh] overflow-y-auto custom-scrollbar px-3 pb-32 pt-2 animate-in fade-in duration-500">
+        <div className="flex flex-col min-h-screen overflow-y-auto custom-scrollbar px-3 pb-40 pt-2 animate-in fade-in duration-500">
 
             <div className="flex items-center justify-between mb-6 px-1">
                 <button

@@ -100,6 +100,27 @@ public class DeviceSessionService {
         log.info("All sessions revoked: userId={}", userId);
     }
 
+    /**
+     * Отвязывает физическую сессию по UUID конфигурации.
+     * Позволяет пользователю повторно импортировать подписку в Happ
+     * после случайного удаления профиля в приложении.
+     *
+     * @return true если сессия найдена и деактивирована, false если сессии не было
+     */
+    @Transactional
+    public boolean revokeSessionByVlessUuid(Long userId, UUID vlessUuid) {
+        Optional<DeviceSession> session = sessionRepository.findByUserIdAndVlessUuid(userId, vlessUuid);
+        if (session.isEmpty()) {
+            log.info("No active session found for userId={}, vlessUuid={} — nothing to unlink", userId, vlessUuid);
+            return false;
+        }
+        DeviceSession s = session.get();
+        s.setIsActive(false);
+        sessionRepository.save(s);
+        log.info("Session unlinked: userId={}, vlessUuid={}, fingerprint={}", userId, vlessUuid, s.getDeviceFingerprint());
+        return true;
+    }
+
     public int countActiveSessions(Long userId) {
         return sessionRepository.countByUserIdAndIsActiveTrue(userId);
     }
@@ -133,5 +154,3 @@ public class DeviceSessionService {
         return request.getRemoteAddr();
     }
 }
-
-

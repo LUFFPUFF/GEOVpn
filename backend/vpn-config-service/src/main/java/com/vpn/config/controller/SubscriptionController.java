@@ -1,6 +1,8 @@
 package com.vpn.config.controller;
 
 import com.vpn.common.security.annotations.Public;
+import com.vpn.common.security.annotations.RequireUser;
+import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.config.domain.entity.VpnConfiguration;
 import com.vpn.config.repository.VpnConfigurationRepository;
 import com.vpn.config.service.DeviceSessionService;
@@ -162,6 +164,31 @@ public class SubscriptionController {
         String encodedUrl = getEncodedSubscriptionUrl(vlessUuid);
         String deepLink = "v2box://install-config?url=" + encodedUrl;
         return new RedirectView(deepLink);
+    }
+
+    /**
+     * Отвязывает физическую сессию устройства (fingerprint из device_sessions).
+     * Вызывается фронтендом когда пользователь случайно удалил подписку в Happ
+     * и хочет привязать устройство заново.
+     *
+     * DELETE /api/v1/subscription/{vlessUuid}/session
+     */
+    @RequireUser
+    @DeleteMapping("/{vlessUuid}/session")
+    public ResponseEntity<Void> revokeDeviceSession(@PathVariable UUID vlessUuid) {
+        Long userId = SecurityContextHolder.getUserId();
+        log.info("Revoke session request: userId={}, vlessUuid={}", userId, vlessUuid);
+
+        VpnConfiguration config = configRepository.findByVlessUuid(vlessUuid)
+                .filter(c -> c.getStatus() == ConfigStatus.ACTIVE)
+                .orElseThrow(() -> new ConfigNotFoundException("Active config not found"));
+
+        if (!config.getUserId().equals(userId)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        deviceSessionService.revokeSessionByVlessUuid(userId, vlessUuid);
+        return ResponseEntity.noContent().build();
     }
 
     /**

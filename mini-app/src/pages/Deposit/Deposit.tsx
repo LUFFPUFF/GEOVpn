@@ -41,8 +41,8 @@ export default function Deposit() {
 
     const handlePay = async () => {
         const numAmount = parseInt(amount);
-        if (!numAmount || numAmount < 10) {
-            window.Telegram?.WebApp?.showAlert('Минимальная сумма пополнения — 10 ₽');
+        if (!numAmount || numAmount < 6) {
+            window.Telegram?.WebApp?.showAlert('Минимальная сумма пополнения — 6 ₽');
             haptic('error');
             return;
         }
@@ -140,13 +140,13 @@ export default function Deposit() {
             <div className={`p-4 rounded-3xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
                 <Zap size={18} className="text-blue-400 shrink-0 mt-0.5" />
                 <p className="text-white/50 text-[11px] font-medium leading-relaxed">
-                    Сумма будет моментально зачислена на твой баланс после успешной оплаты. Мы принимаем СБП, карты и крипту.
+                    Сумма будет моментально зачислена на твой баланс после успешной оплаты. Мы принимаем СБП и крипту.
                 </p>
             </div>
 
             <button
                 onClick={handlePay}
-                disabled={loading || !amount || parseInt(amount) < 10}
+                disabled={loading || !amount || parseInt(amount) < 6}
                 className="w-full h-[60px] bg-white text-black rounded-[1.5rem] flex items-center justify-center gap-2 font-black uppercase text-[15px] tracking-wide active:scale-[0.98] transition-all disabled:opacity-30 disabled:active:scale-100 shadow-[0_0_20px_rgba(255,255,255,0.1)] mt-4"
             >
                 {loading ? (

@@ -78,7 +78,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: ${MONITORING_ENDPOINTS}
+        include: "*"
   endpoint:
     health:
       show-details: always

@@ -32,8 +32,8 @@
         <module name="user-service (1)" />
         <module name="api-gateway" />
         <module name="blocked-domains-service" />
-        <module name="vpn-config-service" />
         <module name="user-service" />
+        <module name="vpn-config-service" />
         <module name="billing-service" />
       </profile>
     </annotationProcessing>
@@ -42,7 +42,7 @@
     <option name="ADDITIONAL_OPTIONS_STRING" value="-parameters" />
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="api-gateway" options="-parameters" />
-      <module name="billing-service" options="-parameters" />
+      <module name="billing-service" options="-parameters -parameters" />
       <module name="blocked-domains-service" options="-parameters -parameters" />
       <module name="common" options="-parameters" />
       <module name="server-management-service" options="-parameters" />

@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useUserStore } from '../../store/userStore';
+import { apiClient } from '../../api/client';
 import { userApi } from '../../api/user';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Smartphone, Monitor, Plus, ArrowLeft, RefreshCcw,
     Loader2, Globe, Copy, X, Check, Link, Activity,
     Zap, Trash2, KeyRound, ShieldAlert, Settings2,
-    ShieldCheck, ChevronDown
+    ShieldCheck, Unlink
 } from 'lucide-react';
 
 const safeConfirm = (text: string, callback: (ok: boolean) => void) => {
@@ -27,6 +28,7 @@ export default function ManageSubscription() {
     const [isRegenerating, setIsRegenerating] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState<number | null>(null);
     const [isTogglingRenew, setIsTogglingRenew] = useState(false);
+    const [isRevokingSession, setIsRevokingSession] = useState<number | null>(null);
 
     const activeDevsCount = devices.length;
     const maxDevsCount = deviceLimit?.maxDevices ?? 1;
@@ -57,16 +59,21 @@ export default function ManageSubscription() {
 
     if (isExpired) return null;
 
+    // Идентично Subscriptions.tsx
     const handleAutoConnect = (deviceId: number) => {
         const config = configs.find(c => c.deviceId === deviceId);
-        if (!config) return;
-        const parts = config.subscriptionUrl.split('/subscription/');
-        const uuid = parts[parts.length - 1];
+        if (!config?.subscriptionUrl) return;
+
+        window.Telegram?.WebApp?.HapticFeedback.impactOccurred('heavy');
+
+        const urlParts = config.subscriptionUrl.split('/');
+        const uuid = urlParts[urlParts.length - 1];
         const redirectUrl = `https://geovp.ru/api/v1/subscription/${uuid}/import-happ`;
+
         if (window.Telegram?.WebApp) {
             window.Telegram.WebApp.openLink(redirectUrl);
         } else {
-            window.open(redirectUrl, '_blank');
+            window.location.href = redirectUrl;
         }
     };
 
@@ -135,6 +142,35 @@ export default function ManageSubscription() {
                 }
             }
         });
+    };
+
+    /**
+     * Отвязывает текущую физическую сессию устройства (device_sessions).
+     * Нужно если пользователь случайно удалил подписку в Happ —
+     * после отвязки авто-импорт сработает как при первом подключении.
+     */
+    const handleRevokeSession = async (deviceId: number) => {
+        const config = configs.find(c => c.deviceId === deviceId);
+        if (!config?.subscriptionUrl) return;
+
+        safeConfirm(
+            "Отвязать текущую сессию?\n\nПосле этого нажмите «Авто-импорт» — подписка заново привяжется к устройству.",
+            async (ok) => {
+                if (!ok) return;
+                try {
+                    setIsRevokingSession(deviceId);
+                    const urlParts = config.subscriptionUrl.split('/');
+                    const uuid = urlParts[urlParts.length - 1];
+                    await apiClient.delete(`/api/v1/subscription/${uuid}/session`);
+                    window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+                    window.Telegram?.WebApp?.showAlert("Сессия отвязана! Теперь нажмите «Авто-импорт» для повторной привязки.");
+                } catch (e: any) {
+                    window.Telegram?.WebApp?.showAlert("Ошибка: " + (e.response?.data?.error?.message || e.message));
+                } finally {
+                    setIsRevokingSession(null);
+                }
+            }
+        );
     };
 
     //todo заглушка автопродления
@@ -215,7 +251,6 @@ export default function ManageSubscription() {
                         <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mt-0.5">Списание с баланса</p>
                     </div>
                 </div>
-                {/* Тумблер */}
                 <div onClick={handleToggleAutoRenew} className="w-12 h-6 rounded-full bg-emerald-500 p-1 cursor-pointer transition-colors shadow-inner flex items-center">
                     <motion.div animate={{ x: 24 }} className="w-4 h-4 bg-white rounded-full shadow-md" />
                 </div>
@@ -239,7 +274,7 @@ export default function ManageSubscription() {
                                 key={dev.id}
                                 className={`rounded-[2rem] border transition-all duration-300 ${isExpanded ? 'bg-gradient-to-b from-white/[0.08] to-transparent border-white/20 shadow-2xl backdrop-blur-md' : 'bg-[#12141d]/80 border-white/5 shadow-lg'}`}
                             >
-                                {/* Шапка устройства (Кликабельная) */}
+                                {/* Шапка устройства */}
                                 <button
                                     onClick={() => setExpandedDevId(isExpanded ? null : dev.id)}
                                     className="w-full flex items-center p-5 gap-4 outline-none"
@@ -271,9 +306,9 @@ export default function ManageSubscription() {
                                             transition={{ duration: 0.3, ease: "easeInOut" }}
                                         >
                                             <div className="px-5 pb-5 flex flex-col gap-3">
-
                                                 <div className="w-full h-px bg-white/5 mb-2" />
 
+                                                {/* АВТО-ИМПОРТ + КОПИРОВАТЬ — идентично Subscriptions.tsx */}
                                                 <div className="p-4 bg-black/30 border border-white/5 rounded-[1.5rem] flex flex-col gap-2">
                                                     <button
                                                         onClick={() => handleAutoConnect(dev.id)}
@@ -293,6 +328,7 @@ export default function ManageSubscription() {
                                                     )}
                                                 </div>
 
+                                                {/* УПРАВЛЕНИЕ КЛЮЧОМ */}
                                                 <div className="flex gap-2 w-full mt-1">
                                                     <button
                                                         onClick={() => handleRegenerate(dev.id)}
@@ -313,13 +349,24 @@ export default function ManageSubscription() {
                                                     </button>
                                                 </div>
 
-                                                <div className="flex items-start gap-2 mt-2 bg-white/[0.02] p-3 rounded-xl border border-white/5">
+                                                <button
+                                                    onClick={() => handleRevokeSession(dev.id)}
+                                                    disabled={isRevokingSession === dev.id}
+                                                    className="w-full py-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest active:bg-amber-500/20 transition-all outline-none"
+                                                >
+                                                    {isRevokingSession === dev.id
+                                                        ? <Loader2 size={16} className="animate-spin" />
+                                                        : <Unlink size={16} />
+                                                    }
+                                                    Отвязать сессию
+                                                </button>
+
+                                                <div className="flex items-start gap-2 mt-1 bg-white/[0.02] p-3 rounded-xl border border-white/5">
                                                     <ShieldAlert size={14} className="text-white/30 shrink-0 mt-0.5" />
                                                     <p className="text-[8px] text-white/40 font-bold uppercase leading-relaxed tracking-widest text-left">
-                                                        Сброс ключа помогает, если доступ был скомпрометирован. Удаление стирает устройство навсегда.
+                                                        Отвязать сессию — если удалили подписку в Happ и хотите подключиться заново. Сброс ключа — если доступ был скомпрометирован. Удаление — стирает устройство навсегда.
                                                     </p>
                                                 </div>
-
                                             </div>
                                         </motion.div>
                                     )}

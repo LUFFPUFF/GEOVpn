@@ -156,6 +156,16 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(updatedUser.getBalance()));
     }
 
+    @PostMapping("/{telegramId}/add-balance")
+    public ResponseEntity<ApiResponse<Integer>> addBalance(
+            @PathVariable Long telegramId,
+            @RequestParam Integer amount
+    ) {
+
+        var updateUser = userService.addBalance(telegramId, amount);
+        return ResponseEntity.ok(ApiResponse.success(updateUser.getBalance()));
+    }
+
     @GetMapping("/me/traffic")
     @RequireUser
     public ResponseEntity<ApiResponse<TrafficStatsResponse>> getMyTrafficStats() {

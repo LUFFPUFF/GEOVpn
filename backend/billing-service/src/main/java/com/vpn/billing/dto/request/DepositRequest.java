@@ -8,7 +8,7 @@ import lombok.Data;
 public class DepositRequest {
 
     @NotNull(message = "Сумма пополнения обязательна")
-    @Min(value = 10, message = "Минимальная сумма пополнения 75 рублей")
+    @Min(value = 6, message = "Минимальная сумма пополнения 6 рублей")
     private Integer amount;
 
     private Integer paymentMethod;

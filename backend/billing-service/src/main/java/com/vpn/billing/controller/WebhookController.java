@@ -2,7 +2,6 @@ package com.vpn.billing.controller;
 
 import com.vpn.billing.dto.platega.PlategaWebhookDto;
 import com.vpn.billing.service.WebhookService;
-import com.vpn.common.security.annotations.Public;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

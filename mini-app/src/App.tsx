@@ -17,8 +17,10 @@ import bgVideo from './assets/fon/video10.mp4';
 
 export default function App() {
     const { expand, tg } = useTelegram();
-    const { activeTab, fetchAll, isMember, loading } = useUserStore();
+    const { activeTab, fetchAll } = useUserStore();
     const [tgReady, setTgReady] = useState(false);
+
+    const isDev = import.meta.env.DEV;
 
     useEffect(() => {
         if (!tg) return;
@@ -46,6 +48,37 @@ export default function App() {
         if (!tgReady) return;
         fetchAll();
     }, [tgReady]);
+
+    const MainContent = (
+        <>
+            <main
+                style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
+                    paddingLeft: '1rem',
+                    paddingRight: '1rem',
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehavior: 'contain',
+                    minHeight: 0,
+                } as React.CSSProperties}
+                className="custom-scrollbar"
+            >
+                {activeTab === 'home'          && <Home />}
+                {activeTab === 'profile'       && <Profile />}
+                {activeTab === 'payments'      && <Payments />}
+                {activeTab === 'deposit'       && <Deposit />}
+                {activeTab === 'subscriptions' && <Subscriptions />}
+                {activeTab === 'leaderboard'   && <Leaderboard />}
+                {activeTab === 'manage_subscription' && <ManageSubscription />}
+            </main>
+
+            <div style={{ flexShrink: 0 }}>
+                <BottomNav />
+            </div>
+        </>
+    );
 
     return (
         <div
@@ -83,34 +116,13 @@ export default function App() {
                     <Header />
                 </div>
 
-                <SubscriptionGuard>
-                    <main
-                        style={{
-                            flex: 1,
-                            overflowY: 'auto',
-                            overflowX: 'hidden',
-                            paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
-                            paddingLeft: '1rem',
-                            paddingRight: '1rem',
-                            WebkitOverflowScrolling: 'touch',
-                            overscrollBehavior: 'contain',
-                            minHeight: 0,
-                        } as React.CSSProperties}
-                        className="custom-scrollbar"
-                    >
-                        {activeTab === 'home'          && <Home />}
-                        {activeTab === 'profile'       && <Profile />}
-                        {activeTab === 'payments'      && <Payments />}
-                        {activeTab === 'deposit'       && <Deposit />}
-                        {activeTab === 'subscriptions' && <Subscriptions />}
-                        {activeTab === 'leaderboard'   && <Leaderboard />}
-                        {activeTab === 'manage_subscription' && <ManageSubscription />}
-                    </main>
-
-                    <div style={{ flexShrink: 0 }}>
-                        <BottomNav />
-                    </div>
-                </SubscriptionGuard>
+                {isDev ? (
+                    MainContent
+                ) : (
+                    <SubscriptionGuard>
+                        {MainContent}
+                    </SubscriptionGuard>
+                )}
             </div>
         </div>
     );

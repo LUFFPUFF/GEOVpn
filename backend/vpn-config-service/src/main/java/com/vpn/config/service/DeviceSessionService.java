@@ -46,10 +46,24 @@ public class DeviceSessionService {
         String ip          = extractClientIp(httpRequest);
         String deviceName  = httpRequest.getHeader("X-Device-Name");
 
-        Optional<DeviceSession> existingSession = sessionRepository.findByUserIdAndVlessUuid(userId, vlessUuid);
+        Optional<DeviceSession> sessionByFp = sessionRepository.findByUserIdAndDeviceFingerprint(userId, fingerprint);
 
-        if (existingSession.isPresent()) {
-            DeviceSession session = existingSession.get();
+        if (sessionByFp.isPresent()) {
+            DeviceSession session = sessionByFp.get();
+            session.setLastIp(ip);
+            session.setUserAgent(userAgent);
+            session.setVlessUuid(vlessUuid);
+            session.setIsActive(true);
+            sessionRepository.save(session);
+
+            log.debug("Session updated for fingerprint {}: VlessUuid changed to {}", fingerprint, vlessUuid);
+            return true;
+        }
+
+        Optional<DeviceSession> sessionByUuid = sessionRepository.findByUserIdAndVlessUuid(userId, vlessUuid);
+
+        if (sessionByUuid.isPresent()) {
+            DeviceSession session = sessionByUuid.get();
             session.setLastIp(ip);
             session.setUserAgent(userAgent);
             session.setDeviceFingerprint(fingerprint);
@@ -68,18 +82,22 @@ public class DeviceSessionService {
             return false;
         }
 
-        DeviceSession newSession = DeviceSession.builder()
-                .userId(userId)
-                .deviceFingerprint(fingerprint)
-                .vlessUuid(vlessUuid)
-                .userAgent(userAgent)
-                .deviceName(deviceName)
-                .lastIp(ip)
-                .isActive(true)
-                .build();
+        try {
+            DeviceSession newSession = DeviceSession.builder()
+                    .userId(userId)
+                    .deviceFingerprint(fingerprint)
+                    .vlessUuid(vlessUuid)
+                    .userAgent(userAgent)
+                    .deviceName(deviceName)
+                    .lastIp(ip)
+                    .isActive(true)
+                    .build();
 
-        sessionRepository.save(newSession);
-        log.info("New physical device registered via config {}: ip={}", vlessUuid, ip);
+            sessionRepository.save(newSession);
+            log.info("New physical device registered via config {}: ip={}", vlessUuid, ip);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.warn("Race condition: duplicate device session registration ignored for user {}", userId);
+        }
 
         return true;
     }

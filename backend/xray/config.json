@@ -15,10 +15,11 @@
         "vnext": [
           {
             "address": "104.238.29.132",
-            "port": 443,
+            "port": 5443,
             "users": [
               {
-                "id": "ac51ef57-d768-43ba-af9f-1141b375ded3",
+                "id": "36fd0b7a-dfab-460b-943c-33dfd4025ad1",
+                "flow": "xtls-rprx-vision",
                 "encryption": "none"
               }
             ]
@@ -26,19 +27,15 @@
         ]
       },
       "streamSettings": {
-        "network": "xhttp",
+        "network": "tcp",
         "security": "reality",
         "realitySettings": {
           "show": false,
           "fingerprint": "chrome",
-          "serverName": "www.microsoft.com",
-          "publicKey": "poszzzNfagH9gBDauBK8HGjDwNyHDblBoCTnroyseis",
-          "shortId": "7ace8e5b54d0",
+          "serverName": "helsinki.fi",
+          "publicKey": "iq4UCCd0T94A9aaWj5JIek72CVMqKNVaffVXUtBLtnk",
+          "shortId": "6f",
           "spiderX": "/"
-        },
-        "xhttpSettings": {
-          "path": "/api/v1/data",
-          "mode": "stream-one"
         }
       }
     }

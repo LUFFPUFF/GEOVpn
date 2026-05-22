@@ -32,3 +32,5 @@ docker-compose.yml
 backend/user-service/src/main/resources/application-local.yml
 backend/billing-service/src/main/resources/application-local.yml
 backend/api-gateway/src/main/resources/application-local.yml
+
+docs/VLESS_Reality_XHTTP_Guide.md

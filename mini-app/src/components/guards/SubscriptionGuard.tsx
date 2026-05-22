@@ -1,12 +1,9 @@
 import React from 'react';
 import { useUserStore } from '../../store/userStore';
 import { motion } from 'framer-motion';
-import { Bell, ArrowRight, CheckCircle2, RefreshCcw } from 'lucide-react';
+import { Bell, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export default function SubscriptionGuard({ children }: { children: React.ReactNode }) {
-    // todo Временно отключаем проверку подписки и сразу рендерим приложение
-    return <>{children}</>;
-
     const { isMember, checkMembership, loading } = useUserStore();
 
     if (isMember) return <>{children}</>;

@@ -1,10 +1,7 @@
 FROM maven:3.9.6-eclipse-temurin-21-alpine AS builder
-RUN apk add --no-cache gcompat libc6-compat
 WORKDIR /build
 COPY . .
-RUN mvn dependency:resolve -pl billing-service -am -q 2>/dev/null || true && \
-    find /root/.m2 -name "*.exe" -exec chmod +x {} \; && \
-    mvn clean package -pl billing-service -am -DskipTests
+RUN mvn clean package -pl billing-service -am -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S spring && adduser -S spring -G spring

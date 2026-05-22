@@ -235,6 +235,8 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
       API_GATEWAY_URL: http://api-gateway:8080
+      TELEGRAM_PROXY_HOST: vpn-proxy-bridge
+      TELEGRAM_PROXY_PORT: 10808
     networks:
       - vpn-network
     depends_on:
@@ -249,6 +251,15 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  
+  vpn-proxy-bridge:
+    image: teddysun/xray:latest
+    container_name: vpn-proxy-bridge
+    restart: always
+    volumes:
+      - ./xray/config.json:/etc/xray/config.json
+    networks:
+      - vpn-network
 
   # ─────────────────────────────────────────
   # FRONTEND

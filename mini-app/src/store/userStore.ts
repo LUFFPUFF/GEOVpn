@@ -127,8 +127,18 @@ export const useUserStore = create<UserStore>((set, get) => ({
     fetchAll: async () => {
         set({ loading: true, error: null });
         try {
-            const [profile, devices, configs, limit, isMember] = await Promise.all([
-                userApi.getProfile().catch(() => null),
+            let profile = await userApi.getProfile().catch(() => null);
+
+            if (!profile) {
+                try {
+                    await get().register();
+                    profile = get().user;
+                } catch (regError) {
+                    console.error('[fetchAll] Auto-registration failed', regError);
+                }
+            }
+
+            const [devices, configs, limit, isMember] = await Promise.all([
                 userApi.getDevices().catch(() => []),
                 userApi.getConfigs().catch(() => []),
                 userApi.getDeviceLimit().catch(() => null),

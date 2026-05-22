@@ -68,11 +68,16 @@ export default function Home() {
     const handleDeviceSelected = async (type: DeviceType) => {
         setShowDeviceSelect(false);
         try {
+            if (!useUserStore.getState().user) {
+                await useUserStore.getState().register();
+            }
+
             await userApi.registerDevice(`${type.toUpperCase()} Device`, type.toUpperCase());
             await fetchAll();
             setActiveTab('payments');
         } catch (e: any) {
-            window.Telegram?.WebApp?.showAlert('Ошибка при создании устройства');
+            console.error(e);
+            window.Telegram?.WebApp?.showAlert('Ошибка при создании устройства. Пожалуйста, попробуйте позже.');
         }
     };
 

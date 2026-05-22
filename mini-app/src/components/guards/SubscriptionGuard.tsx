@@ -1,16 +1,18 @@
 import React from 'react';
 import { useUserStore } from '../../store/userStore';
 import { motion } from 'framer-motion';
-import { Bell, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Bell, ArrowRight, CheckCircle2, RefreshCcw } from 'lucide-react';
 
 export default function SubscriptionGuard({ children }: { children: React.ReactNode }) {
+    // todo Временно отключаем проверку подписки и сразу рендерим приложение
+    return <>{children}</>;
+
     const { isMember, checkMembership, loading } = useUserStore();
 
     if (isMember) return <>{children}</>;
 
     return (
         <div className="fixed inset-0 z-[9999] bg-[#0a0a0f] flex flex-col items-center justify-center p-8 text-center">
-            {/* Анимированный фон */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none" />
 
             <motion.div

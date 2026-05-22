@@ -425,19 +425,23 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public boolean isUserMemberOfChannel(Long telegramId) {
-        String url = "https://api.telegram.org/bot" + botToken + "/getChatMember?chat_id=" + channelId + "&user_id=" + telegramId;
 
-        try {
-            JsonNode response = restTemplate.getForObject(url, JsonNode.class);
+        //todo временное отключение проверки подписки
+        return true;
 
-            if (response != null && response.get("ok").asBoolean()) {
-                String status = response.get("result").get("status").asText();
-                return List.of("member", "administrator", "creator").contains(status);
-            }
-        } catch (Exception e) {
-            log.error("Error checking TG membership: {}", e.getMessage());
-        }
-        return false;
+//        String url = "https://api.telegram.org/bot" + botToken + "/getChatMember?chat_id=" + channelId + "&user_id=" + telegramId;
+//
+//        try {
+//            JsonNode response = restTemplate.getForObject(url, JsonNode.class);
+//
+//            if (response != null && response.get("ok").asBoolean()) {
+//                String status = response.get("result").get("status").asText();
+//                return List.of("member", "administrator", "creator").contains(status);
+//            }
+//        } catch (Exception e) {
+//            log.error("Error checking TG membership: {}", e.getMessage());
+//        }
+//        return false;
     }
 
     @Override

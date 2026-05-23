@@ -82,14 +82,14 @@ vpn:
 
     hysteria2:
       enabled: true
-      port: 15594
+      port: 443
       password: 25bfe47e
-      sni: www.bing.com
+      sni: geovp.ru
       obfs:
-        type: salamander
+        type: none
         password: ""
       tls:
-        insecure: true
+        insecure: false
 
     qr-code:
       enabled: true

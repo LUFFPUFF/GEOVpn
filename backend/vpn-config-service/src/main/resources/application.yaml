@@ -96,7 +96,7 @@ vpn:
       password: ${HY2_PASS}
       sni: ${HY2_SNI}
       obfs:
-        type: salamander
+        type: none
         password: ""
       tls:
         insecure: true

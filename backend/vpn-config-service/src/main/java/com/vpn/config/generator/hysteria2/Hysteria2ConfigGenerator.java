@@ -1,8 +1,8 @@
 package com.vpn.config.generator.hysteria2;
 
-import com.vpn.common.dto.ServerDto;
 import com.vpn.config.config.VpnConfigProperties;
 import com.vpn.config.domain.entity.VpnConfiguration;
+import com.vpn.common.dto.ServerDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,12 +15,6 @@ import java.util.Map;
 
 /**
  * Генератор Hysteria2 конфигураций
- *
- * Hysteria2 - UDP-based протокол оптимизированный для:
- * - Мобильных сетей (LTE/5G)
- * - Плохих каналов связи
- * - Обхода TCP RST injection
- * - Обхода DPI
  */
 @Slf4j
 @Service
@@ -47,9 +41,6 @@ public class Hysteria2ConfigGenerator {
 
     private final VpnConfigProperties properties;
 
-    /**
-     * Генерирует Hysteria2 конфигурацию
-     */
     public Map<String, Object> generateConfig(VpnConfiguration vpnConfig, ServerDto server) {
         log.info("Генерация Hysteria2 конфига для device: {}", vpnConfig.getDeviceId());
 
@@ -67,7 +58,7 @@ public class Hysteria2ConfigGenerator {
         tls.put("insecure", tlsInsecure);
         config.put("tls", tls);
 
-        if (obfsPassword != null && !obfsPassword.isEmpty()) {
+        if (obfsPassword != null && !obfsPassword.isEmpty() && !"none".equalsIgnoreCase(obfsType) && !obfsType.isEmpty()) {
             Map<String, Object> obfs = new HashMap<>();
             obfs.put("type", obfsType);
 
@@ -88,7 +79,6 @@ public class Hysteria2ConfigGenerator {
         config.put("bandwidth", bandwidth);
 
         config.put("fastOpen", true);
-
         config.put("lazy", false);
 
         log.debug("Hysteria2 конфиг сгенерирован");
@@ -97,7 +87,7 @@ public class Hysteria2ConfigGenerator {
     }
 
     /**
-     * Строит Hysteria2 URI
+     * Строит Hysteria2 URI (Запасной вариант)
      */
     public String buildHysteria2Link(ServerDto server, String name) {
         var hy2 = properties.getHysteria2();
@@ -111,10 +101,10 @@ public class Hysteria2ConfigGenerator {
         uri.append("/?");
 
         uri.append("insecure=").append(hy2.getTls().isInsecure() ? "1" : "0");
-
         uri.append("&sni=").append(urlEncode(hy2.getSni()));
 
-        if (hy2.getObfs() != null && hy2.getObfs().getPassword() != null && !hy2.getObfs().getPassword().isEmpty()) {
+        if (hy2.getObfs() != null && hy2.getObfs().getPassword() != null &&
+                !hy2.getObfs().getPassword().isEmpty() && !"none".equalsIgnoreCase(hy2.getObfs().getType())) {
             uri.append("&obfs=").append(urlEncode(hy2.getObfs().getType()));
             uri.append("&obfs-password=").append(urlEncode(hy2.getObfs().getPassword()));
         }

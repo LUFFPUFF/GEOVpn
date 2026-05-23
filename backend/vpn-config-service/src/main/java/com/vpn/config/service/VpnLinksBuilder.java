@@ -139,6 +139,35 @@ public class VpnLinksBuilder {
                         .displayName(displayName)
                         .build());
 
+                if (!"RU".equalsIgnoreCase(server.getCountryCode())) {
+                    String subdomain = server.getCountryCode().toLowerCase();
+                    String domain = subdomain + ".geovp.ru";
+
+                    String actualPath = switch (server.getCountryCode().toUpperCase()) {
+                        case "SE" -> "/swedish-cl";
+                        case "FI" -> "/finland-cl";
+                        case "FR" -> "/france-cl";
+                        default -> "/" + subdomain + "-cl";
+                    };
+
+                    String fallbackName = countryEmoji(server.getCountryCode()) + " 🚀 " + server.getName() + "-2";
+
+                    String fallbackLink = "vless://" + uuid.toString() + "@" + domain + ":2053" +
+                            "?type=ws&encryption=none&path=" + java.net.URLEncoder.encode(actualPath, java.nio.charset.StandardCharsets.UTF_8) +
+                            "&host=" + domain + "&security=tls&fp=chrome&alpn=http/1.1&sni=" + domain +
+                            "#" + java.net.URLEncoder.encode(fallbackName, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
+
+                    result.add(StoredVpnLinks.DirectLink.builder()
+                            .serverId(server.getId())
+                            .serverName(server.getName() + "-2")
+                            .countryCode(server.getCountryCode())
+                            .link(fallbackLink)
+                            .avgLatencyMs(server.getAvgLatencyMs())
+                            .healthScore(server.getHealthScore())
+                            .displayName(fallbackName)
+                            .build());
+                }
+
             } catch (Exception e) {
                 log.warn("Failed to build direct link for server={}: {}", server.getName(), e.getMessage());
             }
@@ -151,15 +180,20 @@ public class VpnLinksBuilder {
      * Строит HY2-ссылки для всех прямых не-RU серверов с настроенным Hysteria2.
      */
     private List<String> buildHy2Links(List<ServerDto> servers, UUID uuid) {
-        if (!hysteria2Generator.isHysteria2Configured()) return List.of();
-
         List<String> links = new ArrayList<>();
         for (ServerDto server : servers) {
             if ("RU".equalsIgnoreCase(server.getCountryCode())) continue;
 
             try {
+                String subdomain = server.getCountryCode().toLowerCase();
+                String domain = subdomain + ".geovp.ru";
                 String title = countryEmoji(server.getCountryCode()) + " 🚀 " + server.getName() + " | HY2";
-                links.add(hysteria2Generator.buildHysteria2Link(server, title));
+
+                String hy2Link = "hysteria2://25bfe47e@" + domain + ":443" +
+                        "?sni=" + domain +
+                        "#" + java.net.URLEncoder.encode(title, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
+
+                links.add(hy2Link);
             } catch (Exception e) {
                 log.warn("Failed to build HY2 link for {}: {}", server.getName(), e.getMessage());
             }

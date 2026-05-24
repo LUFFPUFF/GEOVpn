@@ -20,7 +20,26 @@ export default function App() {
     const { activeTab, fetchAll } = useUserStore();
     const [tgReady, setTgReady] = useState(false);
 
+    // Состояния для окна предупреждения
+    const [showWarning, setShowWarning] = useState(false);
+    const [dontShowAgain, setDontShowAgain] = useState(false);
+
     const isDev = import.meta.env.DEV;
+
+    // Проверка localStorage при загрузке приложения
+    useEffect(() => {
+        const isHidden = localStorage.getItem('hide_anti_glush_warning');
+        if (!isHidden) {
+            setShowWarning(true);
+        }
+    }, []);
+
+    const handleCloseWarning = () => {
+        if (dontShowAgain) {
+            localStorage.setItem('hide_anti_glush_warning', 'true');
+        }
+        setShowWarning(false);
+    };
 
     useEffect(() => {
         if (!tg) return;
@@ -124,6 +143,102 @@ export default function App() {
                     </SubscriptionGuard>
                 )}
             </div>
+
+            {/* МОДАЛЬНОЕ ОКНО ПРЕДУПРЕЖДЕНИЯ */}
+            {showWarning && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999,
+                        padding: '1.5rem',
+                    }}
+                >
+                    <div
+                        style={{
+                            background: 'rgba(20, 20, 20, 0.95)',
+                            border: '1px solid rgba(255, 152, 0, 0.3)',
+                            borderRadius: '16px',
+                            padding: '1.8rem',
+                            maxWidth: '400px',
+                            width: '100%',
+                            color: '#fff',
+                            textAlign: 'center',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+                        }}
+                    >
+                        {/* Иконка предупреждения */}
+                        <div style={{ fontSize: '3rem', color: '#ff9800', marginBottom: '1rem' }}>⚠️</div>
+
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: '#ff9800', letterSpacing: '0.5px' }}>
+                            ВАЖНОЕ ПРАВИЛО ПОЛЬЗОВАНИЯ
+                        </h2>
+
+                        <p style={{ fontSize: '0.9rem', lineHeight: '1.4', color: '#e0e0e0', marginBottom: '1.5rem' }}>
+                            Пожалуйста, не используйте <strong>Антиглушилки при подключении к домашнему Wi-Fi</strong>.
+                            Включайте их только на мобильном интернете во время реальных блокировок операторов.
+                            <br /><br />
+                            В противном случае доступ к Антиглушилке будет приостановлен до выяснения причин.
+                        </p>
+
+                        {/* Чекбокс "Больше не показывать" */}
+                        <label
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                marginBottom: '1.5rem',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                                color: '#aaa',
+                                userSelect: 'none',
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={dontShowAgain}
+                                onChange={(e) => setDontShowAgain(e.target.checked)}
+                                style={{
+                                    accentColor: '#ff9800',
+                                    width: '16px',
+                                    height: '16px',
+                                    cursor: 'pointer',
+                                }}
+                            />
+                            Больше не показывать предупреждение
+                        </label>
+
+                        {/* Кнопка закрытия */}
+                        <button
+                            onClick={handleCloseWarning}
+                            style={{
+                                background: 'linear-gradient(135deg, #ff9800, #f57c00)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: '#fff',
+                                padding: '12px 24px',
+                                width: '100%',
+                                fontWeight: 'bold',
+                                fontSize: '0.95rem',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 12px rgba(255, 152, 0, 0.2)',
+                                transition: 'transform 0.1s ease',
+                            }}
+                            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
+                            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                        >
+                            Я ознакомился
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

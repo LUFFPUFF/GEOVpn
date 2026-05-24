@@ -39,6 +39,7 @@ public class SubscriptionCleanupTask {
 
         for (DeviceLimit limit : expiredLimits) {
             try {
+
                 List<Long> extraIds = objectMapper.readValue(limit.getExtraDeviceIds(), new TypeReference<>() {
                 });
 

@@ -12,10 +12,10 @@ import java.net.Proxy;
 @Configuration
 public class RestTemplateConfig {
 
-    @Value("${service.telegram.proxy.host:}")
+    @Value("${service.telegram.proxy.host:vpn-proxy-bridge}")
     private String proxyHost;
 
-    @Value("${service.telegram.proxy.port:0}")
+    @Value("${service.telegram.proxy.port:10808}")
     private int proxyPort;
 
     @Bean
@@ -23,12 +23,15 @@ public class RestTemplateConfig {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
 
         if (proxyHost != null && !proxyHost.isBlank() && proxyPort > 0) {
-            Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(proxyHost, proxyPort));
+            Proxy proxy = new Proxy(
+                    Proxy.Type.SOCKS,
+                    InetSocketAddress.createUnresolved(proxyHost, proxyPort)
+            );
             factory.setProxy(proxy);
         }
 
-        factory.setConnectTimeout(5000);
-        factory.setReadTimeout(5000);
+        factory.setConnectTimeout(4000);
+        factory.setReadTimeout(4000);
 
         return new RestTemplate(factory);
     }

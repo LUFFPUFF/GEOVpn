@@ -438,28 +438,15 @@ public class UserServiceImpl implements UserService {
         String url = "https://api.telegram.org/bot" + botToken + "/getChatMember?chat_id=" + channelId + "&user_id=" + telegramId;
 
         try {
-            Proxy proxy = new Proxy(
-                    Proxy.Type.SOCKS,
-                    new InetSocketAddress(telegramProxyHost, telegramProxyPort)
-            );
-
-            SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-            requestFactory.setProxy(proxy);
-
-            requestFactory.setConnectTimeout(4000);
-            requestFactory.setReadTimeout(4000);
-
-            RestTemplate proxyRestTemplate = new RestTemplate(requestFactory);
-
-            log.info("Checking TG membership via proxy: host={}, port={}", telegramProxyHost, telegramProxyPort);
-            JsonNode response = proxyRestTemplate.getForObject(url, JsonNode.class);
+            log.info("Checking TG membership via configured restTemplate: user={}", telegramId);
+            JsonNode response = restTemplate.getForObject(url, JsonNode.class);
 
             if (response != null && response.get("ok").asBoolean()) {
                 String status = response.get("result").get("status").asText();
                 return List.of("member", "administrator", "creator").contains(status);
             }
         } catch (Exception e) {
-            log.error("Error checking TG membership via proxy (falling back to true): {}", e.getMessage());
+            log.error("Error checking TG membership via restTemplate (falling back to true): {}", e.getMessage());
             return true;
         }
         return false;

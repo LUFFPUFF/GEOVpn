@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+ 
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+ 
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+ 
+    <!-- Downgrade periodic SSL reconnect noise from DefaultBotSession to WARN -->
+    <!-- These are expected reconnects (DPI resets connection ~every hour), not real errors -->
+    <logger name="org.telegram.telegrambots.updatesreceivers.DefaultBotSession" level="WARN"/>
+ 
+    <!-- Your app packages -->
+    <logger name="com.vpn.bot" level="INFO"/>
+ 
+</configuration>

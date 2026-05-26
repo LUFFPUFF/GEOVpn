@@ -1,43 +1,88 @@
 {
-  "log": { "loglevel": "warning" },
+  "log": {
+    "loglevel": "warning"
+  },
   "inbounds": [
     {
+      "tag": "socks-in",
       "port": 10808,
       "listen": "0.0.0.0",
       "protocol": "socks",
-      "settings": { "udp": true }
+      "settings": {
+        "auth": "noauth",
+        "udp": false
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls"]
+      }
     }
   ],
   "outbounds": [
     {
+      "tag": "vless-out",
       "protocol": "vless",
       "settings": {
         "vnext": [
           {
-            "address": "104.238.29.132",
-            "port": 5443,
+            "address": "81.19.137.208",
+            "port": 8443,
             "users": [
               {
-                "id": "36fd0b7a-dfab-460b-943c-33dfd4025ad1",
-                "flow": "xtls-rprx-vision",
-                "encryption": "none"
+                "id": "fa219463-8470-4b94-8fea-ecbe01a702cc",
+                "encryption": "none",
+                "flow": ""
               }
             ]
           }
         ]
       },
       "streamSettings": {
-        "network": "tcp",
+        "network": "xhttp",
         "security": "reality",
         "realitySettings": {
-          "show": false,
           "fingerprint": "chrome",
-          "serverName": "helsinki.fi",
-          "publicKey": "iq4UCCd0T94A9aaWj5JIek72CVMqKNVaffVXUtBLtnk",
-          "shortId": "6f",
+          "serverName": "ign.com",
+          "publicKey": "n486OShJAfFSq5qtPxf0lkbqm1uAAmh5f58BXnSGbz8",
+          "shortId": "c5b15f90f034ed25",
           "spiderX": "/"
+        },
+        "xhttpSettings": {
+          "path": "/api/v1/update",
+          "mode": "stream-one",
+          "extra": {
+            "xPaddingBytes": "100-1000"
+          }
         }
       }
+    },
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {}
+    },
+    {
+      "tag": "block",
+      "protocol": "blackhole"
     }
-  ]
+  ],
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "domain": [
+          "api.telegram.org",
+          "telegram.org",
+          "core.telegram.org"
+        ],
+        "outboundTag": "vless-out"
+      },
+      {
+        "type": "field",
+        "network": "tcp,udp",
+        "outboundTag": "direct"
+      }
+    ]
+  }
 }

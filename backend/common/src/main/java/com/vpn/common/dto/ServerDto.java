@@ -84,6 +84,9 @@ public class ServerDto {
     @JsonProperty("grpc_port")
     private Integer grpcPort;
 
+    @JsonProperty("api_token")
+    private String apiToken;
+
     public double getLoadPercentage() {
         if (maxConnections == null || maxConnections == 0) return 0.0;
         return (double) currentConnections / maxConnections * 100.0;

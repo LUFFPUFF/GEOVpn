@@ -40,8 +40,9 @@ public class SubscriptionCleanupTask {
         for (DeviceLimit limit : expiredLimits) {
             try {
 
-                List<Long> extraIds = objectMapper.readValue(limit.getExtraDeviceIds(), new TypeReference<>() {
-                });
+                String raw = limit.getExtraDeviceIds();
+                if (raw == null || raw.isBlank()) continue;
+                List<Long> extraIds = objectMapper.readValue(raw, new TypeReference<>() {});
 
                 if (extraIds != null && !extraIds.isEmpty()) {
                     log.info("Subscription expired for user {}. Removing {} extra devices.", limit.getUserId(), extraIds.size());

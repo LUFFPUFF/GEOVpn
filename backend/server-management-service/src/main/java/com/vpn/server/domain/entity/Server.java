@@ -143,6 +143,9 @@ public class Server {
     @Column(name = "panel_port")
     private Integer panelPort;
 
+    @Column(name = "api_token")
+    private String apiToken;
+
 
     public void updateHealthMetrics(boolean isAlive, int latencyMs, int currentConnections) {
         this.lastHealthCheck = LocalDateTime.now();

@@ -13,6 +13,7 @@ import com.vpn.common.dto.request.UserRegistrationRequest;
 import com.vpn.common.dto.response.UserResponse;
 import com.vpn.common.dto.response.UserStatsResponse;
 import com.vpn.common.dto.request.UserUpdateRequest;
+import com.vpn.user.exception.ApplyPromoCodeException;
 import com.vpn.user.exception.DuplicateUserException;
 import com.vpn.user.exception.InsufficientBalanceException;
 import com.vpn.user.exception.UserNotFoundException;
@@ -37,6 +38,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import java.net.Proxy;
+import java.net.InetSocketAddress;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -60,6 +64,12 @@ public class UserServiceImpl implements UserService {
     private final RestTemplate restTemplate;
 
     private static final int REGISTRATION_BONUS = 0;
+
+    @Value("${service.telegram.proxy.host}")
+    private String telegramProxyHost;
+
+    @Value("${service.telegram.proxy.port}")
+    private int telegramProxyPort;
 
     @Value("${service.bot-token}")
     private String botToken;
@@ -187,11 +197,11 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new UserNotFoundException(telegramId));
 
         if (currentUser.isPromoApplied()) {
-            throw new RuntimeException("Вы уже применяли промокод ранее");
+            throw new ApplyPromoCodeException("Вы уже применяли промокод ранее");
         }
 
         if (code.equalsIgnoreCase(currentUser.getReferralCode())) {
-            throw new RuntimeException("Вы не можете применить свой собственный код");
+            throw new ApplyPromoCodeException("Вы не можете применить свой собственный код");
         }
 
         User referrer = userRepository.findByReferralCode(code.toUpperCase())
@@ -425,23 +435,34 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public boolean isUserMemberOfChannel(Long telegramId) {
+        String url = "https://api.telegram.org/bot" + botToken + "/getChatMember?chat_id=" + channelId + "&user_id=" + telegramId;
 
-        //todo временное отключение проверки подписки
-        return true;
+        try {
+            Proxy proxy = new Proxy(
+                    Proxy.Type.SOCKS,
+                    new InetSocketAddress(telegramProxyHost, telegramProxyPort)
+            );
 
-//        String url = "https://api.telegram.org/bot" + botToken + "/getChatMember?chat_id=" + channelId + "&user_id=" + telegramId;
-//
-//        try {
-//            JsonNode response = restTemplate.getForObject(url, JsonNode.class);
-//
-//            if (response != null && response.get("ok").asBoolean()) {
-//                String status = response.get("result").get("status").asText();
-//                return List.of("member", "administrator", "creator").contains(status);
-//            }
-//        } catch (Exception e) {
-//            log.error("Error checking TG membership: {}", e.getMessage());
-//        }
-//        return false;
+            SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+            requestFactory.setProxy(proxy);
+
+            requestFactory.setConnectTimeout(4000);
+            requestFactory.setReadTimeout(4000);
+
+            RestTemplate proxyRestTemplate = new RestTemplate(requestFactory);
+
+            log.info("Checking TG membership via proxy: host={}, port={}", telegramProxyHost, telegramProxyPort);
+            JsonNode response = proxyRestTemplate.getForObject(url, JsonNode.class);
+
+            if (response != null && response.get("ok").asBoolean()) {
+                String status = response.get("result").get("status").asText();
+                return List.of("member", "administrator", "creator").contains(status);
+            }
+        } catch (Exception e) {
+            log.error("Error checking TG membership via proxy (falling back to true): {}", e.getMessage());
+            return true;
+        }
+        return false;
     }
 
     @Override

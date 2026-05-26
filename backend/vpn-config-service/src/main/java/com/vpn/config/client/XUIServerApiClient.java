@@ -32,81 +32,53 @@ public class XUIServerApiClient {
     }
 
     private String buildBaseUrl(ServerDto server) {
-        int port = (server.getPanelPort() != null && server.getPanelPort() != 0) ? server.getPanelPort() : 8080;
+        int port = (server.getPanelPort() != null && server.getPanelPort() != 0)
+                ? server.getPanelPort() : 8080;
         String path = server.getPanelPath();
-        String ip = server.getIpAddress();
+        String ip   = server.getIpAddress();
 
         StringBuilder sb = new StringBuilder("http://").append(ip).append(":").append(port);
-
-        if (path != null && !path.isBlank() && !path.equalsIgnoreCase("null") && !path.equalsIgnoreCase("<null>")) {
+        if (path != null && !path.isBlank()
+                && !path.equalsIgnoreCase("null")
+                && !path.equalsIgnoreCase("<null>")) {
             if (!path.startsWith("/")) sb.append("/");
             sb.append(path);
         }
-
         String url = sb.toString();
-        if (url.endsWith("/")) {
-            url = url.substring(0, url.length() - 1);
-        }
-        return url;
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     private void validatePanelCredentials(ServerDto server) {
+        if (server.getPanelInboundId() == null) {
+            throw new IllegalStateException(
+                    "Server '" + server.getName() + "' (id=" + server.getId()
+                            + ") has no panelInboundId configured in DB");
+        }
+        if (hasApiToken(server)) return;
+
         if (server.getPanelUsername() == null || server.getPanelUsername().isBlank()) {
             throw new IllegalStateException(
-                    "Server '" + server.getName() + "' (id=" + server.getId() + ") has no panelUsername configured in DB"
-            );
+                    "Server '" + server.getName() + "' (id=" + server.getId()
+                            + ") has no panelUsername configured in DB");
         }
         if (server.getPanelPassword() == null || server.getPanelPassword().isBlank()) {
             throw new IllegalStateException(
-                    "Server '" + server.getName() + "' (id=" + server.getId() + ") has no panelPassword configured in DB"
-            );
-        }
-        if (server.getPanelInboundId() == null) {
-            throw new IllegalStateException(
-                    "Server '" + server.getName() + "' (id=" + server.getId() + ") has no panelInboundId configured in DB"
-            );
+                    "Server '" + server.getName() + "' (id=" + server.getId()
+                            + ") has no panelPassword configured in DB");
         }
     }
 
-    public void addClient(ServerDto server, String uuid, String email, int limitIp, String flow) {
-        validatePanelCredentials(server);
-
-        String baseUrl = buildBaseUrl(server);
-        ensureAuthenticated(server, baseUrl);
-
-        if (server.isRelay()) {
-            String url = baseUrl + "/panel/api/clients/add";
-
-            Map<String, Object> clientFields = new HashMap<>();
-            clientFields.put("email", email);
-            clientFields.put("id", uuid);
-            clientFields.put("flow", (flow == null) ? "" : flow);
-            clientFields.put("limitIp", limitIp);
-            clientFields.put("enable", true);
-
-            Map<String, Object> body = new HashMap<>();
-            body.put("client", clientFields);
-            body.put("inboundIds", Collections.singletonList(server.getPanelInboundId()));
-
-            executeWithRetry(server, baseUrl, url, body);
-        } else {
-            String url = baseUrl + "/panel/api/inbounds/addClient";
-            String effectiveFlow = (flow == null) ? "" : flow;
-
-            String clientJson = String.format(
-                    "{\"id\": \"%s\", \"email\": \"%s\", \"flow\": \"%s\", \"limitIp\": %d, \"enable\": true}",
-                    uuid, email, effectiveFlow, limitIp
-            );
-
-            Map<String, Object> body = new HashMap<>();
-            body.put("id", server.getPanelInboundId());
-            body.put("settings", "{\"clients\": [" + clientJson + "]}");
-
-            executeWithRetry(server, baseUrl, url, body);
-        }
+    /** Returns true when the server has a non-blank API token. */
+    private boolean hasApiToken(ServerDto server) {
+        return server.getApiToken() != null && !server.getApiToken().isBlank();
     }
 
+    /**
+     * Makes sure we have a valid session for cookie-auth servers.
+     * Token-auth servers skip this entirely.
+     */
     private void ensureAuthenticated(ServerDto server, String baseUrl) {
+        if (hasApiToken(server)) return;
         if (!sessionCookies.containsKey(server.getIpAddress())) {
             login(server, baseUrl);
         }
@@ -137,9 +109,9 @@ public class XUIServerApiClient {
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(loginUrl, entity, String.class);
             String cookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
-
-            if (cookie == null) throw new RuntimeException("No cookie returned from " + server.getIpAddress());
-
+            if (cookie == null) {
+                throw new RuntimeException("No cookie returned from " + server.getIpAddress());
+            }
             sessionCookies.put(server.getIpAddress(), cookie);
             log.info("<<<< [XUI LOGIN] SUCCESS for {}", server.getName());
         } catch (Exception e) {
@@ -148,9 +120,74 @@ public class XUIServerApiClient {
         }
     }
 
+    private HttpHeaders buildAuthHeaders(ServerDto server) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        if (hasApiToken(server)) {
+            headers.setBearerAuth(server.getApiToken());
+        } else {
+            headers.add(HttpHeaders.COOKIE, sessionCookies.get(server.getIpAddress()));
+        }
+        return headers;
+    }
+
+    private void sendRequest(ServerDto server, String url, Object body) {
+        HttpHeaders headers = buildAuthHeaders(server);
+        restTemplate.postForEntity(url, new HttpEntity<>(body, headers), String.class);
+    }
+
+    private void executeWithRetry(ServerDto server, String baseUrl, String url, Object body) {
+        try {
+            sendRequest(server, url, body);
+        } catch (HttpClientErrorException.Unauthorized e) {
+            if (hasApiToken(server)) {
+                log.error("Bearer token rejected (401) for server {}", server.getName());
+                throw e;
+            }
+            sessionCookies.remove(server.getIpAddress());
+            login(server, baseUrl);
+            sendRequest(server, url, body);
+        }
+    }
+
+    public void addClient(ServerDto server, String uuid, String email, int limitIp, String flow) {
+        validatePanelCredentials(server);
+        String baseUrl = buildBaseUrl(server);
+        ensureAuthenticated(server, baseUrl);
+
+        if (server.isRelay()) {
+            String url = baseUrl + "/panel/api/clients/add";
+
+            Map<String, Object> clientFields = new HashMap<>();
+            clientFields.put("email", email);
+            clientFields.put("id", uuid);
+            clientFields.put("flow", (flow == null) ? "" : flow);
+            clientFields.put("limitIp", limitIp);
+            clientFields.put("enable", true);
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("client", clientFields);
+            body.put("inboundIds", Collections.singletonList(server.getPanelInboundId()));
+
+            executeWithRetry(server, baseUrl, url, body);
+        } else {
+            String url = baseUrl + "/panel/api/inbounds/addClient";
+            String effectiveFlow = (flow == null) ? "" : flow;
+
+            String clientJson = String.format(
+                    "{\"id\": \"%s\", \"email\": \"%s\", \"flow\": \"%s\", \"limitIp\": %d, \"enable\": true}",
+                    uuid, email, effectiveFlow, limitIp);
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("id", server.getPanelInboundId());
+            body.put("settings", "{\"clients\": [" + clientJson + "]}");
+
+            executeWithRetry(server, baseUrl, url, body);
+        }
+    }
+
     public void removeClient(ServerDto server, String uuid) {
         validatePanelCredentials(server);
-
         String baseUrl = buildBaseUrl(server);
         ensureAuthenticated(server, baseUrl);
 
@@ -170,25 +207,25 @@ public class XUIServerApiClient {
         }
     }
 
-    /**
-     * Выполняет поиск email клиента по его UUID на новой панели.
-     */
+
     @SuppressWarnings("unchecked")
     private String findEmailByUuid(ServerDto server, String baseUrl, String uuid) {
         String url = baseUrl + "/panel/api/clients/list";
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.COOKIE, sessionCookies.get(server.getIpAddress()));
+        HttpHeaders headers = buildAuthHeaders(server);
         HttpEntity<?> entity = new HttpEntity<>(headers);
 
         try {
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
-            if (response.getBody() != null && Boolean.TRUE.equals(response.getBody().get("success"))) {
-                List<Map<String, Object>> clients = (List<Map<String, Object>>) response.getBody().get("obj");
+            ResponseEntity<Map> response =
+                    restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            if (response.getBody() != null
+                    && Boolean.TRUE.equals(response.getBody().get("success"))) {
+                List<Map<String, Object>> clients =
+                        (List<Map<String, Object>>) response.getBody().get("obj");
                 if (clients != null) {
                     for (Map<String, Object> client : clients) {
-                        Object idVal = client.get("id");
+                        Object idVal   = client.get("id");
                         Object uuidVal = client.get("uuid");
-                        if ((idVal != null && idVal.toString().equalsIgnoreCase(uuid)) ||
+                        if ((idVal   != null && idVal.toString().equalsIgnoreCase(uuid)) ||
                                 (uuidVal != null && uuidVal.toString().equalsIgnoreCase(uuid))) {
                             return (String) client.get("email");
                         }
@@ -196,7 +233,8 @@ public class XUIServerApiClient {
                 }
             }
         } catch (Exception e) {
-            log.error("Failed to fetch clients list from server {}: {}", server.getName(), e.getMessage());
+            log.error("Failed to fetch clients list from server {}: {}",
+                    server.getName(), e.getMessage());
         }
         return null;
     }
@@ -205,26 +243,14 @@ public class XUIServerApiClient {
         try {
             return findEmailByUuid(server, baseUrl, uuid);
         } catch (HttpClientErrorException.Unauthorized e) {
+            if (hasApiToken(server)) {
+                log.error("Bearer token rejected (401) while looking up email on server {}",
+                        server.getName());
+                throw e;
+            }
             sessionCookies.remove(server.getIpAddress());
             login(server, baseUrl);
             return findEmailByUuid(server, baseUrl, uuid);
         }
-    }
-
-    private void executeWithRetry(ServerDto server, String baseUrl, String url, Object body) {
-        try {
-            sendRequest(server.getIpAddress(), url, body);
-        } catch (HttpClientErrorException.Unauthorized e) {
-            sessionCookies.remove(server.getIpAddress());
-            login(server, baseUrl);
-            sendRequest(server.getIpAddress(), url, body);
-        }
-    }
-
-    private void sendRequest(String ip, String url, Object body) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.add(HttpHeaders.COOKIE, sessionCookies.get(ip));
-        restTemplate.postForEntity(url, new HttpEntity<>(body, headers), String.class);
     }
 }

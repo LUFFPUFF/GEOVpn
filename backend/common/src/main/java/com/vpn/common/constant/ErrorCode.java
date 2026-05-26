@@ -21,6 +21,7 @@ public enum ErrorCode {
     MAX_DEVICES_EXCEEDED("USR_003", "Maximum number of devices exceeded"),
     INVALID_TELEGRAM_ID("USR_004", "Invalid Telegram ID"),
     USER_INACTIVE("USR_005", "User account is inactive"),
+    APPLY_PROMO_CODE("USER_06", "Duplicate Promo Code"),
 
     // Device Errors (DEV)
     DEVICE_NOT_FOUND("DEV_001", "Device not found"),

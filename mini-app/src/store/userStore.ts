@@ -30,7 +30,7 @@ interface UserStore {
 
     checkMembership:      () => Promise<void>;
     fetchAll:             () => Promise<void>;
-    register:             () => Promise<void>;
+    register: (referralCode?: string) => Promise<void>;
     regenerateConfig:     (deviceId: number) => Promise<void>;
     setActiveTab:         (tab: TabId) => void;
     purchaseSubscription: (planId: string, months?: number, promo?: boolean) => Promise<boolean>;
@@ -76,10 +76,11 @@ export const useUserStore = create<UserStore>((set, get) => ({
         }
     },
 
-    register: async () => {
+    register: async (referralCode) => {
         const tg          = window.Telegram?.WebApp;
         const userDetails = tg?.initDataUnsafe?.user;
-        const startParam  = tg?.initDataUnsafe?.start_param;
+
+        const startParam  = referralCode || tg?.initDataUnsafe?.start_param;
 
         let telegramId: number;
         let firstName: string;

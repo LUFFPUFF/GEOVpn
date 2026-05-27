@@ -94,12 +94,37 @@ public class UserServiceImpl implements UserService {
         user.setReferralCode(generateUniqueReferralCode());
         user.setSubscriptionType(SubscriptionType.PAYG);
 
-        if (request.getReferralCode() != null && !request.getReferralCode().isEmpty()) {
-            referralService.processReferral(user, request.getReferralCode());
+        if (request.getReferralCode() != null && !request.getReferralCode().trim().isEmpty()) {
+            String refCode = request.getReferralCode().toUpperCase().trim();
+
+            userRepository.findByReferralCode(refCode).ifPresent(referrer -> {
+                if (!referrer.getTelegramId().equals(user.getTelegramId())) {
+                    user.setReferredBy(referrer.getTelegramId());
+                    user.setPromoApplied(true);
+
+                    referrer.addBalance(5000);
+                    userRepository.save(referrer);
+                    log.info("Referral: Added 5000 kopecks to referrer {}", referrer.getTelegramId());
+
+                    user.setSubscriptionType(SubscriptionType.BASIC);
+                    user.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(10));
+                }
+            });
+
+            try {
+                referralService.processReferral(user, request.getReferralCode());
+            } catch (Exception e) {
+                log.error("Error processing referral in referralService: {}", e.getMessage());
+            }
         }
 
         User savedUser = userRepository.save(user);
         log.info("User registered: telegramId={}", savedUser.getTelegramId());
+
+        if (savedUser.getSubscriptionType() != SubscriptionType.PAYG) {
+            syncVpnLimits(savedUser.getTelegramId(), savedUser.getSubscriptionType().name(), savedUser);
+        }
+
         return userMapper.toResponse(savedUser);
     }
 

@@ -13,6 +13,9 @@ import Leaderboard from './pages/Leaderboard';
 import ManageSubscription from './pages/ManageSubscription/ManageSubscription';
 import SubscriptionGuard from './components/guards/SubscriptionGuard';
 
+import { BANNED_TELEGRAM_IDS, SUPPORT_LINK } from './bannedUsers';
+import BanScreen from './components/layout/BanScreen';
+
 import bgVideo from './assets/fon/video10.mp4';
 
 export default function App() {
@@ -25,12 +28,17 @@ export default function App() {
 
     const isDev = import.meta.env.DEV;
 
+    const currentTgId = tg?.initDataUnsafe?.user?.id;
+    const isBanned = currentTgId ? BANNED_TELEGRAM_IDS.includes(Number(currentTgId)) : false;
+
     useEffect(() => {
+        if (isBanned) return;
+
         const isHidden = localStorage.getItem('hide_anti_glush_warning');
         if (!isHidden) {
             setShowWarning(true);
         }
-    }, []);
+    }, [isBanned]);
 
     const handleCloseWarning = () => {
         if (dontShowAgain) {
@@ -63,8 +71,9 @@ export default function App() {
 
     useEffect(() => {
         if (!tgReady) return;
+        if (isBanned) return;
         fetchAll();
-    }, [tgReady]);
+    }, [tgReady, isBanned]);
 
     const MainContent = (
         <>
@@ -185,7 +194,9 @@ export default function App() {
         </div>
     );
 
-    const AppContent = (
+    const AppContent = isBanned ? (
+        <BanScreen supportLink={SUPPORT_LINK} />
+    ) : (
         <>
             {MainContent}
             {WarningModal}

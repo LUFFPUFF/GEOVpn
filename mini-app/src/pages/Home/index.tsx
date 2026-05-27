@@ -69,7 +69,8 @@ export default function Home() {
         setShowDeviceSelect(false);
         try {
             if (!useUserStore.getState().user) {
-                await useUserStore.getState().register();
+                const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+                await useUserStore.getState().register(startParam);
             }
 
             await userApi.registerDevice(`${type.toUpperCase()} Device`, type.toUpperCase());

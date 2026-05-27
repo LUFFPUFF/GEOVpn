@@ -52,7 +52,7 @@ export default function Profile() {
     const avatarUrl = tgUser?.photo_url;
     const initials = user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U';
     const realBalance = user?.balance ? (user.balance / 100).toFixed(0) : '0';
-    const inviteLink = `https://t.me/geovpn_bot?start=${user?.referralCode}`;
+    const inviteLink = `https://t.me/geovpbot?start=${user?.referralCode}`;
 
     const isExpired = useMemo(() => {
         if (!user?.subscriptionExpiresAt) return true;

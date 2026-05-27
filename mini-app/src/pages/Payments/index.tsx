@@ -63,7 +63,6 @@ export default function Payments() {
     const currentPlanId = user?.subscriptionType?.toUpperCase() || 'PAYG';
     const isPayg = currentPlanId === 'PAYG';
 
-    // Промо доступно только если включено и юзер на PAYG (никогда не платил)
     const promoAvailable = IS_PROMO_ACTIVE && isPayg;
 
     const haptic = (type: ImpactStyle = 'medium') =>

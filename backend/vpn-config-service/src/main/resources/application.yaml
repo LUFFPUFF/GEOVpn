@@ -67,6 +67,8 @@ resilience4j:
         wait-duration: 1s
 
 vpn:
+  abuse:
+    whitelist: 858441917, 1302625379, 808929160, 970667053, 438593718
   relay:
     ru:
       ip: ${VPN_RELAY_IP}

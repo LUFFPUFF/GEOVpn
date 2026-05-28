@@ -12,28 +12,24 @@ import Subscriptions from './pages/Subscriptions';
 import Leaderboard from './pages/Leaderboard';
 import ManageSubscription from './pages/ManageSubscription/ManageSubscription';
 import SubscriptionGuard from './components/guards/SubscriptionGuard';
-
 import { BANNED_TELEGRAM_IDS, SUPPORT_LINK } from './bannedUsers';
 import BanScreen from './components/layout/BanScreen';
-
 import bgVideo from './assets/fon/video10.mp4';
 
 export default function App() {
     const { expand, tg } = useTelegram();
-    const { activeTab, fetchAll } = useUserStore();
+    const { activeTab, fetchAll, user } = useUserStore();
     const [tgReady, setTgReady] = useState(false);
-
     const [showWarning, setShowWarning] = useState(false);
     const [dontShowAgain, setDontShowAgain] = useState(false);
-
     const isDev = import.meta.env.DEV;
-
     const currentTgId = tg?.initDataUnsafe?.user?.id;
-    const isBanned = currentTgId ? BANNED_TELEGRAM_IDS.includes(Number(currentTgId)) : false;
+    const isStaticBanned = currentTgId ? BANNED_TELEGRAM_IDS.includes(Number(currentTgId)) : false;
+    const isDynamicBanned = user?.isBanned === true || user?.banned === true;
+    const isBanned = isStaticBanned || isDynamicBanned;
 
     useEffect(() => {
         if (isBanned) return;
-
         const isHidden = localStorage.getItem('hide_anti_glush_warning');
         if (!isHidden) {
             setShowWarning(true);
@@ -49,31 +45,26 @@ export default function App() {
 
     useEffect(() => {
         if (!tg) return;
-
         tg.ready();
         expand();
         tg.setHeaderColor?.('#000000');
         tg.setBackgroundColor?.('#000000');
         tg.disableVerticalSwipes?.();
-
         const setHeight = () => {
             const h = tg.viewportStableHeight || window.innerHeight;
             document.documentElement.style.setProperty('--tg-height', `${h}px`);
             document.body.style.height = `${h}px`;
         };
-
         setHeight();
         tg.onEvent('viewportChanged', setHeight);
         setTimeout(() => setTgReady(true), 300);
-
         return () => tg.offEvent('viewportChanged', setHeight);
     }, [tg]);
 
     useEffect(() => {
         if (!tgReady) return;
-        if (isBanned) return;
         fetchAll();
-    }, [tgReady, isBanned]);
+    }, [tgReady]);
 
     const MainContent = (
         <>
@@ -91,15 +82,14 @@ export default function App() {
                 } as React.CSSProperties}
                 className="custom-scrollbar"
             >
-                {activeTab === 'home'          && <Home />}
-                {activeTab === 'profile'       && <Profile />}
-                {activeTab === 'payments'      && <Payments />}
-                {activeTab === 'deposit'       && <Deposit />}
+                {activeTab === 'home' && <Home />}
+                {activeTab === 'profile' && <Profile />}
+                {activeTab === 'payments' && <Payments />}
+                {activeTab === 'deposit' && <Deposit />}
                 {activeTab === 'subscriptions' && <Subscriptions />}
-                {activeTab === 'leaderboard'   && <Leaderboard />}
+                {activeTab === 'leaderboard' && <Leaderboard />}
                 {activeTab === 'manage_subscription' && <ManageSubscription />}
             </main>
-
             <div style={{ flexShrink: 0 }}>
                 <BottomNav />
             </div>
@@ -195,7 +185,7 @@ export default function App() {
     );
 
     const AppContent = isBanned ? (
-        <BanScreen supportLink={SUPPORT_LINK} />
+        <BanScreen supportLink={SUPPORT_LINK} reason={user?.banReason} />
     ) : (
         <>
             {MainContent}
@@ -223,7 +213,6 @@ export default function App() {
                 }}
             />
             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1, pointerEvents: 'none' }} />
-
             <div
                 style={{
                     position: 'relative',
@@ -238,7 +227,6 @@ export default function App() {
                 <div style={{ flexShrink: 0 }}>
                     <Header />
                 </div>
-
                 {isDev ? (
                     AppContent
                 ) : (

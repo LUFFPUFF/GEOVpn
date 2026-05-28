@@ -5,7 +5,6 @@ import com.vpn.config.domain.entity.VpnConfiguration;
 import com.vpn.config.domain.valueobject.ServerAddress;
 import com.vpn.config.domain.valueobject.StoredVpnLinks;
 import com.vpn.config.generator.VlessLinkBuilder;
-import com.vpn.config.generator.VlessLinkBuilder.XhttpParams;
 import com.vpn.config.generator.hysteria2.Hysteria2ConfigGenerator;
 import com.vpn.config.service.interf.ServerSelectionService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,7 @@ import java.util.UUID;
  *
  * Порядок ссылок:
  *   1. Relay-ссылки (сортировка по relay_priority ASC)  ← для LTE/глушения
- *   2. Прямые VLESS-ссылки по каждому активному VPS     ← основные
+ *   2. Прямые VLESS-ссылки по каждому активному VPS     ← основные (VLESS + TCP + Reality)
  *   3. Hysteria2 по каждому не-RU серверу               ← UDP fallback
  */
 @Slf4j
@@ -36,11 +35,6 @@ public class VpnLinksBuilder {
     private final VlessLinkBuilder         vlessLinkBuilder;
     private final Hysteria2ConfigGenerator hysteria2Generator;
     private final ServerSelectionService   serverSelectionService;
-
-    private static final String DEFAULT_TRANSPORT = "xhttp";
-    private static final String DEFAULT_XHTTP_PATH = "/api/v1/data";
-    private static final String DEFAULT_XHTTP_MODE = "stream-one";
-    private static final String DEFAULT_XHTTP_PADDING = "100-1000";
 
     /**
      * Строит все ссылки и записывает их в переданный config (без save).
@@ -115,8 +109,6 @@ public class VpnLinksBuilder {
                         + " " + ("RU".equalsIgnoreCase(server.getCountryCode()) ? "" : "🚀 ")
                         + server.getName();
 
-                XhttpParams xhttp = resolveXhttpParams(server);
-
                 String link = vlessLinkBuilder.buildVlessLinkCustom(
                         uuid,
                         new ServerAddress(server.getIpAddress()),
@@ -126,7 +118,7 @@ public class VpnLinksBuilder {
                         server.getRealityShortId(),
                         server.getRealitySni() != null ? server.getRealitySni() : "www.microsoft.com",
                         "chrome",
-                        xhttp
+                        null
                 );
 
                 result.add(StoredVpnLinks.DirectLink.builder()
@@ -199,31 +191,6 @@ public class VpnLinksBuilder {
             }
         }
         return links;
-    }
-
-    /**
-     * Определяет XHTTP-параметры для сервера.
-     * Если у ServerDto транспорт != "xhttp" (или поле null) — возвращает null (→ TCP).
-     *
-     * Предполагается, что ServerDto содержит поля:
-     *   - transportType  (String): "tcp" | "xhttp"
-     *   - xhttpPath      (String): например "/api/v1/data"
-     *   - xhttpMode      (String): например "stream-one"
-     *   - xhttpPadding   (String): например "100-1000"
-     */
-    private XhttpParams resolveXhttpParams(ServerDto server) {
-        return XhttpParams.builder()
-                .path(DEFAULT_XHTTP_PATH)
-                .mode(DEFAULT_XHTTP_MODE)
-                .paddingBytes(DEFAULT_XHTTP_PADDING)
-                .build();
-    }
-
-    /**
-     * Сервер считается RU, если countryCode == "RU" или isRelay == true.
-     */
-    private boolean isRuServer(ServerDto server) {
-        return "RU".equalsIgnoreCase(server.getCountryCode()) || server.isRelay();
     }
 
     private String buildRelayDisplayName(ServerDto relay, int index) {

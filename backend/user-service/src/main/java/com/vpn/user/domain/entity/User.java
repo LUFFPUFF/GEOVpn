@@ -63,6 +63,12 @@ public class User {
     @Column(name = "easter_egg_claimed")
     private boolean easterEggClaimed = false;
 
+    @Column(name = "is_banned")
+    private boolean isBanned;
+
+    @Column(name = "ban_reason")
+    private String banReason;
+
     public boolean hasActiveSubscription() {
         return subscriptionExpiresAt != null &&
                 subscriptionExpiresAt.isAfter(LocalDateTime.now());

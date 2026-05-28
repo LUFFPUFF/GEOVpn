@@ -24,7 +24,7 @@ spring:
         - id: vpn-config-service
           uri: ${VPN_CONFIG_SERVICE_URL}
           predicates:
-            - Path=/api/v1/configs/**, /api/v1/admin/device-limits/**, /api/v1/subscription/**
+            - Path=/api/v1/configs/**, /api/v1/admin/device-limits/**, /api/v1/subscription/**, /api/v1/admin/sync/**
         - id: server-management-service
           uri: ${SERVER_MGM_SERVICE_URL}
           predicates:

@@ -25,4 +25,6 @@ public class UserResponse {
     private LocalDateTime createdAt;
     private LocalDateTime lastActiveAt;
     private boolean hasActiveSubscription;
+    private boolean isBanned;
+    private String banReason;
 }

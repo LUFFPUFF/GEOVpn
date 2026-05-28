@@ -146,6 +146,12 @@ public class Server {
     @Column(name = "api_token")
     private String apiToken;
 
+    @Column(name = "tcp_inbound_id")
+    private Integer tcpInboundId;
+
+    @Column(name = "ws_inbound_id")
+    private Integer wsInboundId;
+
 
     public void updateHealthMetrics(boolean isAlive, int latencyMs, int currentConnections) {
         this.lastHealthCheck = LocalDateTime.now();

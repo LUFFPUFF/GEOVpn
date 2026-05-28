@@ -20,12 +20,7 @@ public interface VpnConfigurationRepository extends JpaRepository<VpnConfigurati
 
     List<VpnConfiguration> findByUserIdAndStatus(Long userId, ConfigStatus status);
 
-    boolean existsByDeviceIdAndStatus(Long deviceId, ConfigStatus status);
-
-    @Query("SELECT COUNT(c) FROM VpnConfiguration c WHERE c.userId = :userId AND c.status = 'ACTIVE'")
-    long countActiveConfigsByUserId(@Param("userId") Long userId);
-
-    List<VpnConfiguration> findByServerIdAndStatus(Integer serverId, ConfigStatus status);
-
     Optional<VpnConfiguration> findByDeviceId(Long deviceId);
+
+    List<VpnConfiguration> findByStatus(ConfigStatus status);
 }

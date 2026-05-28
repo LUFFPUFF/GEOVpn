@@ -11,12 +11,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Comparator;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 /**
  * Генерирует base64-подписку для VPN клиентов (Happ, Hiddify, V2Box).
@@ -47,6 +49,55 @@ public class SubscriptionService {
     private final VpnConfigurationRepository configRepository;
     private final UserServiceClient         userServiceClient;
     private final SubscriptionBanner bannerBuilder;
+
+    private final ExecutorService pingExecutor = Executors.newFixedThreadPool(30);
+
+    @lombok.Value
+    private static class CheckedLink {
+        String originalLink;
+        boolean isDirect;
+        String serverName;
+        boolean isAlive;
+    }
+
+    private boolean pingTcp(String host, int port, int timeoutMs) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), timeoutMs);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private InetSocketAddress parseHostPort(String link) {
+        try {
+            String clean = link.replace("vless://", "");
+            int atIdx = clean.indexOf('@');
+            int qIdx = clean.indexOf('?');
+            String hostPortPart = clean.substring(atIdx + 1, qIdx);
+            String[] hp = hostPortPart.split(":");
+            return new InetSocketAddress(hp[0], Integer.parseInt(hp[1]));
+        } catch (Exception e) {
+            return new InetSocketAddress("1.1.1.1", 443);
+        }
+    }
+
+    private String extractBaseServerName(String link) {
+        try {
+            int hashIdx = link.indexOf('#');
+            if (hashIdx == -1) return "Server";
+            String name = java.net.URLDecoder.decode(link.substring(hashIdx + 1), StandardCharsets.UTF_8);
+            return name.replaceAll("\\s*-\\s*2", "")
+                    .replaceAll("\\s*\\|\\s*LTE.*", "")
+                    .replaceAll("\\s*\\(Уст\\..*\\)", "")
+                    .trim();
+        } catch (Exception e) {
+            return "Server";
+        }
+    }
+
+
+
 
     /**
      * Генерирует полную подписку для пользователя по любому из его UUID.
@@ -135,30 +186,73 @@ public class SubscriptionService {
             return;
         }
 
+        List<String> rawCandidates = new ArrayList<>();
+
+        if (deviceConfig.getVlessLinks() != null) {
+            deviceConfig.getVlessLinks().forEach(direct -> rawCandidates.add(direct.getLink()));
+        }
+
+        if (rawCandidates.isEmpty()) return;
+
+        List<CompletableFuture<CheckedLink>> futures = rawCandidates.stream()
+                .map(link -> CompletableFuture.supplyAsync(() -> {
+                    InetSocketAddress addr = parseHostPort(link);
+                    boolean isDirect = !link.contains("type=ws");
+                    boolean alive = pingTcp(addr.getHostName(), addr.getPort(), 400);
+                    String baseName = extractBaseServerName(link);
+                    return new CheckedLink(link, isDirect, baseName, alive);
+                }, pingExecutor))
+                .toList();
+
+        List<CheckedLink> checkedLinks = futures.stream()
+                .map(CompletableFuture::join)
+                .toList();
+
+        Map<String, List<CheckedLink>> groupedByServer = checkedLinks.stream()
+                .collect(Collectors.groupingBy(CheckedLink::getServerName));
+
         String deviceSuffix = buildDeviceSuffix(deviceConfig);
+
+        for (Map.Entry<String, List<CheckedLink>> entry : groupedByServer.entrySet()) {
+            String serverName = entry.getKey();
+            List<CheckedLink> links = entry.getValue();
+
+            CheckedLink direct = links.stream().filter(CheckedLink::isDirect).findFirst().orElse(null);
+            CheckedLink fallback = links.stream().filter(l -> !l.isDirect()).findFirst().orElse(null);
+
+            boolean directOk = direct != null && direct.isAlive();
+            boolean fallbackOk = fallback != null && fallback.isAlive();
+
+            if (directOk && fallbackOk) {
+                lines.add(appendDescription(direct.getOriginalLink(), "VLESS Direct", deviceSuffix));
+
+                String updatedFallbackLink = renameLink(fallback.getOriginalLink(), serverName + "-2");
+                lines.add(appendDescription(updatedFallbackLink, "Cloudflare WS", deviceSuffix));
+
+            } else if (directOk) {
+                String cleanDirect = renameLink(direct.getOriginalLink(), serverName);
+                lines.add(appendDescription(cleanDirect, "VLESS Direct", deviceSuffix));
+
+            } else if (fallbackOk) {
+                String cleanFallback = renameLink(fallback.getOriginalLink(), serverName);
+                lines.add(appendDescription(cleanFallback, "Cloudflare WS", deviceSuffix));
+            }
+        }
 
         if (deviceConfig.getRelayLinks() != null) {
             deviceConfig.getRelayLinks().forEach(relay -> {
-                String link = appendDescription(relay.getLink(), relay.getDescription(), deviceSuffix);
-                lines.add(link);
+                lines.add(appendDescription(relay.getLink(), relay.getDescription(), deviceSuffix));
             });
         }
-
-        if (deviceConfig.getVlessLinks() != null) {
-            deviceConfig.getVlessLinks().forEach(direct -> {
-                String desc = formatDirectDescription(direct);
-                String link = appendDescription(direct.getLink(), desc, deviceSuffix);
-                lines.add(link);
-            });
-        }
-
         if (deviceConfig.getHy2Links() != null) {
-            deviceConfig.getHy2Links().forEach(hy2 -> {
-                lines.add(injectSuffix(hy2, deviceSuffix));
-            });
+            deviceConfig.getHy2Links().forEach(hy2 -> lines.add(injectSuffix(hy2, deviceSuffix)));
         }
+    }
 
-        lines.add("");
+    private String renameLink(String link, String newName) {
+        int hashIdx = link.indexOf('#');
+        String base = hashIdx >= 0 ? link.substring(0, hashIdx) : link;
+        return base + "#" + encode(newName);
     }
 
     /**

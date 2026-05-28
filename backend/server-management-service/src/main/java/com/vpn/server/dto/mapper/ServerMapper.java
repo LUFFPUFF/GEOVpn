@@ -43,6 +43,8 @@ public class ServerMapper {
                 .panelPath(server.getPanelPath())
                 .panelPort(server.getPanelPort())
                 .apiToken(server.getApiToken())
+                .tcpInboundId(server.getTcpInboundId())
+                .wsInboundId(server.getWsInboundId())
                 .build();
     }
 

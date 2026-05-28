@@ -1,0 +1,1 @@
+ALTER TABLE vpn_ban_logs ALTER COLUMN id TYPE BIGINT;

@@ -29,6 +29,8 @@ public class UserMapper {
                 .createdAt(user.getCreatedAt())
                 .lastActiveAt(user.getLastActiveAt())
                 .hasActiveSubscription(user.hasActiveSubscription())
+                .isBanned(user.isBanned())
+                .banReason(user.getBanReason())
                 .build();
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useUserStore } from '../../store/userStore';
 import { userApi } from '../../api/user';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +23,34 @@ import win2 from '../../assets/windows_macos/2.png';
 import win3 from '../../assets/windows_macos/3.png';
 import win4 from '../../assets/windows_macos/4.png';
 import win5 from '../../assets/windows_macos/5.png';
+
+const safeConfirm = (text: string, callback: (ok: boolean) => void) => {
+    if (window.Telegram?.WebApp?.isVersionAtLeast('6.2')) {
+        window.Telegram.WebApp.showConfirm(text, callback);
+    } else {
+        callback(window.confirm(text));
+    }
+};
+
+const safeAlert = (text: string) => {
+    if (window.Telegram?.WebApp?.isVersionAtLeast('6.2')) {
+        window.Telegram.WebApp.showAlert(text);
+    } else {
+        alert(text);
+    }
+};
+
+const safeHaptic = (type: 'light' | 'medium' | 'heavy') => {
+    if (window.Telegram?.WebApp?.isVersionAtLeast('6.1')) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred(type);
+    }
+};
+
+const safeHapticNotification = (type: 'success' | 'warning' | 'error') => {
+    if (window.Telegram?.WebApp?.isVersionAtLeast('6.1')) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred(type);
+    }
+};
 
 const handleLink = (url: string) => {
     if (window.Telegram?.WebApp?.openTelegramLink) {
@@ -69,19 +97,19 @@ export default function Profile() {
     const copyAction = (text: string | undefined, message: string) => {
         if (!text) return;
         navigator.clipboard.writeText(text);
-        window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
-        window.Telegram?.WebApp?.showAlert(message);
+        safeHapticNotification('success');
+        safeAlert(message);
     };
 
     const handleBack = () => {
         if (activeInstruction) setActiveInstruction(null);
         else setSubPage('main');
-        window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
+        safeHaptic('light');
     };
 
     const handleAddDeviceClick = () => {
         if (limitReached) {
-            window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+            safeHaptic('medium');
             setActiveTab('manage_subscription');
             return;
         }
@@ -93,7 +121,7 @@ export default function Profile() {
     const handleAddDevice = async () => {
         if (!devName.trim()) return;
         if (limitReached) {
-            window.Telegram?.WebApp?.showAlert('Достигнут лимит устройств');
+            safeAlert('Достигнут лимит устройств');
             return;
         }
         try {
@@ -101,10 +129,10 @@ export default function Profile() {
             await addDevice(devName.trim(), devType);
             setShowDeviceModal(false);
             setDevName('');
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+            safeHapticNotification('success');
         } catch (e: any) {
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
-            window.Telegram?.WebApp?.showAlert(e.message || 'Ошибка при создании устройства');
+            safeHapticNotification('error');
+            safeAlert(e.message || 'Ошибка при создании устройства');
         } finally {
             setIsAddingDevice(false);
         }
@@ -112,21 +140,21 @@ export default function Profile() {
 
     const handleDeleteDevice = async (uuid: string) => {
         if (devices.length <= 1) {
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
-            window.Telegram?.WebApp?.showAlert('Нельзя удалить единственное устройство.');
+            safeHapticNotification('error');
+            safeAlert('Нельзя удалить единственное устройство.');
             return;
         }
 
-        window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+        safeHaptic('medium');
         setDeletingUuid(uuid);
 
         try {
             await deleteDevice(uuid);
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+            safeHapticNotification('success');
         } catch (e) {
             console.error('Delete device failed:', e);
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
-            window.Telegram?.WebApp?.showAlert('Не удалось удалить устройство. Попробуйте ещё раз.');
+            safeHapticNotification('error');
+            safeAlert('Не удалось удалить устройство. Попробуйте ещё раз.');
         } finally {
             setDeletingUuid(null);
         }
@@ -134,8 +162,8 @@ export default function Profile() {
 
     const handleApplyPromo = async () => {
         if (!user?.hasActiveSubscription) {
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
-            window.Telegram?.WebApp?.showAlert('Активация промокода доступна только пользователям с активной подпиской. Сначала оформите любой тариф.');
+            safeHapticNotification('error');
+            safeAlert('Активация промокода доступна только пользователям с активной подпиской. Сначала оформите любой тариф.');
             return;
         }
 
@@ -143,18 +171,18 @@ export default function Profile() {
 
         try {
             setIsApplying(true);
-            window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+            safeHaptic('medium');
 
             const updatedUser = await userApi.applyPromo(promoCode.trim());
             useUserStore.setState({ user: updatedUser });
 
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
-            window.Telegram?.WebApp?.showAlert('Успешно! Вы получили +10 дней к подписке 🎉');
+            safeHapticNotification('success');
+            safeAlert('Успешно! Вы получили +10 дней к подписке 🎉');
             setPromoCode('');
         } catch (e: any) {
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
+            safeHapticNotification('error');
             const errorMsg = e.response?.data?.error?.message || 'Ошибка активации. Проверьте код.';
-            window.Telegram?.WebApp?.showAlert(errorMsg);
+            safeAlert(errorMsg);
         } finally {
             setIsApplying(false);
         }
@@ -162,20 +190,20 @@ export default function Profile() {
 
     const handleSaveCustomCode = async () => {
         if (!editCodeValue.trim() || editCodeValue.length < 3) {
-            window.Telegram?.WebApp?.showAlert('Код должен содержать минимум 3 символа');
+            safeAlert('Код должен содержать минимум 3 символа');
             return;
         }
         try {
             setIsSavingCode(true);
-            window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+            safeHaptic('medium');
             const updatedUser = await userApi.updateReferralCode(editCodeValue.trim());
             useUserStore.setState({ user: updatedUser });
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+            safeHapticNotification('success');
             setIsEditingCode(false);
         } catch (e: any) {
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('error');
+            safeHapticNotification('error');
             const errorMsg = e.response?.data?.error?.message || 'Этот код уже занят или недопустим.';
-            window.Telegram?.WebApp?.showAlert(errorMsg);
+            safeAlert(errorMsg);
         } finally {
             setIsSavingCode(false);
         }
@@ -297,7 +325,7 @@ export default function Profile() {
                                                 onClick={() => {
                                                     setEditCodeValue(user?.referralCode || '');
                                                     setIsEditingCode(true);
-                                                    window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
+                                                    safeHaptic('light');
                                                 }}
                                                 className="w-10 h-10 flex items-center justify-center text-white/40 active:text-white transition-colors outline-none"
                                             >
@@ -413,7 +441,7 @@ export default function Profile() {
 
         const platforms = [
             { id: 'ios',     name: 'iOS',            icon: Smartphone, desc: t.ios_desc     || 'Инструкция для iPhone/iPad' },
-            { id: 'android', name: 'Android',        icon: Smartphone, desc: t.android_desc || 'Инструкция для смартфонов'  },
+            { id: 'android', name: 'Android',        icon: Smartphone, desc: t.android_desc || 'Инструкция для смартфона'  },
             { id: 'windows', name: 'Windows / macOS', icon: Laptop,    desc: t.windows_desc || 'Инструкция для ПК'           }
         ];
 
@@ -431,7 +459,7 @@ export default function Profile() {
                                 key={p.id}
                                 onClick={() => {
                                     setActiveInstruction(p.id as any);
-                                    window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light'); }}
+                                    safeHaptic('light'); }}
                                 className="w-full flex items-center justify-between bg-[#12141d] border border-white/10 p-4 rounded-2xl active:bg-white/5 transition-all outline-none group"
                             >
                                 <div className="flex items-center gap-4 text-left">
@@ -475,9 +503,8 @@ export default function Profile() {
     }
 
     return (
-        <div className="flex flex-col overflow-y-auto custom-scrollbar pb-28 pt-2 px-1 animate-in fade-in duration-500 text-left">
+        <div className="flex flex-col overflow-y-auto custom-scrollbar pb-28 pt-5 px-1 animate-in fade-in duration-500 text-left">
 
-            {/* ШАПКА */}
             <div className="bg-[#12141d] border border-white/10 rounded-[2rem] p-5 mb-3 shadow-xl relative overflow-hidden shrink-0">
                 <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-emerald-500/50 to-transparent" />
                 <div className="flex items-center justify-between mb-5">
@@ -510,7 +537,6 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* БАЛАНС И СТАТУС */}
             <div className="grid grid-cols-2 gap-2 mb-3 shrink-0">
                 <div className="bg-[#12141d] border border-white/10 rounded-2xl p-4 shadow-lg text-white">
                     <p className="text-white/40 text-[9px] font-black uppercase tracking-widest mb-1">{t.balance_label}</p>
@@ -531,7 +557,7 @@ export default function Profile() {
                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-1 shadow-xl mb-3 shrink-0 animate-in zoom-in duration-300">
                     <button
                         onClick={() => {
-                            window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+                            safeHaptic('medium');
                             setActiveTab('manage_subscription');
                         }}
                         className="w-full flex justify-between items-center p-4 active:bg-emerald-500/5 transition-all text-white outline-none"
@@ -552,7 +578,6 @@ export default function Profile() {
                 </div>
             )}
 
-            {/* ПАРТНЕРКА */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-1 shadow-xl mb-3 shrink-0">
                 <button onClick={() => setSubPage('referral')} className="w-full flex justify-between items-center p-4 active:bg-white/5 transition-all text-white outline-none">
                     <div className="flex items-center gap-3">
@@ -568,7 +593,6 @@ export default function Profile() {
                 </button>
             </div>
 
-            {/* МЕНЮ */}
             <div className="bg-[#12141d] border border-white/10 rounded-2xl p-1 shadow-xl mb-3 shrink-0">
                 {[
                     { label: t.news,         icon: Newspaper, action: () => handleLink('https://t.me/+yuKUzLhYdJVjOWRi') },
@@ -687,7 +711,6 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* МОДАЛ ДОБАВЛЕНИЯ УСТРОЙСТВА */}
             {showDeviceModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 animate-in fade-in duration-300">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowDeviceModal(false)} />
@@ -700,7 +723,6 @@ export default function Profile() {
                             </button>
                         </div>
 
-                        {/* Счётчик лимита */}
                         <div className="mb-5 p-3 bg-white/5 rounded-xl flex items-center justify-between">
                             <span className="text-[10px] text-white/40 font-black uppercase tracking-widest">Осталось слотов</span>
                             <span className={`text-[13px] font-black ${(deviceLimit?.remainingSlots ?? 1) <= 1 ? 'text-amber-400' : 'text-emerald-400'}`}>

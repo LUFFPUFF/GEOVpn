@@ -87,6 +87,12 @@ public class ServerDto {
     @JsonProperty("api_token")
     private String apiToken;
 
+    @JsonProperty("tcp_inbound_id")
+    private Integer tcpInboundId;
+
+    @JsonProperty("ws_inbound_id")
+    private Integer wsInboundId;
+
     public double getLoadPercentage() {
         if (maxConnections == null || maxConnections == 0) return 0.0;
         return (double) currentConnections / maxConnections * 100.0;

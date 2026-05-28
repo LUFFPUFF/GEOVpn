@@ -179,4 +179,14 @@ public class UserController {
             @PathVariable Long telegramId) {
         return ResponseEntity.ok(ApiResponse.success(userService.getTrafficStats(telegramId)));
     }
+
+    @PostMapping("/internal/{telegramId}/ban")
+    public ApiResponse<Void> updateBanStatus(
+            @PathVariable Long telegramId,
+            @RequestParam boolean isBanned,
+            @RequestParam(required = false) String reason) {
+
+        userService.updateBanStatus(telegramId, isBanned, reason);
+        return ApiResponse.success(null);
+    }
 }

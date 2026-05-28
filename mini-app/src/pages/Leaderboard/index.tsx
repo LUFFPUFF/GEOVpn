@@ -28,7 +28,7 @@ export default function Leaderboard() {
     };
 
     return (
-        <div className="flex flex-col h-[85vh] relative overflow-y-auto custom-scrollbar pb-32 pt-2 px-3">
+        <div className="flex flex-col relative pb-32 pt-5 px-3 w-full animate-in fade-in duration-500">
 
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[300px] bg-emerald-500/5 blur-[120px] pointer-events-none" />
 
@@ -199,7 +199,7 @@ export default function Leaderboard() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
-                className="mt-8 p-6 bg-gradient-to-r from-emerald-500/20 to-blue-500/10 border border-emerald-500/20 rounded-[2.5rem] relative overflow-hidden text-left"
+                className="mt-8 p-6 bg-gradient-to-r from-emerald-500/20 to-blue-500/10 border border-emerald-500/20 rounded-[2.5rem] relative overflow-hidden text-left shrink-0"
             >
                 <div className="absolute -right-4 -bottom-4 opacity-10 rotate-12 text-white">
                     <Trophy size={100} />

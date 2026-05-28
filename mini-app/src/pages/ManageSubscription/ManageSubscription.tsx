@@ -59,7 +59,6 @@ export default function ManageSubscription() {
 
     if (isExpired) return null;
 
-    // Идентично Subscriptions.tsx
     const handleAutoConnect = (deviceId: number) => {
         const config = configs.find(c => c.deviceId === deviceId);
         if (!config?.subscriptionUrl) return;
@@ -144,11 +143,6 @@ export default function ManageSubscription() {
         });
     };
 
-    /**
-     * Отвязывает текущую физическую сессию устройства (device_sessions).
-     * Нужно если пользователь случайно удалил подписку в Happ —
-     * после отвязки авто-импорт сработает как при первом подключении.
-     */
     const handleRevokeSession = async (deviceId: number) => {
         const config = configs.find(c => c.deviceId === deviceId);
         if (!config?.subscriptionUrl) return;
@@ -173,7 +167,6 @@ export default function ManageSubscription() {
         );
     };
 
-    //todo заглушка автопродления
     const handleToggleAutoRenew = async () => {
         try {
             setIsTogglingRenew(true);
@@ -185,14 +178,13 @@ export default function ManageSubscription() {
     };
 
     return (
-        <div className="flex flex-col gap-4 pt-2 pb-32 px-1 animate-in fade-in duration-500 text-left relative h-full">
+        <div className="flex flex-col gap-4 pt-5 pb-32 px-1 animate-in fade-in duration-500 text-left relative w-full">
 
-            <button onClick={() => setActiveTab('profile')} className="flex items-center gap-2 text-white/40 mb-1 font-black text-[10px] uppercase tracking-[0.2em] px-2 outline-none hover:text-white transition-colors">
+            <button onClick={() => setActiveTab('profile')} className="flex items-center gap-2 text-white/40 mb-1 mt-1 font-black text-[10px] uppercase tracking-[0.2em] px-2 outline-none hover:text-white transition-colors">
                 <ArrowLeft size={14} /> Назад
             </button>
 
-            {/* ПРЕМИАЛЬНАЯ КАРТОЧКА ТАРИФА */}
-            <div className="relative rounded-[2.5rem] p-7 shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden bg-gradient-to-br from-[#1a1c29] to-[#0d0e15] border border-white/[0.08]">
+            <div className="relative rounded-[2.5rem] p-7 shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden bg-gradient-to-br from-[#1a1c29] to-[#0d0e15] border border-white/[0.08] shrink-0">
                 <div className="absolute -top-10 -right-10 w-48 h-48 bg-emerald-500/20 blur-[70px] rounded-full pointer-events-none" />
                 <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-blue-500/10 blur-[60px] rounded-full pointer-events-none" />
 
@@ -240,8 +232,7 @@ export default function ManageSubscription() {
                 </div>
             </div>
 
-            {/* СИСТЕМНЫЕ НАСТРОЙКИ */}
-            <div className="bg-[#12141d]/80 border border-white/5 rounded-[2rem] p-5 flex items-center justify-between shadow-lg mx-1">
+            <div className="bg-[#12141d]/80 border border-white/5 rounded-[2rem] p-5 flex items-center justify-between shadow-lg mx-1 shrink-0">
                 <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500">
                         {isTogglingRenew ? <Loader2 size={18} className="animate-spin" /> : <RefreshCcw size={18} />}
@@ -256,7 +247,6 @@ export default function ManageSubscription() {
                 </div>
             </div>
 
-            {/* МЕНЕДЖЕР ПОДКЛЮЧЕНИЙ */}
             <div className="flex flex-col gap-3 mt-2">
                 <div className="flex items-center justify-between px-2">
                     <h3 className="text-[14px] font-black text-white/40 uppercase tracking-[0.2em] italic flex items-center gap-2">
@@ -274,7 +264,6 @@ export default function ManageSubscription() {
                                 key={dev.id}
                                 className={`rounded-[2rem] border transition-all duration-300 ${isExpanded ? 'bg-gradient-to-b from-white/[0.08] to-transparent border-white/20 shadow-2xl backdrop-blur-md' : 'bg-[#12141d]/80 border-white/5 shadow-lg'}`}
                             >
-                                {/* Шапка устройства */}
                                 <button
                                     onClick={() => setExpandedDevId(isExpanded ? null : dev.id)}
                                     className="w-full flex items-center p-5 gap-4 outline-none"
@@ -308,7 +297,6 @@ export default function ManageSubscription() {
                                             <div className="px-5 pb-5 flex flex-col gap-3">
                                                 <div className="w-full h-px bg-white/5 mb-2" />
 
-                                                {/* АВТО-ИМПОРТ + КОПИРОВАТЬ — идентично Subscriptions.tsx */}
                                                 <div className="p-4 bg-black/30 border border-white/5 rounded-[1.5rem] flex flex-col gap-2">
                                                     <button
                                                         onClick={() => handleAutoConnect(dev.id)}
@@ -328,7 +316,6 @@ export default function ManageSubscription() {
                                                     )}
                                                 </div>
 
-                                                {/* УПРАВЛЕНИЕ КЛЮЧОМ */}
                                                 <div className="flex gap-2 w-full mt-1">
                                                     <button
                                                         onClick={() => handleRegenerate(dev.id)}
@@ -376,7 +363,7 @@ export default function ManageSubscription() {
                     })}
 
                     {!hasFreeSlots ? (
-                        <button onClick={handleBuyExtraSlot} disabled={isBuyingSlot} className="w-full p-6 bg-gradient-to-b from-[#12141d] to-[#0a0a0f] border border-emerald-500/20 rounded-[2rem] flex flex-col items-center gap-3 active:scale-[0.98] transition-all group mt-2 shadow-[0_10px_30px_rgba(16,185,129,0.05)]">
+                        <button onClick={handleBuyExtraSlot} disabled={isBuyingSlot} className="w-full p-6 bg-gradient-to-b from-[#12141d] to-[#0a0a0f] border border-emerald-500/20 rounded-[2rem] flex flex-col items-center gap-3 active:scale-[0.98] transition-all group mt-2 shadow-[0_10px_30px_rgba(16,185,129,0.05)] shrink-0">
                             {isBuyingSlot ? <Loader2 size={24} className="animate-spin text-emerald-500" /> : (
                                 <>
                                     <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.15)] group-active:rotate-90 transition-transform duration-300">
@@ -390,7 +377,7 @@ export default function ManageSubscription() {
                             )}
                         </button>
                     ) : (
-                        <button onClick={() => setActiveTab('profile')} className="w-full p-6 bg-white/5 border border-white/10 rounded-[2rem] flex flex-col items-center gap-3 active:scale-[0.98] transition-all text-white/50 hover:text-white hover:bg-white/10 mt-2 shadow-xl">
+                        <button onClick={() => setActiveTab('profile')} className="w-full p-6 bg-white/5 border border-white/10 rounded-[2rem] flex flex-col items-center gap-3 active:scale-[0.98] transition-all text-white/50 hover:text-white hover:bg-white/10 mt-2 shadow-xl shrink-0">
                             <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
                                 <Plus size={24} />
                             </div>

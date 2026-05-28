@@ -478,6 +478,25 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    @CacheEvict(value = "users", key = "#telegramId")
+    public UserResponse updateBanStatus(Long telegramId, boolean isBanned, String reason) {
+        log.info("Updating ban status in DB for user {}: isBanned={}, reason={}", telegramId, isBanned, reason);
+
+        User user = userRepository.findByTelegramId(telegramId)
+                .orElseThrow(() -> new UserNotFoundException(telegramId));
+
+        user.setBanned(isBanned);
+
+        user.setBanReason(isBanned ? reason : null);
+
+        User savedUser = userRepository.save(user);
+        log.info("Ban status successfully updated in DB for user {}", telegramId);
+
+        return userMapper.toResponse(savedUser);
+    }
+
+    @Override
     @Transactional(isolation = Isolation.REPEATABLE_READ)
     public UserResponse purchaseExtraSlot(Long telegramId) {
         log.info("User {} purchasing extra device slot", telegramId);

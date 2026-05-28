@@ -58,4 +58,6 @@ public interface UserService {
     UserResponse purchaseExtraSlot(Long telegramId);
 
     boolean isUserMemberOfChannel(Long telegramId);
+
+    UserResponse updateBanStatus(Long telegramId, boolean isBanned, String reason);
 }

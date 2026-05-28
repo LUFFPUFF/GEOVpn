@@ -4,5 +4,6 @@ public enum ConfigStatus {
     ACTIVE,      // Активна и используется
     REVOKED,     // Отозвана пользователем
     EXPIRED,     // Истекла (если есть TTL)
-    SUSPENDED    // Приостановлена
+    SUSPENDED,   // Приостановлена
+    BANNED       //Забаненный пользователь
 }

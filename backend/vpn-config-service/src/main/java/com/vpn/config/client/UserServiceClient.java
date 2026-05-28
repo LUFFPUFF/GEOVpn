@@ -36,4 +36,11 @@ public interface UserServiceClient {
             @PathVariable("deviceId") Long deviceId,
             @RequestHeader("X-User-Id") Long userId
     );
+
+    @PostMapping("/api/v1/users/internal/{telegramId}/ban")
+    ApiResponse<Void> updateBanStatus(
+            @PathVariable("telegramId") Long telegramId,
+            @RequestParam("isBanned") boolean isBanned,
+            @RequestParam(value = "reason", required = false) String reason
+    );
 }

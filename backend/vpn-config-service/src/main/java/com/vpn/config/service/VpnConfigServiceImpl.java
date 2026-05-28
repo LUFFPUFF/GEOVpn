@@ -530,12 +530,45 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
     private boolean syncWithXui(UUID vlessUuid, List<ServerDto> servers, String email) {
         boolean atLeastOneSuccess = false;
+
         for (ServerDto server : servers) {
             try {
-                String flow = server.isRelay() ? "xtls-rprx-vision" : "";
-                xuiClient.addClient(server, vlessUuid.toString(), email, 0, flow);
-                log.info("XUI sync success: server={}, label='{}'", server.getName(), email);
-                atLeastOneSuccess = true;
+                List<Integer> targetInbounds = new ArrayList<>();
+
+                if (server.getTcpInboundId() != null) {
+                    targetInbounds.add(server.getTcpInboundId());
+                }
+                if (server.getWsInboundId() != null) {
+                    targetInbounds.add(server.getWsInboundId());
+                }
+
+                if (!targetInbounds.isEmpty()) {
+                    String flow = "xtls-rprx-vision";
+                    xuiClient.addClientWithToken(
+                            server,
+                            targetInbounds,
+                            vlessUuid.toString(),
+                            email,
+                            flow,
+                            server.getApiToken()
+                    );
+                    log.info("XUI Multi-Inbound sync success: server={}, inboundIds={}", server.getName(), targetInbounds);
+                    atLeastOneSuccess = true;
+                }
+                else if (server.getPanelInboundId() != null) {
+                    String flow = "xtls-rprx-vision";
+                    xuiClient.addClientWithToken(
+                            server,
+                            Collections.singletonList(server.getPanelInboundId()),
+                            vlessUuid.toString(),
+                            email,
+                            flow,
+                            server.getApiToken()
+                    );
+                    log.info("XUI Legacy/Relay sync success: server={}, inboundId={}", server.getName(), server.getPanelInboundId());
+                    atLeastOneSuccess = true;
+                }
+
             } catch (Exception e) {
                 log.error("XUI sync FAIL: server={}, error={}", server.getName(), e.getMessage());
             }

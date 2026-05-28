@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 
 @Slf4j
@@ -36,13 +37,18 @@ public class AdminController {
 
     @PostMapping("/sync")
     public ResponseEntity<String> forceSync() {
-        log.info("Manual sync triggered via REST API");
+        log.info("Manual sync triggered via REST API (Asynchronous)");
 
-        long startTime = System.currentTimeMillis();
-        syncSchedulerService.synchronizeAllActiveConfigs();
-        long duration = System.currentTimeMillis() - startTime;
+        CompletableFuture.runAsync(() -> {
+            try {
+                syncSchedulerService.synchronizeAllActiveConfigs();
+            } catch (Exception e) {
+                log.error("Background sync failed", e);
+            }
+        });
 
-        return ResponseEntity.ok("Synchronization completed successfully in " + duration + " ms");
+        return ResponseEntity.accepted()
+                .body("Synchronization started in background. Please monitor the server logs for progress.");
     }
 
     @PostMapping("/sync/unban/{userId}")

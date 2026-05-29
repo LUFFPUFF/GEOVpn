@@ -34,6 +34,7 @@ import java.util.List;
  *   window.Telegram.WebApp.platform ("ios" | "android" | "tdesktop" | "macos" | "web")
  *   Это самый надёжный способ — рекомендуется для продакшн.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class TelegramStartHandler {
@@ -42,8 +43,29 @@ public class TelegramStartHandler {
     private String miniAppUrl;
 
     public SendMessage handle(Update update) {
-        Long chatId = update.getMessage().getChatId();
-        String text = getText(update);
+        Long chatId;
+        String firstName;
+
+        if (update.hasMessage()) {
+            chatId = update.getMessage().getChatId();
+            firstName = update.getMessage().getFrom().getFirstName();
+        } else if (update.hasCallbackQuery()) {
+            chatId = update.getCallbackQuery().getMessage().getChatId();
+            firstName = update.getCallbackQuery().getFrom().getFirstName();
+        } else {
+            log.warn("Получен неподдерживаемый тип Update в TelegramStartHandler");
+            return null;
+        }
+
+        String text = "🛡 <b>GeoVPN — Ваш быстрый и свободный интернет</b>\n\n" +
+                "Привет, <b>" + firstName + "</b>! 👋\n\n" +
+                "Мы сделали всё, чтобы интернет работал стабильно и безопасно.\n\n" +
+                "✨ <b>Что вы получаете:</b>\n" +
+                "• YouTube, Instagram и TikTok без зависаний\n" +
+                "• Простую настройку всего в 2 клика\n" +
+                "• Стабильную работу (не садит батарею)\n" +
+                "• <b>Первый месяц — абсолютно бесплатно!</b> 🎁\n\n" +
+                "<i>\uD83D\uDC47 Воспользуйтесь меню ниже, чтобы начать:</i>";
 
         InlineKeyboardButton appBtn = new InlineKeyboardButton("🚀 Открыть GeoVPN");
         appBtn.setWebApp(new WebAppInfo(miniAppUrl));
@@ -58,20 +80,6 @@ public class TelegramStartHandler {
                 .parseMode("HTML")
                 .replyMarkup(keyboard)
                 .build();
-    }
-
-    private static @NotNull String getText(Update update) {
-        String firstName = update.getMessage().getFrom().getFirstName();
-
-        return "🛡 <b>GeoVPN — Ваш быстрый и свободный интернет</b>\n\n" +
-                "Привет, <b>" + firstName + "</b>! 👋\n\n" +
-                "Мы сделали всё, чтобы интернет работал стабильно и безопасно.\n\n" +
-                "✨ <b>Что вы получаете:</b>\n" +
-                "• YouTube, Instagram и TikTok без зависаний\n" +
-                "• Простую настройку всего в 2 клика\n" +
-                "• Стабильную работу (не садит батарею)\n" +
-                "• <b>Первый месяц — абсолютно бесплатно!</b> 🎁\n\n" +
-                "<i>\uD83D\uDC47 Воспользуйтесь меню ниже, чтобы начать:</i>";
     }
 }
 

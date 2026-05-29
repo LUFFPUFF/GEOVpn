@@ -82,47 +82,56 @@ public class UserServiceImpl implements UserService {
 
         ValidationUtils.validateTelegramId(request.getTelegramId());
 
-        if (userRepository.existsByTelegramId(request.getTelegramId())) {
-            throw new DuplicateUserException(request.getTelegramId());
-        }
-
-        User user = userMapper.toEntity(request);
-        user.setBalance(REGISTRATION_BONUS);
-        user.setReferralCode(generateUniqueReferralCode());
-        user.setSubscriptionType(SubscriptionType.PAYG);
-
-        if (request.getReferralCode() != null && !request.getReferralCode().trim().isEmpty()) {
-            String refCode = request.getReferralCode().toUpperCase().trim();
-
-            userRepository.findByReferralCode(refCode).ifPresent(referrer -> {
-                if (!referrer.getTelegramId().equals(user.getTelegramId())) {
-                    user.setReferredBy(referrer.getTelegramId());
-                    user.setPromoApplied(true);
-
-                    referrer.addBalance(5000);
-                    userRepository.save(referrer);
-                    log.info("Referral: Added 5000 kopecks to referrer {}", referrer.getTelegramId());
-
-                    user.setSubscriptionType(SubscriptionType.BASIC);
-                    user.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(10));
-                }
-            });
-
-            try {
-                referralService.processReferral(user, request.getReferralCode());
-            } catch (Exception e) {
-                log.error("Error processing referral in referralService: {}", e.getMessage());
+        try {
+            if (userRepository.existsByTelegramId(request.getTelegramId())) {
+                log.info("User already exists, skipping registration: telegramId={}", request.getTelegramId());
+                return userMapper.toResponse(userRepository.findByTelegramId(request.getTelegramId()).get());
             }
+
+            User user = userMapper.toEntity(request);
+            user.setBalance(REGISTRATION_BONUS);
+            user.setReferralCode(generateUniqueReferralCode());
+            user.setSubscriptionType(SubscriptionType.PAYG);
+
+            if (request.getReferralCode() != null && !request.getReferralCode().trim().isEmpty()) {
+                String refCode = request.getReferralCode().toUpperCase().trim();
+
+                userRepository.findByReferralCode(refCode).ifPresent(referrer -> {
+                    if (!referrer.getTelegramId().equals(user.getTelegramId())) {
+                        user.setReferredBy(referrer.getTelegramId());
+                        user.setPromoApplied(true);
+
+                        referrer.addBalance(5000);
+                        userRepository.save(referrer);
+                        log.info("Referral: Added 5000 kopecks to referrer {}", referrer.getTelegramId());
+
+                        user.setSubscriptionType(SubscriptionType.BASIC);
+                        user.setSubscriptionExpiresAt(LocalDateTime.now().plusDays(10));
+                    }
+                });
+
+                try {
+                    referralService.processReferral(user, request.getReferralCode());
+                } catch (Exception e) {
+                    log.error("Error processing referral in referralService: {}", e.getMessage());
+                }
+            }
+
+            User savedUser = userRepository.saveAndFlush(user);
+            log.info("User registered: telegramId={}", savedUser.getTelegramId());
+
+            if (savedUser.getSubscriptionType() != SubscriptionType.PAYG) {
+                syncVpnLimits(savedUser.getTelegramId(), savedUser.getSubscriptionType().name(), savedUser);
+            }
+
+            return userMapper.toResponse(savedUser);
+
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.warn("Параллельная коллизия регистрации для пользователя {}. Возвращаем существующего пользователя.", request.getTelegramId());
+            User existingUser = userRepository.findByTelegramId(request.getTelegramId())
+                    .orElseThrow(() -> new RuntimeException("Ошибка конкурентной регистрации: пользователь не найден после конфликта", e));
+            return userMapper.toResponse(existingUser);
         }
-
-        User savedUser = userRepository.save(user);
-        log.info("User registered: telegramId={}", savedUser.getTelegramId());
-
-        if (savedUser.getSubscriptionType() != SubscriptionType.PAYG) {
-            syncVpnLimits(savedUser.getTelegramId(), savedUser.getSubscriptionType().name(), savedUser);
-        }
-
-        return userMapper.toResponse(savedUser);
     }
 
     @Override

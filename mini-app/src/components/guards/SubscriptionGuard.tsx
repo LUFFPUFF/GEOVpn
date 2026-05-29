@@ -1,7 +1,7 @@
 import React from 'react';
 import { useUserStore } from '../../store/userStore';
 import { motion } from 'framer-motion';
-import { Bell, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Bell, ArrowRight, CheckCircle2, RefreshCcw } from 'lucide-react';
 
 export default function SubscriptionGuard({ children }: { children: React.ReactNode }) {
     const { isMember, checkMembership, loading } = useUserStore();

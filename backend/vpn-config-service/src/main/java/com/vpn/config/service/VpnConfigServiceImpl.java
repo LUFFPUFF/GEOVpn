@@ -25,6 +25,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,6 +77,11 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
     @Override
     @Transactional
+    @Retryable(
+            retryFor = DataIntegrityViolationException.class,
+            maxAttempts = 2,
+            backoff = @Backoff(delay = 100)
+    )
     public VpnConfigResponse createConfig(ConfigCreateRequest request) {
         log.info("Creating config: userId={}, deviceId={}", request.getUserId(), request.getDeviceId());
 

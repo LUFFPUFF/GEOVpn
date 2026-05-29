@@ -29,33 +29,39 @@ import java.util.concurrent.Executors;
 public class VpnSyncSchedulerService {
 
     private final VpnConfigurationRepository configRepository;
-    private final ServerSelectionService serverSelectionService;
-    private final XUIServerApiClient xuiClient;
-    private final VpnLinksBuilder vpnLinksBuilder;
-    private final VpnBanLogRepository banLogRepository;
-    private final RedisCacheService redisCacheService;
-    private final UserServiceClient userServiceClient;
+    private final ServerSelectionService     serverSelectionService;
+    private final XUIServerApiClient         xuiClient;
+    private final VpnLinksBuilder            vpnLinksBuilder;
+    private final VpnBanLogRepository        banLogRepository;
+    private final RedisCacheService          redisCacheService;
+    private final UserServiceClient          userServiceClient;
 
     private final ExecutorService syncExecutor = Executors.newFixedThreadPool(10);
 
     /**
-     * ПАРАЛЛЕЛЬНЫЙ ЗАПУСК СИНХРОНИЗАЦИИ (Без зависания транзакций БД).
-     * Запускается раз в час.
+     * ПАРАЛЛЕЛЬНАЯ СИНХРОНИЗАЦИЯ (раз в час).
+     *
+     * ИСПРАВЛЕНИЕ: убрана аннотация @Transactional с этого метода.
+     *
+     * Проблема была в том, что @Transactional + CompletableFuture.allOf().join()
+     * удерживали одну транзакцию (и одно соединение из пула) на всё время
+     * параллельного выполнения — иногда десятки минут. Это приводило к истощению
+     * пула соединений под нагрузкой. Каждый syncSingleConfig имеет собственную
+     * @Transactional и управляет транзакцией независимо.
      */
     @Scheduled(cron = "0 0 * * * *")
-    @Transactional
     public void synchronizeAllActiveConfigs() {
         log.info("STARTING HIGH-PERFORMANCE GLOBAL VPN SYNCHRONIZATION JOB...");
 
-        List<ServerDto> activeServers = serverSelectionService.getAllActiveServers();
+        List<ServerDto>       activeServers = serverSelectionService.getAllActiveServers();
         List<VpnConfiguration> activeConfigs = configRepository.findByStatus(ConfigStatus.ACTIVE);
 
-        log.info("Found {} active servers and {} active configs. Processing in parallel...", activeServers.size(), activeConfigs.size());
+        log.info("Found {} active servers and {} active configs. Processing in parallel...",
+                activeServers.size(), activeConfigs.size());
 
         List<CompletableFuture<Void>> futures = activeConfigs.stream()
-                .map(config -> CompletableFuture.runAsync(() -> {
-                    syncSingleConfig(config, activeServers);
-                }, syncExecutor))
+                .map(config -> CompletableFuture.runAsync(
+                        () -> syncSingleConfig(config, activeServers), syncExecutor))
                 .toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -64,7 +70,9 @@ public class VpnSyncSchedulerService {
     }
 
     /**
-     * Микро-транзакция для обработки ОДНОГО пользователя (Изолирует БД от сетевых задержек)
+     * Микро-транзакция для одного пользователя.
+     * Транзакция открывается и закрывается строго в пределах этого метода,
+     * не блокируя соединение на время сетевых вызовов к XUI.
      */
     @Transactional
     public void syncSingleConfig(VpnConfiguration config, List<ServerDto> activeServers) {
@@ -72,20 +80,14 @@ public class VpnSyncSchedulerService {
             vpnLinksBuilder.buildAndStore(config);
             configRepository.saveAndFlush(config);
 
-            String email = "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
-            String uuid = config.getVlessUuid().toString();
+            String email = buildEmail(config);
+            String uuid  = config.getVlessUuid().toString();
 
             for (ServerDto server : activeServers) {
                 List<Integer> targetInbounds = getTargetInbounds(server);
-
                 if (!targetInbounds.isEmpty()) {
                     xuiClient.checkAndRestoreOrAttachClient(
-                            server,
-                            targetInbounds,
-                            uuid,
-                            email,
-                            "xtls-rprx-vision"
-                    );
+                            server, targetInbounds, uuid, email, "xtls-rprx-vision");
                 }
             }
         } catch (Exception e) {
@@ -128,13 +130,12 @@ public class VpnSyncSchedulerService {
                     .trafficConsumedMb(0L)
                     .status("ACTIVE")
                     .build();
-
             banLogRepository.save(banLog);
 
             redisCacheService.delete("vpn:meta:" + config.getVlessUuid());
         }
 
-        log.info("User {} has been successfully banned manually, disconnected, and logged.", userId);
+        log.info("User {} has been successfully banned manually.", userId);
 
         try {
             userServiceClient.updateBanStatus(userId, true, reason);
@@ -153,11 +154,11 @@ public class VpnSyncSchedulerService {
             return;
         }
 
-        List<VpnBanLog> activeBans = banLogRepository.findByUserIdAndStatus(userId, "ACTIVE");
-        activeBans.forEach(ban -> {
-            ban.setStatus("RESOLVED");
-            banLogRepository.save(ban);
-        });
+        banLogRepository.findByUserIdAndStatus(userId, "ACTIVE")
+                .forEach(ban -> {
+                    ban.setStatus("RESOLVED");
+                    banLogRepository.save(ban);
+                });
 
         List<ServerDto> activeServers = serverSelectionService.getAllActiveServers();
 
@@ -169,19 +170,14 @@ public class VpnSyncSchedulerService {
             vpnLinksBuilder.buildAndStore(config);
             configRepository.save(config);
 
-            String email = "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
-            String uuid = config.getVlessUuid().toString();
+            String email = buildEmail(config);
+            String uuid  = config.getVlessUuid().toString();
 
             for (ServerDto server : activeServers) {
                 List<Integer> targetInbounds = getTargetInbounds(server);
                 if (!targetInbounds.isEmpty()) {
                     xuiClient.checkAndRestoreOrAttachClient(
-                            server,
-                            targetInbounds,
-                            uuid,
-                            email,
-                            "xtls-rprx-vision"
-                    );
+                            server, targetInbounds, uuid, email, "xtls-rprx-vision");
                 }
             }
         }
@@ -198,11 +194,12 @@ public class VpnSyncSchedulerService {
     private List<Integer> getTargetInbounds(ServerDto server) {
         List<Integer> inbounds = new ArrayList<>();
         if (server.getTcpInboundId() != null) inbounds.add(server.getTcpInboundId());
-        if (server.getWsInboundId() != null) inbounds.add(server.getWsInboundId());
-
-        if (inbounds.isEmpty() && server.getPanelInboundId() != null) {
-            inbounds.add(server.getPanelInboundId());
-        }
+        if (server.getWsInboundId()  != null) inbounds.add(server.getWsInboundId());
+        if (inbounds.isEmpty() && server.getPanelInboundId() != null) inbounds.add(server.getPanelInboundId());
         return inbounds;
+    }
+
+    private static String buildEmail(VpnConfiguration config) {
+        return "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
     }
 }

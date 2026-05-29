@@ -20,8 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -39,16 +37,11 @@ public class VpnAbuseMonitorJob {
     @Value("#{'${vpn.abuse.whitelist:}'.split(',')}")
     private List<Long> tgWhitelist;
 
-    private static final long MAX_TRAFFIC_DELTA_BYTES = 3L * 1024 * 1024 * 1024;
-    private static final long WEEKLY_MIN_SIGNIFICANT_TRAFFIC_BYTES = 100L * 1024 * 1024 * 1024;
-    private static final double WEEKLY_ABUSE_MULTIPLIER = 5.0;
+    private static final long   MAX_TRAFFIC_DELTA_BYTES              = 3L  * 1024 * 1024 * 1024;
+    private static final long   WEEKLY_MIN_SIGNIFICANT_TRAFFIC_BYTES = 100L * 1024 * 1024 * 1024;
+    private static final double WEEKLY_ABUSE_MULTIPLIER              = 5.0;
+    private static final int    MAX_DOMAINS_PER_BAN_LOG              = 50;
 
-    private static final Pattern DOMAIN_PATTERN = Pattern.compile("(?i)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]");
-
-    /**
-     * Проверка злоупотреблений раз в 10 минут.
-     * Количество HTTP-запросов снижено с (N пользователей * M серверов) до (M серверов).
-     */
     @Scheduled(cron = "0 */10 * * * *")
     public void monitorAbuse() {
         log.info("STARTING OPTIMIZED 10-MINUTES VPN ABUSE MONITORING JOB...");
@@ -57,28 +50,22 @@ public class VpnAbuseMonitorJob {
                 .filter(ServerDto::isRelay)
                 .toList();
 
-        Map<String, Map<String, Map<String, Long>>> bulkServerTraffic = new HashMap<>();
-        for (ServerDto server : relayServers) {
-            Map<String, Map<String, Long>> serverTraffic = xuiClient.getAllClientsTraffic(server);
-            if (!serverTraffic.isEmpty()) {
-                bulkServerTraffic.put(server.getName(), serverTraffic);
-            }
-        }
+        Map<String, Map<String, Map<String, Long>>> bulkServerTraffic = fetchBulkTraffic(relayServers);
 
         List<VpnConfiguration> activeConfigs = configRepository.findByStatus(ConfigStatus.ACTIVE);
 
         for (VpnConfiguration config : activeConfigs) {
-            if (tgWhitelist != null && tgWhitelist.contains(config.getUserId())) continue;
+            if (isWhitelisted(config.getUserId())) continue;
 
-            String email = "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
+            String email    = buildEmail(config);
+            String redisKey = "vpn:traffic-cache:" + config.getVlessUuid();
 
             for (ServerDto server : relayServers) {
                 Map<String, Map<String, Long>> serverData = bulkServerTraffic.get(server.getName());
                 if (serverData == null || !serverData.containsKey(email)) continue;
 
-                Map<String, Long> traffic = serverData.get(email);
-                long currentTotal = traffic.get("up") + traffic.get("down");
-                String redisKey = "vpn:traffic-cache:" + config.getVlessUuid();
+                Map<String, Long> traffic     = serverData.get(email);
+                long              currentTotal = traffic.get("up") + traffic.get("down");
 
                 Long previousTotal = redisCacheService.get(redisKey, Long.class);
                 redisCacheService.set(redisKey, currentTotal, Duration.ofHours(24));
@@ -86,27 +73,24 @@ public class VpnAbuseMonitorJob {
                 if (previousTotal != null) {
                     long delta = currentTotal - previousTotal;
                     if (delta > MAX_TRAFFIC_DELTA_BYTES) {
-                        banUser(config, server, email, "TRAFFIC_SPIKE_ABUSE", currentTotal);
+                        log.warn("Traffic spike detected for {} on {}: delta={} MB", email, server.getName(), delta / (1024 * 1024));
+                        Set<String> domains = fetchDomainsLazy(server, email, 500);
+                        banUser(config, domains, "TRAFFIC_SPIKE_ABUSE", currentTotal);
                         break;
                     }
                 }
-
-                String logs = xuiClient.getXrayLogs(server, 150, email);
-                if (logs != null && !logs.isBlank()) {
-                    Set<String> visitedDomains = extractDomains(logs);
-                    if (containsTorrentDomains(visitedDomains)) {
-                        banUser(config, server, email, "TORRENT_PROTOCOL_DETECTED", currentTotal);
-                        break;
-                    }
+                Set<String> domains = fetchDomainsLazy(server, email, 150);
+                if (containsTorrentDomains(domains)) {
+                    log.warn("Torrent detected for {} on {}", email, server.getName());
+                    banUser(config, domains, "TORRENT_PROTOCOL_DETECTED", currentTotal);
+                    break;
                 }
             }
         }
+
         log.info("10-MINUTES VPN ABUSE MONITORING JOB FINISHED.");
     }
 
-    /**
-     * ОПТИМИЗИРОВАНО: Еженедельная чистка относительного перерасхода.
-     */
     @Scheduled(cron = "0 0 3 * * SUN")
     public void runWeeklyAbuseCheck() {
         log.info("STARTING OPTIMIZED WEEKLY RELATIVE ABUSE CHECK...");
@@ -115,31 +99,24 @@ public class VpnAbuseMonitorJob {
                 .filter(ServerDto::isRelay)
                 .toList();
 
-        Map<String, Map<String, Map<String, Long>>> bulkServerTraffic = new HashMap<>();
-        for (ServerDto server : relayServers) {
-            Map<String, Map<String, Long>> serverTraffic = xuiClient.getAllClientsTraffic(server);
-            if (!serverTraffic.isEmpty()) {
-                bulkServerTraffic.put(server.getName(), serverTraffic);
-            }
-        }
-
+        Map<String, Map<String, Map<String, Long>>> bulkServerTraffic = fetchBulkTraffic(relayServers);
         List<VpnConfiguration> activeConfigs = configRepository.findByStatus(ConfigStatus.ACTIVE);
-        Map<VpnConfiguration, Long> userConsumptions = new HashMap<>();
 
+        Map<VpnConfiguration, Long> userConsumptions = new HashMap<>();
         long totalConsumption = 0;
-        int activeUsersCount = 0;
+        int  activeUsersCount = 0;
 
         for (VpnConfiguration config : activeConfigs) {
-            if (tgWhitelist != null && tgWhitelist.contains(config.getUserId())) continue;
+            if (isWhitelisted(config.getUserId())) continue;
 
-            String email = "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
-            long userTotalOnRelays = 0;
+            String email           = buildEmail(config);
+            long   userTotalOnRelays = 0;
 
             for (ServerDto server : relayServers) {
                 Map<String, Map<String, Long>> serverData = bulkServerTraffic.get(server.getName());
                 if (serverData != null && serverData.containsKey(email)) {
                     Map<String, Long> stats = serverData.get(email);
-                    userTotalOnRelays += (stats.get("up") + stats.get("down"));
+                    userTotalOnRelays += stats.get("up") + stats.get("down");
                 }
             }
 
@@ -150,42 +127,51 @@ public class VpnAbuseMonitorJob {
             }
         }
 
-        if (activeUsersCount == 0) return;
-
-        long averageConsumption = totalConsumption / activeUsersCount;
-        long banThreshold = (long) (averageConsumption * WEEKLY_ABUSE_MULTIPLIER);
-        if (banThreshold < WEEKLY_MIN_SIGNIFICANT_TRAFFIC_BYTES) {
-            banThreshold = WEEKLY_MIN_SIGNIFICANT_TRAFFIC_BYTES;
+        if (activeUsersCount == 0) {
+            log.info("Weekly check: no active traffic found.");
+            return;
         }
 
-        log.info("Weekly Ban Threshold set to: {} MB", banThreshold / (1024 * 1024));
+        long banThreshold = Math.max(
+                (long) ((double) totalConsumption / activeUsersCount * WEEKLY_ABUSE_MULTIPLIER),
+                WEEKLY_MIN_SIGNIFICANT_TRAFFIC_BYTES
+        );
+        log.info("Weekly ban threshold: {} MB (avg={} MB, multiplier={})",
+                banThreshold / (1024 * 1024),
+                (totalConsumption / activeUsersCount) / (1024 * 1024),
+                WEEKLY_ABUSE_MULTIPLIER);
 
         for (Map.Entry<VpnConfiguration, Long> entry : userConsumptions.entrySet()) {
-            VpnConfiguration config = entry.getKey();
-            long totalUsed = entry.getValue();
-
+            VpnConfiguration config    = entry.getKey();
+            long             totalUsed = entry.getValue();
             if (totalUsed > banThreshold) {
-                String email = "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
-                ServerDto server = relayServers.isEmpty() ? null : relayServers.get(0);
-                banUser(config, server, email, "WEEKLY_RELATIVE_OVERCONSUMPTION", totalUsed);
+                String email  = buildEmail(config);
+                ServerDto server  = relayServers.isEmpty() ? null : relayServers.getFirst();
+                Set<String> domains = server != null ? fetchDomainsLazy(server, email, 500) : Collections.emptySet();
+                banUser(config, domains, "WEEKLY_RELATIVE_OVERCONSUMPTION", totalUsed);
             }
         }
+
+        log.info("WEEKLY RELATIVE ABUSE CHECK FINISHED.");
     }
 
+    /**
+     * Банит пользователя. Домены передаются снаружи — уже собранные
+     * в точке обнаружения нарушения, чтобы избежать дублирующего запроса.
+     */
     @Transactional
-    protected void banUser(VpnConfiguration config, ServerDto server, String email, String reason, long totalBytes) {
+    protected void banUser(VpnConfiguration config, Set<String> domains, String reason, long totalBytes) {
+        String email = buildEmail(config);
         log.warn("!!!! BANNING USER {} FOR {}. Total used: {} MB", email, reason, totalBytes / (1024 * 1024));
 
         config.setStatus(ConfigStatus.BANNED);
         config.setRevokedAt(LocalDateTime.now());
         configRepository.save(config);
 
-        String domainsList = "";
-        if (server != null) {
-            String logs = xuiClient.getXrayLogs(server, 500, email);
-            Set<String> domains = extractDomains(logs);
-            domainsList = domains.stream().limit(50).collect(Collectors.joining(", "));
-        }
+        String domainsList = domains.stream()
+                .limit(MAX_DOMAINS_PER_BAN_LOG)
+                .sorted()
+                .collect(Collectors.joining(", "));
 
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
         for (ServerDto s : allServers) {
@@ -199,12 +185,12 @@ public class VpnAbuseMonitorJob {
                 .deviceId(config.getDeviceId())
                 .bannedAt(LocalDateTime.now())
                 .reason(reason)
-                .visitedDomains(domainsList)
+                .visitedDomains(domainsList.isBlank() ? "NO DOMAINS CAPTURED" : domainsList)
                 .trafficConsumedMb(totalBytes / (1024 * 1024))
                 .status("ACTIVE")
                 .build();
-
         banLogRepository.save(banLog);
+
         redisCacheService.delete("vpn:meta:" + config.getVlessUuid());
 
         try {
@@ -215,71 +201,70 @@ public class VpnAbuseMonitorJob {
     }
 
     public Map<String, Set<String>> getUserDomainsOnDemand(Long userId) {
-        log.info("On-demand domain lookup requested for userId={}", userId);
+        log.info("On-demand domain lookup for userId={}", userId);
         Map<String, Set<String>> resultMap = new HashMap<>();
 
         List<VpnConfiguration> configs = configRepository.findByUserIdAndStatus(userId, ConfigStatus.ACTIVE);
+        if (configs.isEmpty()) configs = configRepository.findByUserIdAndStatus(userId, ConfigStatus.BANNED);
         if (configs.isEmpty()) {
-            configs = configRepository.findByUserIdAndStatus(userId, ConfigStatus.BANNED);
-        }
-
-        if (configs.isEmpty()) {
-            log.warn("No active or banned configurations found for userId={}", userId);
+            log.warn("No active/banned configs for userId={}", userId);
             return resultMap;
         }
 
         List<ServerDto> activeServers = serverSelectionService.getAllActiveServers();
 
         for (VpnConfiguration config : configs) {
-            String email = "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
-
+            String email = buildEmail(config);
             for (ServerDto server : activeServers) {
                 try {
-                    String logs = xuiClient.getXrayLogs(server, 1000, email);
-
-                    if (logs != null && !logs.isBlank()) {
-                        Set<String> domains = extractDomains(logs);
-
-                        if (!domains.isEmpty()) {
-                            String serverKey = server.getName() + " (" + server.getIpAddress() + ")";
-
-                            resultMap.computeIfAbsent(serverKey, k -> new HashSet<>()).addAll(domains);
-                        }
+                    Set<String> domains = fetchDomainsLazy(server, email, 1000);
+                    if (!domains.isEmpty()) {
+                        String key = server.getName() + " (" + server.getIpAddress() + ")";
+                        resultMap.computeIfAbsent(key, k -> new HashSet<>()).addAll(domains);
                     }
                 } catch (Exception e) {
                     log.error("Failed to fetch on-demand logs for {} on {}: {}", email, server.getName(), e.getMessage());
                 }
             }
         }
-
         return resultMap;
     }
 
-    private Set<String> extractDomains(String logs) {
-        Set<String> domains = new HashSet<>();
-        Matcher matcher = DOMAIN_PATTERN.matcher(logs);
-        while (matcher.find()) {
-            String domain = matcher.group().toLowerCase();
-            if (!isWhiteNoiseDomain(domain)) {
-                domains.add(domain);
-            }
+    private Map<String, Map<String, Map<String, Long>>> fetchBulkTraffic(List<ServerDto> servers) {
+        Map<String, Map<String, Map<String, Long>>> result = new HashMap<>();
+        for (ServerDto server : servers) {
+            Map<String, Map<String, Long>> serverTraffic = xuiClient.getAllClientsTraffic(server);
+            if (!serverTraffic.isEmpty()) result.put(server.getName(), serverTraffic);
         }
-        return domains;
+        return result;
     }
 
-    private boolean isWhiteNoiseDomain(String d) {
-        return d.contains("yastatic") || d.contains("cloudfront") || d.contains("cloudflare")
-                || d.contains("geovp") || d.contains("apple.com") || d.contains("microsoft")
-                || d.contains("googleapis") || d.contains("googleusercontent") || d.contains("windowsupdate");
+    /**
+     * Запрашивает логи Xray и парсит домены за один вызов.
+     * Вынесен отдельно, чтобы не дублировать пару (getXrayLogs + extractDomains).
+     */
+    private Set<String> fetchDomainsLazy(ServerDto server, String email, int logLines) {
+        String logs = xuiClient.getXrayLogs(server, logLines, email);
+        if (logs == null || logs.isBlank()) return Collections.emptySet();
+        return xuiClient.extractDomainsFromLogs(logs);
     }
 
     private boolean containsTorrentDomains(Set<String> domains) {
-        List<String> forbiddenKeywords = List.of("torrent", "peer", "tracker", "bitshare", "rutracker", "utorrent");
+        List<String> forbiddenKeywords = List.of("torrent", "tracker", "bitshare", "rutracker", "utorrent", "piratebay", "1337x");
         for (String domain : domains) {
             for (String keyword : forbiddenKeywords) {
                 if (domain.contains(keyword)) return true;
             }
         }
         return false;
+    }
+
+    private boolean isWhitelisted(Long userId) {
+        return tgWhitelist != null && tgWhitelist.contains(userId);
+    }
+
+    /** Стандартный формат email в XUI: tg_{userId}_dev_{deviceId} */
+    private static String buildEmail(VpnConfiguration config) {
+        return "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
     }
 }

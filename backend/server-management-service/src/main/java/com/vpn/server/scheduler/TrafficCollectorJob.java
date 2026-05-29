@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -37,7 +36,7 @@ public class TrafficCollectorJob {
     private final RedisCacheService redisCacheService;
     private final UserServiceClient userClient;
 
-    private final ExecutorService executor = Executors.newFixedThreadPool(10);
+    private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
 
     @Value("${vpn.billing.price-per-gb}")
     private double pricePerGb;
@@ -54,7 +53,7 @@ public class TrafficCollectorJob {
 
         List<CompletableFuture<Void>> futures = activeServers.stream()
                 .map(server -> CompletableFuture.runAsync(
-                        () -> processServer(server), executor))
+                        () -> processServer(server), executorService))
                 .toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -71,8 +70,12 @@ public class TrafficCollectorJob {
                     .collect(Collectors.groupingBy(
                             s -> s.getName().split(">>>")[1]));
 
-            groupedStats.forEach((uuid, metrics) ->
-                    handleUserStats(server, uuid, metrics));
+            List<CompletableFuture<Void>> userFutures = groupedStats.entrySet().stream()
+                    .map(entry -> CompletableFuture.runAsync(
+                            () -> handleUserStats(server, entry.getKey(), entry.getValue()), executorService))
+                    .toList();
+
+            CompletableFuture.allOf(userFutures.toArray(new CompletableFuture[0])).join();
 
         } catch (Exception e) {
             log.error("Critical error processing server {}: {}",
@@ -118,6 +121,7 @@ public class TrafficCollectorJob {
                     .bytesOut(deltaDown)
                     .costKopecks(cost)
                     .build();
+
             trafficRepository.save(usage);
 
             updateConnection(meta, server.getId(), deltaUp, deltaDown);
@@ -147,12 +151,6 @@ public class TrafficCollectorJob {
         }
     }
 
-    /**
-     * Открывает новую сессию или обновляет байты в существующей.
-     * Логика:
-     * - Если открытой сессии нет — создаём новую
-     * - Если есть — прибавляем дельту к bytesSent/bytesReceived
-     */
     private void updateConnection(
             ConfigMetadataDto meta, Integer serverId,
             long deltaUp, long deltaDown) {
@@ -173,9 +171,6 @@ public class TrafficCollectorJob {
         }
     }
 
-    /**
-     * Закрывает открытую сессию при отключении пользователя
-     */
     private void closeConnection(ConfigMetadataDto meta, Integer serverId) {
 
         ConnectionUpdateRequest request = ConnectionUpdateRequest.builder()
@@ -192,5 +187,11 @@ public class TrafficCollectorJob {
             log.error("Failed to close connection for userId={}: {}",
                     meta.getUserId(), e.getMessage());
         }
+    }
+
+    @jakarta.annotation.PreDestroy
+    public void shutdown() {
+        log.info("Shutting down TrafficCollectorJob executor...");
+        executorService.shutdown();
     }
 }

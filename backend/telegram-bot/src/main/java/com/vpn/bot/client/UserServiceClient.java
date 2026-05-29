@@ -6,6 +6,7 @@ import com.vpn.common.dto.request.DeviceCreateRequest;
 import com.vpn.common.dto.request.UserRegistrationRequest;
 import com.vpn.common.dto.response.DeviceResponse;
 import com.vpn.common.dto.response.UserResponse;
+import com.vpn.common.dto.response.UserStatsResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,5 +43,8 @@ public interface UserServiceClient {
             @PathVariable("telegramId") Long telegramId,
             @RequestParam("isMember") boolean isMember
     );
+
+    @GetMapping("/api/v1/users/me/stats")
+    ApiResponse<UserStatsResponse> getUserStats(@RequestHeader("X-User-Id") Long telegramId);
 
 }

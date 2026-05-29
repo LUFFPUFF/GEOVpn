@@ -3,15 +3,12 @@ package com.vpn.user.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vpn.common.dto.TrafficSessionDto;
 import com.vpn.common.dto.TrafficSummaryDto;
-import com.vpn.common.dto.response.LeaderboardEntryDto;
-import com.vpn.common.dto.response.TrafficStatsResponse;
+import com.vpn.common.dto.response.*;
 import com.vpn.common.util.ValidationUtils;
 import com.vpn.common.dto.enums.SubscriptionType;
 import com.vpn.user.domain.entity.User;
 import com.vpn.user.dto.mapper.UserMapper;
 import com.vpn.common.dto.request.UserRegistrationRequest;
-import com.vpn.common.dto.response.UserResponse;
-import com.vpn.common.dto.response.UserStatsResponse;
 import com.vpn.common.dto.request.UserUpdateRequest;
 import com.vpn.user.exception.ApplyPromoCodeException;
 import com.vpn.user.exception.DuplicateUserException;
@@ -42,7 +39,11 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -60,13 +61,13 @@ public class UserServiceImpl implements UserService {
     private final VpnServiceClient vpnServiceClient;
     private final RestTemplate restTemplate;
 
+    private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
+
+    @org.springframework.context.annotation.Lazy
+    @org.springframework.beans.factory.annotation.Autowired
+    private UserService self;
+
     private static final int REGISTRATION_BONUS = 0;
-
-    @Value("${service.telegram.proxy.host}")
-    private String telegramProxyHost;
-
-    @Value("${service.telegram.proxy.port}")
-    private int telegramProxyPort;
 
     @Value("${service.bot-token}")
     private String botToken;
@@ -96,7 +97,16 @@ public class UserServiceImpl implements UserService {
             if (request.getReferralCode() != null && !request.getReferralCode().trim().isEmpty()) {
                 String refCode = request.getReferralCode().toUpperCase().trim();
 
-                userRepository.findByReferralCode(refCode).ifPresent(referrer -> {
+                Optional<User> referrerOpt = userRepository.findByReferralCode(refCode);
+
+                if (referrerOpt.isEmpty() && refCode.matches("^\\d+$")) {
+                    try {
+                        Long refTelegramId = Long.parseLong(refCode);
+                        referrerOpt = userRepository.findByTelegramId(refTelegramId);
+                    } catch (NumberFormatException ignored) {}
+                }
+
+                referrerOpt.ifPresent(referrer -> {
                     if (!referrer.getTelegramId().equals(user.getTelegramId())) {
                         user.setReferredBy(referrer.getTelegramId());
                         user.setPromoApplied(true);
@@ -184,6 +194,7 @@ public class UserServiceImpl implements UserService {
     @Transactional(isolation = Isolation.REPEATABLE_READ)
     @Caching(evict = {
             @CacheEvict(value = "users", key = "#p0"),
+            @CacheEvict(value = "user-max-devices", key = "#p0"),
             @CacheEvict(value = "user-stats", key = "#p0")
     })
     public UserResponse addBalance(Long telegramId, Integer amount) {
@@ -201,6 +212,7 @@ public class UserServiceImpl implements UserService {
     @Transactional(isolation = Isolation.REPEATABLE_READ)
     @Caching(evict = {
             @CacheEvict(value = "users", key = "#p0"),
+            @CacheEvict(value = "user-max-devices", key = "#p0"),
             @CacheEvict(value = "user-stats", key = "#p0")
     })
     public UserResponse deductBalance(Long telegramId, Integer amount) {
@@ -220,7 +232,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    @CacheEvict(value = "users", key = "#telegramId")
+    @CacheEvict(value = {"users", "user-max-devices"}, key = "#telegramId")
     public UserResponse applyPromoCode(Long telegramId, String code) {
         log.info("User {} applying promo code: {}", telegramId, code);
 
@@ -330,12 +342,34 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByTelegramId(telegramId)
                 .orElseThrow(() -> new UserNotFoundException(telegramId));
 
-        long activeDevices    = deviceRepository.countActiveDevicesByUserId(telegramId);
-        long totalDevices     = deviceRepository.countByUserId(telegramId);
-        long totalReferrals   = userRepository.countReferrals(telegramId);
-        long totalConnections = connectionRepository.countByUserId(telegramId);
+        CompletableFuture<Long> activeDevicesFuture = CompletableFuture.supplyAsync(
+                () -> deviceRepository.countActiveDevicesByUserId(telegramId), executorService);
 
-        TrafficSummaryDto summary = trafficServiceClient.getTrafficSummary(telegramId).getData();
+        CompletableFuture<Long> totalDevicesFuture = CompletableFuture.supplyAsync(
+                () -> deviceRepository.countByUserId(telegramId), executorService);
+
+        CompletableFuture<Long> totalReferralsFuture = CompletableFuture.supplyAsync(
+                () -> userRepository.countReferrals(telegramId), executorService);
+
+        CompletableFuture<Long> totalConnectionsFuture = CompletableFuture.supplyAsync(
+                () -> connectionRepository.countByUserId(telegramId), executorService);
+
+        CompletableFuture<TrafficSummaryDto> trafficSummaryFuture = CompletableFuture.supplyAsync(
+                () -> {
+                    try {
+                        return trafficServiceClient.getTrafficSummary(telegramId).getData();
+                    } catch (Exception e) {
+                        log.warn("Failed to fetch traffic summary for user {}", telegramId, e);
+                        return null;
+                    }
+                }, executorService);
+
+        CompletableFuture.allOf(
+                activeDevicesFuture, totalDevicesFuture, totalReferralsFuture,
+                totalConnectionsFuture, trafficSummaryFuture
+        ).join();
+
+        TrafficSummaryDto summary = trafficSummaryFuture.join();
         long bytesIn      = summary != null && summary.getBytesIn()     != null ? summary.getBytesIn()     : 0L;
         long bytesOut     = summary != null && summary.getBytesOut()    != null ? summary.getBytesOut()    : 0L;
         long spentKopecks = summary != null && summary.getCostKopecks() != null ? summary.getCostKopecks() : 0L;
@@ -343,11 +377,11 @@ public class UserServiceImpl implements UserService {
         return UserStatsResponse.builder()
                 .telegramId(telegramId)
                 .balance(user.getBalance())
-                .totalDevices((int) totalDevices)
-                .activeDevices((int) activeDevices)
-                .totalReferrals(totalReferrals)
-                .totalReferralEarnings(0)
-                .totalConnections(totalConnections)
+                .totalDevices(totalDevicesFuture.join().intValue())
+                .activeDevices(activeDevicesFuture.join().intValue())
+                .totalReferrals(totalReferralsFuture.join())
+                .totalReferralEarnings((int) (totalReferralsFuture.join() * 50))
+                .totalConnections(totalConnectionsFuture.join())
                 .totalTrafficBytes(bytesIn + bytesOut)
                 .totalSpentKopecks(spentKopecks)
                 .build();
@@ -361,8 +395,16 @@ public class UserServiceImpl implements UserService {
             throw new UserNotFoundException(telegramId);
         }
 
-        TrafficSummaryDto summary              = trafficServiceClient.getTrafficSummary(telegramId).getData();
-        List<TrafficSessionDto> recentSessions = trafficServiceClient.getRecentSessions(telegramId).getData();
+        CompletableFuture<TrafficSummaryDto> summaryFuture = CompletableFuture.supplyAsync(
+                () -> trafficServiceClient.getTrafficSummary(telegramId).getData(), executorService);
+
+        CompletableFuture<List<TrafficSessionDto>> sessionsFuture = CompletableFuture.supplyAsync(
+                () -> trafficServiceClient.getRecentSessions(telegramId).getData(), executorService);
+
+        CompletableFuture.allOf(summaryFuture, sessionsFuture).join();
+
+        TrafficSummaryDto summary              = summaryFuture.join();
+        List<TrafficSessionDto> recentSessions = sessionsFuture.join();
 
         long bytesIn  = summary != null && summary.getBytesIn()     != null ? summary.getBytesIn()     : 0L;
         long bytesOut = summary != null && summary.getBytesOut()    != null ? summary.getBytesOut()    : 0L;
@@ -393,9 +435,6 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 
-    /**
-     * Оформление подписки (без промо) — делегирует к основному методу.
-     */
     @Override
     public UserResponse purchaseSubscription(Long telegramId, String planName, int months) {
         return purchaseSubscription(telegramId, planName, months, false);
@@ -403,7 +442,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    @CacheEvict(value = "users", key = "#telegramId")
+    @CacheEvict(value = {"users", "user-max-devices"}, key = "#telegramId")
     public UserResponse purchaseSubscription(Long telegramId, String planName, int months, boolean promo) {
         log.info("purchaseSubscription: user={}, plan={}, months={}, promo={}", telegramId, planName, months, promo);
 
@@ -505,8 +544,8 @@ public class UserServiceImpl implements UserService {
                 return List.of("member", "administrator", "creator").contains(status);
             }
         } catch (Exception e) {
-            log.error("Error checking TG membership via restTemplate: {}", e.getMessage());
-            return false;
+            log.error("Error checking TG membership via restTemplate (falling back to true due to timeout): {}", e.getMessage());
+            return true;
         }
         return false;
     }
@@ -531,7 +570,26 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserInitResponse getUserInitData(Long telegramId) {
+        log.info("Collecting aggregated init data for user: {}", telegramId);
+
+        CompletableFuture<UserResponse> userFuture = CompletableFuture.supplyAsync(
+                () -> self.getUserByTelegramId(telegramId), executorService);
+
+        CompletableFuture<Boolean> memberFuture = CompletableFuture.supplyAsync(
+                () -> self.isUserMemberOfChannel(telegramId), executorService);
+
+        return CompletableFuture.allOf(userFuture, memberFuture)
+                .thenApply(v -> UserInitResponse.builder()
+                        .user(userFuture.join())
+                        .isMember(memberFuture.join())
+                        .build())
+                .join();
+    }
+
+    @Override
     @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @CacheEvict(value = "user-max-devices", key = "#telegramId")
     public UserResponse purchaseExtraSlot(Long telegramId) {
         log.info("User {} purchasing extra device slot", telegramId);
 
@@ -643,5 +701,11 @@ public class UserServiceImpl implements UserService {
             case "FAMILY"    -> 3;
             default          -> 1;
         };
+    }
+
+    @jakarta.annotation.PreDestroy
+    public void shutdownExecutor() {
+        log.info("Shutting down UserServiceImpl virtual threads executor...");
+        executorService.shutdown();
     }
 }

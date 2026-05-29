@@ -10,7 +10,9 @@ import com.vpn.server.dto.mapper.ServerMapper;
 import com.vpn.server.repository.ServerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ public class ServerService {
     private final ServerMapper serverMapper;
 
     @Transactional
+    @CacheEvict(value = "servers-all", allEntries = true)
     public ServerDto createServer(CreateServerRequest request) {
         if (serverRepository.findByName(request.getName()).isPresent()) {
             throw new BaseException(
@@ -55,6 +58,11 @@ public class ServerService {
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "servers-all", allEntries = true),
+            @CacheEvict(value = "servers-active", allEntries = true),
+            @CacheEvict(value = "server-single", key = "#id")
+    })
     public ServerDto updateServer(Integer id, UpdateServerRequest request) {
         Server server = serverRepository.findById(id)
                 .orElseThrow(() -> new BaseException(
@@ -77,6 +85,11 @@ public class ServerService {
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "servers-all", allEntries = true),
+            @CacheEvict(value = "servers-active", allEntries = true),
+            @CacheEvict(value = "server-single", key = "#id")
+    })
     public void deleteServer(Integer id) {
         Server server = serverRepository.findById(id)
                 .orElseThrow(() -> new BaseException(
@@ -88,18 +101,21 @@ public class ServerService {
         serverRepository.save(server);
     }
 
+    @Cacheable(value = "servers-active")
     public List<ServerDto> getAllActiveServers() {
-        List<Server> servers = serverRepository.findAll();
-        log.info("Returning {} servers regardless of their active status", servers.size());
+        List<Server> servers = serverRepository.findByIsActiveTrue();
+        log.info("Returning {} active servers from database (or cache)", servers.size());
         return serverMapper.toDtoList(servers);
     }
 
+    @Cacheable(value = "server-single", key = "#id")
     public ServerDto getServerById(Integer id) {
         Server server = serverRepository.findById(id)
                 .orElseThrow(() -> new BaseException(ErrorCode.SERVER_NOT_FOUND, "Server not found: " + id));
         return serverMapper.toDto(server);
     }
 
+    @Cacheable(value = "servers-all")
     public List<ServerDto> getAllServers() {
         return serverMapper.toDtoList(serverRepository.findAll());
     }

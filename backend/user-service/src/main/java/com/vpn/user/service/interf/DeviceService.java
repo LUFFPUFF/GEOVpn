@@ -55,4 +55,6 @@ public interface DeviceService {
      * соблюдении лимита. Не выбрасывает исключение, если устройство не найдено.
      */
     void deleteDeviceById(Long deviceId, Long userId);
+
+    int getMaxDevicesForUser(Long userId);
 }

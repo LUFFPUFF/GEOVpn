@@ -1,9 +1,6 @@
 package com.vpn.user.service.interf;
 
-import com.vpn.common.dto.response.LeaderboardEntryDto;
-import com.vpn.common.dto.response.TrafficStatsResponse;
-import com.vpn.common.dto.response.UserResponse;
-import com.vpn.common.dto.response.UserStatsResponse;
+import com.vpn.common.dto.response.*;
 import com.vpn.common.dto.request.UserRegistrationRequest;
 import com.vpn.common.dto.request.UserUpdateRequest;
 
@@ -62,4 +59,6 @@ public interface UserService {
     void updateMembershipStatus(Long telegramId, boolean isMember);
 
     UserResponse updateBanStatus(Long telegramId, boolean isBanned, String reason);
+
+    UserInitResponse getUserInitData(Long telegramId);
 }

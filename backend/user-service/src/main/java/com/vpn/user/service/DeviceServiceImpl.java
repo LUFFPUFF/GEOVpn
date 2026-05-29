@@ -1,6 +1,5 @@
 package com.vpn.user.service;
 
-import com.vpn.common.constant.AppConstants;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.enums.DeviceType;
 import com.vpn.common.dto.response.DeviceLimitStatus;
@@ -38,6 +37,10 @@ public class DeviceServiceImpl implements DeviceService {
     private final DeviceMapper deviceMapper;
     private final VpnServiceClient vpnServiceClient;
 
+    @org.springframework.context.annotation.Lazy
+    @org.springframework.beans.factory.annotation.Autowired
+    private DeviceService self;
+
     @Override
     @Transactional
     @CacheEvict(value = "user-devices", key = "#p0.userId")
@@ -54,7 +57,9 @@ public class DeviceServiceImpl implements DeviceService {
         }
 
         long activeDevicesCount = deviceRepository.countActiveDevicesByUserId(request.getUserId());
-        int maxAllowed = getMaxDevicesForUser(request.getUserId());
+
+        int maxAllowed = self.getMaxDevicesForUser(request.getUserId());
+
         if (activeDevicesCount >= maxAllowed) {
             log.warn("Max devices limit exceeded: userId={}, current={}, max={}",
                     request.getUserId(), activeDevicesCount, maxAllowed);
@@ -78,15 +83,27 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     @Override
+    @Cacheable(value = "user-max-devices", key = "#userId")
+    public int getMaxDevicesForUser(Long userId) {
+        try {
+            log.info("Fetching device limit from config-service for user {}", userId);
+            ApiResponse<DeviceLimitStatus> response = vpnServiceClient.getDeviceLimit(userId);
+            if (response != null && response.getData() != null) {
+                return response.getData().getMaxDevices();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch device limit for userId={}, using default=1", userId, e);
+        }
+        return 1;
+    }
+
+    @Override
     @Cacheable(value = "devices", key = "#p0.toString()")
     public DeviceResponse getDeviceByUuid(UUID uuid) {
         log.debug("Fetching device by UUID: {}", uuid);
-
         ValidationUtils.validateNotNull(uuid, "Device UUID");
-
         Device device = deviceRepository.findByUuid(uuid)
                 .orElseThrow(() -> new DeviceNotFoundException(uuid));
-
         return deviceMapper.toResponse(device);
     }
 
@@ -94,9 +111,7 @@ public class DeviceServiceImpl implements DeviceService {
     @Cacheable(value = "user-devices", key = "#telegramId")
     public List<DeviceResponse> getUserActiveDevices(Long telegramId) {
         log.debug("Fetching active devices for user: {}", telegramId);
-
         ValidationUtils.validateTelegramId(telegramId);
-
         return deviceRepository.findByUserIdAndIsActiveTrue(telegramId)
                 .stream()
                 .map(deviceMapper::toResponse)
@@ -105,7 +120,10 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     @Transactional
-    @CacheEvict(value = {"devices", "user-devices"}, allEntries = true)
+    @org.springframework.cache.annotation.Caching(evict = {
+            @CacheEvict(value = "devices", key = "#uuid.toString()"),
+            @CacheEvict(value = "user-devices", key = "#telegramId")
+    })
     public void deactivateDevice(UUID uuid, Long telegramId) {
         log.info("Deactivating device: uuid={}, requestedBy={}", uuid, telegramId);
 
@@ -127,13 +145,12 @@ public class DeviceServiceImpl implements DeviceService {
         log.info("Device deactivated: uuid={}, userId={}", uuid, telegramId);
     }
 
-    /**
-     * Физическое удаление устройства из БД по UUID.
-     * Проверяет, что устройство принадлежит вызывающему пользователю.
-     */
     @Override
     @Transactional
-    @CacheEvict(value = {"devices", "user-devices"}, allEntries = true)
+    @org.springframework.cache.annotation.Caching(evict = {
+            @CacheEvict(value = "devices", key = "#uuid.toString()"),
+            @CacheEvict(value = "user-devices", key = "#telegramId")
+    })
     public void deleteDevice(UUID uuid, Long telegramId) {
         log.info("Hard deleting device: uuid={}, requestedBy={}", uuid, telegramId);
 
@@ -153,14 +170,12 @@ public class DeviceServiceImpl implements DeviceService {
         log.info("Device hard deleted: uuid={}, userId={}", uuid, telegramId);
     }
 
-    /**
-     * Физическое удаление устройства из БД по внутреннему ID.
-     * Используется config-service при принудительном соблюдении лимита.
-     * Намеренно не выбрасывает исключение, если устройство уже удалено.
-     */
     @Override
     @Transactional
-    @CacheEvict(value = {"devices", "user-devices"}, allEntries = true)
+    @org.springframework.cache.annotation.Caching(evict = {
+            @CacheEvict(value = "user-devices", key = "#userId"),
+            @CacheEvict(value = "devices", allEntries = true)
+    })
     public void deleteDeviceById(Long deviceId, Long userId) {
         log.info("Internal hard delete: deviceId={}, userId={}", deviceId, userId);
 
@@ -217,18 +232,6 @@ public class DeviceServiceImpl implements DeviceService {
                 .build();
 
         return createDevice(request);
-    }
-
-    private int getMaxDevicesForUser(Long userId) {
-        try {
-            ApiResponse<DeviceLimitStatus> response = vpnServiceClient.getDeviceLimit(userId);
-            if (response != null && response.getData() != null) {
-                return response.getData().getMaxDevices();
-            }
-        } catch (Exception e) {
-            log.warn("Failed to fetch device limit for userId={}, using default=1", userId, e);
-        }
-        return 1;
     }
 
     @Deprecated

@@ -3,15 +3,16 @@ package com.vpn.common.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
-/**
- * Сервис для прямой работы с Redis (когда Spring Cache недостаточно)
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -63,16 +64,31 @@ public class RedisCacheService {
         }
     }
 
-    /**
-     * Удалить все ключи по паттерну
-     */
     public void deletePattern(String pattern) {
         try {
-            Set<String> keys = redisTemplate.keys(pattern);
-            if (!keys.isEmpty()) {
-                redisTemplate.delete(keys);
-                log.info("Deleted {} keys matching pattern: {}", keys.size(), pattern);
-            }
+            ScanOptions options = ScanOptions.scanOptions().match(pattern).count(100).build();
+
+            redisTemplate.execute((RedisCallback<Void>) connection -> {
+                try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
+                    List<byte[]> keysToDel = new ArrayList<>();
+                    while (cursor.hasNext()) {
+                        keysToDel.add(cursor.next());
+
+                        if (keysToDel.size() >= 100) {
+                            connection.keyCommands().del(keysToDel.toArray(new byte[0][]));
+                            keysToDel.clear();
+                        }
+                    }
+                    if (!keysToDel.isEmpty()) {
+                        connection.keyCommands().del(keysToDel.toArray(new byte[0][]));
+                    }
+                } catch (Exception e) {
+                    log.error("Error scanning keys with pattern: {}", pattern, e);
+                }
+                return null;
+            });
+
+            log.info("Successfully deleted keys matching pattern cleanly: {}", pattern);
         } catch (Exception e) {
             log.error("Failed to delete pattern: {}", pattern, e);
         }
@@ -98,20 +114,6 @@ public class RedisCacheService {
             return redisTemplate.opsForValue().increment(key);
         } catch (Exception e) {
             log.error("Failed to increment key: {}", key, e);
-            return null;
-        }
-    }
-
-    /**
-     * Инкремент с TTL
-     */
-    public Long incrementWithExpiry(String key, Duration ttl) {
-        try {
-            Long value = redisTemplate.opsForValue().increment(key);
-            redisTemplate.expire(key, ttl);
-            return value;
-        } catch (Exception e) {
-            log.error("Failed to increment key with expiry: {}", key, e);
             return null;
         }
     }

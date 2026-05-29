@@ -6,8 +6,10 @@ import com.vpn.bot.ui.KeyboardFactory;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.request.UserRegistrationRequest;
 import com.vpn.common.dto.response.UserResponse;
+import com.vpn.common.dto.response.UserStatsResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
@@ -54,15 +56,26 @@ public class BotBusinessService {
         UserResponse u = res != null ? res.getData() : null;
         long balance = (u != null && u.getBalance() != null) ? u.getBalance() / 100 : 0;
 
-        assert u != null;
+        ApiResponse<UserStatsResponse> statsRes = userService.getUserStats(chatId);
+        UserStatsResponse stats = statsRes != null ? statsRes.getData() : null;
+
+        long totalReferrals = (stats != null) ? stats.getTotalReferrals() : 0;
+        long earnedRubles   = (stats != null && stats.getTotalReferralEarnings() != null)
+                ? stats.getTotalReferralEarnings()
+                : 0;
+
+        String referralLinkCode = (u != null && u.getReferralCode() != null)
+                ? u.getReferralCode()
+                : String.valueOf(chatId);
+
         String text = "🤝 <b>Партнерская программа</b>\n\n" +
                 "Делитесь свободным интернетом с друзьями и получайте бонусы на баланс!\n\n" +
                 "🔗 <b>Ваша пригласительная ссылка:</b>\n" +
-                "<code>https://t.me/geovpbot?start=" + u.getReferralCode() + "</code>\n\n" +
+                "<code>https://t.me/geovpbot?start=" + referralLinkCode + "</code>\n\n" +
                 "📊 <b>Ваша статистика:</b>\n" +
-                "👥 Приглашено друзей: 0\n" +
-                "💳 Оплатили подписку: 0\n" +
-                "🎁 Заработано: 0 ₽\n\n" +
+                "👥 Приглашено друзей: " + totalReferrals + "\n" +
+                "💳 Оплатили подписку: " + totalReferrals + "\n" +
+                "🎁 Заработано: " + earnedRubles + " ₽\n\n" +
                 "💰 <b>Ваш текущий баланс:</b> " + balance + " ₽";
 
         SendMessage msg = new SendMessage(String.valueOf(chatId), text);

@@ -3,10 +3,10 @@ import { useUserStore } from '../../store/userStore';
 import {
     Download, Rocket, Smartphone, Laptop, Tv,
     ShieldCheck, Info, Check, ArrowLeft, ArrowRight,
-    Loader2, Copy, ExternalLink, HelpCircle, ChevronRight, Zap
+    Loader2, Copy, ExternalLink, HelpCircle, ChevronRight, Zap,
+    AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiClient } from '../../api/client';
 
 export default function Subscriptions() {
     const { configs, user, devices, setActiveTab } = useUserStore();
@@ -49,6 +49,22 @@ export default function Subscriptions() {
         }
 
         setTimeout(() => setIsConnecting(false), 3000);
+    };
+
+    const handleAlternativeImport = (client: 'hiddify' | 'v2box') => {
+        if (!activeConfig?.subscriptionUrl) return;
+        window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
+
+        const urlParts = activeConfig.subscriptionUrl.split('/');
+        const uuid = urlParts[urlParts.length - 1];
+
+        const redirectUrl = `https://geovp.ru/api/v1/subscription/${uuid}/import/${client}`;
+
+        if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.openLink(redirectUrl);
+        } else {
+            window.location.href = redirectUrl;
+        }
     };
 
     const handleCopyLink = async () => {
@@ -169,7 +185,7 @@ export default function Subscriptions() {
                         initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
                         className="space-y-4"
                     >
-                        <div className="bg-gradient-to-b from-[#1a1c29] to-[#0a0a0f] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+                        <div className="bg-gradient-to-b from-[#1a1c29] to-[#0a0a0f] border border-white/10 rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden">
                             <h3 className="text-[22px] font-black text-white uppercase italic mb-6 text-center tracking-tight">Шаг 3. Подключение</h3>
 
                             {configs.length > 1 && (
@@ -202,7 +218,7 @@ export default function Subscriptions() {
                             <button
                                 onClick={handleAutoConnect}
                                 disabled={isConnecting || configs.length === 0}
-                                className={`w-full py-8 rounded-[2rem] font-black text-[18px] uppercase tracking-[0.1em] flex flex-col items-center justify-center gap-2 transition-all border-2 ${
+                                className={`w-full py-8 rounded-[2rem] font-black text-[18px] uppercase tracking-[0.1em] flex flex-col items-center justify-center gap-1 transition-all border-2 ${
                                     isConnecting || configs.length === 0
                                         ? 'bg-white/5 border-white/10 text-white/20'
                                         : 'bg-white text-black border-white active:scale-[0.97] shadow-[0_15px_40px_rgba(255,255,255,0.15)]'
@@ -210,35 +226,74 @@ export default function Subscriptions() {
                             >
                                 <div className="flex items-center gap-3">
                                     {isConnecting ? <Loader2 size={24} className="animate-spin" /> : <Zap size={24} className="fill-current" />}
-                                    <span>{isConnecting ? 'Загрузка...' : 'Авто-импорт'}</span>
+                                    <span>{isConnecting ? 'Загрузка...' : 'Авто-импорт в Happ'}</span>
                                 </div>
-                                <span className="text-[10px] opacity-50 font-bold uppercase tracking-widest">Запустить в {platform.app}</span>
+                                <span className="text-[10px] opacity-50 font-bold uppercase tracking-widest">Открыть в {platform.app}</span>
                             </button>
 
-                            {/*<div className="flex items-center gap-4 my-8">*/}
-                            {/*    <div className="h-px bg-white/10 flex-1" />*/}
-                            {/*    <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">Manual</span>*/}
-                            {/*    <div className="h-px bg-white/10 flex-1" />*/}
-                            {/*</div>*/}
+                            <div className="flex items-center gap-4 my-6">
+                                <div className="h-px bg-white/10 flex-1" />
+                                <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em]">Скопировать ссылку</span>
+                                <div className="h-px bg-white/10 flex-1" />
+                            </div>
 
-                            {/*<button*/}
-                            {/*    onClick={handleCopyLink}*/}
-                            {/*    disabled={configs.length === 0}*/}
-                            {/*    className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between px-6 active:bg-white/10 transition-all group disabled:opacity-20"*/}
-                            {/*>*/}
-                            {/*    <div className="flex items-center gap-4">*/}
-                            {/*        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-active:text-emerald-500 transition-colors">*/}
-                            {/*            {copyStatus ? <Check size={20} className="text-emerald-500" /> : <Copy size={20} className="text-white/40" />}*/}
-                            {/*        </div>*/}
-                            {/*        <div className="text-left">*/}
-                            {/*            <p className="text-[13px] font-black text-white">{copyStatus ? 'Скопировано!' : 'Скопировать ссылку'}</p>*/}
-                            {/*            <p className="text-[9px] text-white/30 font-bold uppercase mt-0.5">Для ручной вставки</p>*/}
-                            {/*        </div>*/}
-                            {/*    </div>*/}
-                            {/*    <ChevronRight size={18} className="text-white/20" />*/}
-                            {/*</button>*/}
+                            <div className="space-y-2.5">
+                                <div className="flex gap-2">
+                                    {/*<button*/}
+                                    {/*    onClick={() => handleAlternativeImport('hiddify')}*/}
+                                    {/*    disabled={configs.length === 0}*/}
+                                    {/*    className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-wider text-white/80 active:bg-white/10 transition-all flex items-center justify-center gap-2"*/}
+                                    {/*>*/}
+                                    {/*    🚀 Импорт в Hiddify*/}
+                                    {/*</button>*/}
+                                    {/*<button*/}
+                                    {/*    onClick={() => handleAlternativeImport('v2box')}*/}
+                                    {/*    disabled={configs.length === 0}*/}
+                                    {/*    className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-wider text-white/80 active:bg-white/10 transition-all flex items-center justify-center gap-2"*/}
+                                    {/*>*/}
+                                    {/*    📱 Импорт в V2Box*/}
+                                    {/*</button>*/}
+                                </div>
+
+                                <button
+                                    onClick={handleCopyLink}
+                                    disabled={configs.length === 0}
+                                    className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between px-6 active:bg-white/10 transition-all group disabled:opacity-20"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-active:text-emerald-500 transition-colors">
+                                            {copyStatus ? <Check size={20} className="text-emerald-500" /> : <Copy size={20} className="text-white/40" />}
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-[13px] font-black text-white">{copyStatus ? 'Скопировано!' : 'Скопировать ссылку'}</p>
+                                            <p className="text-[9px] text-white/30 font-bold uppercase mt-0.5">Для ручной вставки в любой клиент</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={18} className="text-white/20" />
+                                </button>
+                            </div>
                         </div>
 
+                        {/* КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ БЕЗОПАСНОСТИ (Новый блок) */}
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-[2.5rem] p-6 text-left relative overflow-hidden shadow-lg">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 blur-3xl rounded-full pointer-events-none" />
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center border border-red-500/30 shrink-0">
+                                    <AlertCircle size={18} className="text-red-500 animate-pulse" />
+                                </div>
+                                <h4 className="text-[13px] font-black text-red-500 uppercase tracking-wider">
+                                    Защита от шеринга аккаунтов
+                                </h4>
+                            </div>
+                            <p className="text-[12px] text-white/50 leading-relaxed font-medium">
+                                Официальный клиент <span className="text-white font-bold">Happ</span> надежно шифрует данные подключения, защищая ваши конфиги от третьих лиц.
+                                <br /><br />
+                                Используя сторонние приложения, вы берете на себя ответственность за сохранность ссылки.
+                                При передаче ссылки третьим лицам или попытке совместного использования система безопасности автоматически зафиксирует посторонние HWID/отпечатки устройств и <span className="text-red-400 font-bold">заблокирует ваш доступ без возможности возврата средств</span>.
+                            </p>
+                        </div>
+
+                        {/* Инструкция */}
                         <div className="bg-[#12141d] border border-white/10 rounded-[2.5rem] p-6 shadow-xl">
                             <div className="flex items-center gap-3 mb-5 border-b border-white/5 pb-4">
                                 <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
@@ -250,8 +305,8 @@ export default function Subscriptions() {
                             <div className="space-y-4">
                                 {[
                                     { s: '01', t: 'Выше выберите нужное устройство (если их несколько)' },
-                                    { s: '02', t: 'Нажмите «Авто-импорт»' },
-                                    { s: '03', t: `Разрешите открыть приложение ${platform.app}` },
+                                    { s: '02', t: 'Нажмите «Авто-импорт» или скопируйте ссылку для ручной вставки' },
+                                    { s: '03', t: `Разрешите открыть приложение на вашем устройстве` },
                                     { s: '04', t: 'Профиль добавится автоматически' }
                                 ].map((item, idx) => (
                                     <div key={idx} className="flex items-start gap-4">

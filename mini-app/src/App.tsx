@@ -1,27 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import './index.css';
+
 import { useTelegram } from './hooks/useTelegram';
 import { useUserStore } from './store/userStore';
+
 import Header from './components/layout/Header';
 import BottomNav from './components/layout/BottomNav';
-import Home from './pages/Home';
-import Profile from './pages/Profile';
-import Payments from './pages/Payments';
-import Deposit from './pages/Deposit/Deposit'
-import Subscriptions from './pages/Subscriptions';
-import Leaderboard from './pages/Leaderboard';
-import ManageSubscription from './pages/ManageSubscription/ManageSubscription';
-import SubscriptionGuard from './components/guards/SubscriptionGuard';
-import { BANNED_TELEGRAM_IDS, SUPPORT_LINK } from './bannedUsers';
 import BanScreen from './components/layout/BanScreen';
+import SubscriptionGuard from './components/guards/SubscriptionGuard';
+
+import { BANNED_TELEGRAM_IDS, SUPPORT_LINK } from './bannedUsers';
 import bgVideo from './assets/fon/video10.mp4';
+
+const Home = lazy(() => import('./pages/Home'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Payments = lazy(() => import('./pages/Payments'));
+const Deposit = lazy(() => import('./pages/Deposit/Deposit'));
+const Subscriptions = lazy(() => import('./pages/Subscriptions'));
+const Leaderboard = lazy(() => import('./pages/Leaderboard'));
+const ManageSubscription = lazy(() => import('./pages/ManageSubscription/ManageSubscription'));
 
 export default function App() {
     const { expand, tg } = useTelegram();
     const { activeTab, fetchAll, user } = useUserStore();
+
     const [tgReady, setTgReady] = useState(false);
     const [showWarning, setShowWarning] = useState(false);
     const [dontShowAgain, setDontShowAgain] = useState(false);
+
     const isDev = import.meta.env.DEV;
     const currentTgId = tg?.initDataUnsafe?.user?.id;
     const isStaticBanned = currentTgId ? BANNED_TELEGRAM_IDS.includes(Number(currentTgId)) : false;
@@ -36,13 +42,6 @@ export default function App() {
         }
     }, [isBanned]);
 
-    const handleCloseWarning = () => {
-        if (dontShowAgain) {
-            localStorage.setItem('hide_anti_glush_warning', 'true');
-        }
-        setShowWarning(false);
-    };
-
     useEffect(() => {
         if (!tg) return;
         tg.ready();
@@ -50,6 +49,7 @@ export default function App() {
         tg.setHeaderColor?.('#000000');
         tg.setBackgroundColor?.('#000000');
         tg.disableVerticalSwipes?.();
+
         const setHeight = () => {
             const h = tg.viewportStableHeight || window.innerHeight;
             document.documentElement.style.setProperty('--tg-height', `${h}px`);
@@ -57,7 +57,17 @@ export default function App() {
         };
         setHeight();
         tg.onEvent('viewportChanged', setHeight);
-        setTimeout(() => setTgReady(true), 300);
+
+        const checkUserInitialization = () => {
+            const currentTgId = tg?.initDataUnsafe?.user?.id;
+            if (currentTgId || isDev) {
+                setTgReady(true);
+            } else {
+                setTimeout(checkUserInitialization, 100);
+            }
+        };
+        checkUserInitialization();
+
         return () => tg.offEvent('viewportChanged', setHeight);
     }, [tg]);
 
@@ -66,175 +76,211 @@ export default function App() {
         fetchAll();
     }, [tgReady]);
 
-    const MainContent = (
-        <>
-            <main
-                style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
-                    paddingLeft: '1rem',
-                    paddingRight: '1rem',
-                    WebkitOverflowScrolling: 'touch',
-                    overscrollBehavior: 'contain',
-                    minHeight: 0,
-                } as React.CSSProperties}
-                className="custom-scrollbar"
-            >
-                {activeTab === 'home' && <Home />}
-                {activeTab === 'profile' && <Profile />}
-                {activeTab === 'payments' && <Payments />}
-                {activeTab === 'deposit' && <Deposit />}
-                {activeTab === 'subscriptions' && <Subscriptions />}
-                {activeTab === 'leaderboard' && <Leaderboard />}
-                {activeTab === 'manage_subscription' && <ManageSubscription />}
-            </main>
-            <div style={{ flexShrink: 0 }}>
-                <BottomNav />
-            </div>
-        </>
-    );
+    const handleCloseWarning = () => {
+        if (dontShowAgain) {
+            localStorage.setItem('hide_anti_glush_warning', 'true');
+        }
+        setShowWarning(false);
+    };
 
-    const WarningModal = showWarning && (
-        <div
-            style={{
-                position: 'fixed',
-                inset: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.85)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 9999,
-                padding: '1.5rem',
-            }}
-        >
-            <div
-                style={{
-                    background: 'rgba(20, 20, 20, 0.95)',
-                    border: '1px solid rgba(255, 152, 0, 0.3)',
-                    borderRadius: '16px',
-                    padding: '1.8rem',
-                    maxWidth: '400px',
-                    width: '100%',
-                    color: '#fff',
-                    textAlign: 'center',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-                }}
-            >
-                <div style={{ fontSize: '3rem', color: '#ff9800', marginBottom: '1rem' }}>⚠️</div>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: '#ff9800', letterSpacing: '0.5px' }}>
-                    ВАЖНОЕ ПРАВИЛО ПОЛЬЗОВАНИЯ
-                </h2>
-                <p style={{ fontSize: '0.9rem', lineHeight: '1.4', color: '#e0e0e0', marginBottom: '1.5rem' }}>
-                    Пожалуйста, не используйте <strong>Антиглушилки при подключении к домашнему Wi-Fi</strong>.
-                    Включайте их только на мобильном интернете во время реальных блокировок операторов.
-                    <br /><br />
-                    В противном случае доступ к Антиглушилке будет приостановлен до выяснения причин.
-                </p>
-                <label
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        marginBottom: '1.5rem',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        color: '#aaa',
-                        userSelect: 'none',
-                    }}
-                >
-                    <input
-                        type="checkbox"
-                        checked={dontShowAgain}
-                        onChange={(e) => setDontShowAgain(e.target.checked)}
-                        style={{
-                            accentColor: '#ff9800',
-                            width: '16px',
-                            height: '16px',
-                            cursor: 'pointer',
-                        }}
-                    />
-                    Больше не показывать предупреждение
-                </label>
-                <button
-                    onClick={handleCloseWarning}
-                    style={{
-                        background: 'linear-gradient(135deg, #ff9800, #f57c00)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        color: '#fff',
-                        padding: '12px 24px',
-                        width: '100%',
-                        fontWeight: 'bold',
-                        fontSize: '0.95rem',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(255, 152, 0, 0.2)',
-                        transition: 'transform 0.1s ease',
-                    }}
-                    onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
-                    onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                >
-                    Я ознакомился
-                </button>
+    const PageSkeleton = () => (
+        <div className="w-full h-48 bg-white/5 rounded-2xl animate-pulse flex flex-col p-6 justify-between border border-white/5">
+            <div className="h-6 bg-white/10 rounded w-1/3" />
+            <div className="space-y-2">
+                <div className="h-4 bg-white/10 rounded w-full" />
+                <div className="h-4 bg-white/10 rounded w-5/6" />
             </div>
         </div>
     );
 
-    const AppContent = isBanned ? (
-        <BanScreen supportLink={SUPPORT_LINK} reason={user?.banReason} />
-    ) : (
-        <>
-            {MainContent}
-            {WarningModal}
-        </>
+    const renderActivePage = () => (
+        <Suspense fallback={<PageSkeleton />}>
+            {activeTab === 'home' && <Home />}
+            {activeTab === 'profile' && <Profile />}
+            {activeTab === 'payments' && <Payments />}
+            {activeTab === 'deposit' && <Deposit />}
+            {activeTab === 'subscriptions' && <Subscriptions />}
+            {activeTab === 'leaderboard' && <Leaderboard />}
+            {activeTab === 'manage_subscription' && <ManageSubscription />}
+        </Suspense>
     );
 
+    const renderWarningModal = () => {
+        if (!showWarning) return null;
+        return (
+            <div style={STYLES.modalOverlay}>
+                <div style={STYLES.modalContainer}>
+                    <div className="text-5xl text-[#ff9800] mb-4">⚠️</div>
+                    <h2 className="text-xl font-bold mb-4 text-[#ff9800] tracking-wide uppercase">
+                        Важное правило пользования
+                    </h2>
+                    <p className="text-sm leading-relaxed text-gray-300 mb-6">
+                        Пожалуйста, не используйте <strong>Антиглушилки при подключении к домашнему Wi-Fi</strong>.
+                        Включайте их только на мобильном интернете во время реальных блокировок операторов.
+                        <br /><br />
+                        В противном случае доступ к Антиглушилке будет приостановлен до выяснения причин.
+                    </p>
+                    <label style={STYLES.checkboxLabel}>
+                        <input
+                            type="checkbox"
+                            checked={dontShowAgain}
+                            onChange={(e) => setDontShowAgain(e.target.checked)}
+                            className="accent-[#ff9800] w-4 h-4 cursor-pointer"
+                        />
+                        Больше не показывать предупреждение
+                    </label>
+                    <button
+                        onClick={handleCloseWarning}
+                        style={STYLES.modalButton}
+                        className="active:scale-[0.98] transition-transform duration-75"
+                    >
+                        Я ознакомился
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const renderAppContent = () => {
+        if (isBanned) {
+            return <BanScreen supportLink={SUPPORT_LINK} reason={user?.banReason} />;
+        }
+        return (
+            <>
+                <main style={STYLES.mainContainer} className="custom-scrollbar">
+                    {renderActivePage()}
+                </main>
+                <div style={STYLES.flexShrinkZero}>
+                    <BottomNav />
+                </div>
+                {renderWarningModal()}
+            </>
+        );
+    };
+
     return (
-        <div
-            style={{
-                position: 'relative',
-                width: '100%',
-                height: 'var(--tg-height, 100dvh)',
-                overflow: 'hidden',
-                background: '#000',
-            }}
-        >
+        <div style={STYLES.appWrapper}>
             <video
                 src={bgVideo}
                 autoPlay loop muted playsInline
-                style={{
-                    position: 'absolute', inset: 0,
-                    width: '100%', height: '100%',
-                    objectFit: 'cover', zIndex: 0, pointerEvents: 'none',
-                }}
+                style={STYLES.videoBackground}
             />
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1, pointerEvents: 'none' }} />
-            <div
-                style={{
-                    position: 'relative',
-                    zIndex: 2,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    width: '100%',
-                    height: '100%',
-                    color: 'white',
-                }}
-            >
-                <div style={{ flexShrink: 0 }}>
+            <div style={STYLES.videoOverlay} />
+
+            <div style={STYLES.contentLayout}>
+                <div style={STYLES.flexShrinkZero}>
                     <Header />
                 </div>
-                {isDev ? (
-                    AppContent
-                ) : (
+                {isDev ? renderAppContent() : (
                     <SubscriptionGuard>
-                        {AppContent}
+                        {renderAppContent()}
                     </SubscriptionGuard>
                 )}
             </div>
         </div>
     );
 }
+
+const STYLES = {
+    appWrapper: {
+        position: 'relative',
+        width: '100%',
+        height: 'var(--tg-height, 100dvh)',
+        overflow: 'hidden',
+        background: '#000',
+    } as React.CSSProperties,
+
+    videoBackground: {
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        zIndex: 0,
+        pointerEvents: 'none',
+    } as React.CSSProperties,
+
+    videoOverlay: {
+        position: 'absolute',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.45)',
+        zIndex: 1,
+        pointerEvents: 'none',
+    } as React.CSSProperties,
+
+    contentLayout: {
+        position: 'relative',
+        zIndex: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        height: '100%',
+        color: 'white',
+    } as React.CSSProperties,
+
+    mainContainer: {
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
+        paddingLeft: '1rem',
+        paddingRight: '1rem',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain',
+        minHeight: 0,
+    } as React.CSSProperties,
+
+    flexShrinkZero: {
+        flexShrink: 0,
+    } as React.CSSProperties,
+
+    modalOverlay: {
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '1.5rem',
+    } as React.CSSProperties,
+
+    modalContainer: {
+        background: 'rgba(20, 20, 20, 0.95)',
+        border: '1px solid rgba(255, 152, 0, 0.3)',
+        borderRadius: '16px',
+        padding: '1.8rem',
+        maxWidth: '400px',
+        width: '100%',
+        color: '#fff',
+        textAlign: 'center',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+    } as React.CSSProperties,
+
+    checkboxLabel: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        marginBottom: '1.5rem',
+        cursor: 'pointer',
+        fontSize: '0.85rem',
+        color: '#aaa',
+        userSelect: 'none',
+    } as React.CSSProperties,
+
+    modalButton: {
+        background: 'linear-gradient(135deg, #ff9800, #f57c00)',
+        border: 'none',
+        borderRadius: '8px',
+        color: '#fff',
+        padding: '12px 24px',
+        width: '100%',
+        fontWeight: 'bold',
+        fontSize: '0.95rem',
+        cursor: 'pointer',
+        boxShadow: '0 4px 12px rgba(255, 152, 0, 0.2)',
+    } as React.CSSProperties,
+};

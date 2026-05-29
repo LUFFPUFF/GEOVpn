@@ -104,3 +104,8 @@ export interface DepositResponse {
     transactionId: number;
     paymentUrl: string;
 }
+
+export interface UserInitResponse {
+    user: UserResponse;
+    isMember: boolean;
+}

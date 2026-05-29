@@ -31,10 +31,9 @@ public class ServerMonitoringService {
     @Value("${vpn.monitoring.timeout-ms}")
     private int timeoutMs;
 
-    private final ExecutorService healthCheckExecutor = Executors.newFixedThreadPool(10);
+    private final ExecutorService healthCheckExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     @Scheduled(fixedDelayString = "${vpn.monitoring.health-check-interval-ms}")
-    @Transactional
     public void runHealthChecks() {
         log.info("Starting health checks for all active servers...");
 
@@ -85,5 +84,11 @@ public class ServerMonitoringService {
 
         server.updateHealthMetrics(isReachable, latency, estimatedLoad);
         serverRepository.save(server);
+    }
+
+    @jakarta.annotation.PreDestroy
+    public void shutdown() {
+        log.info("Shutting down ServerMonitoringService executor...");
+        healthCheckExecutor.shutdown();
     }
 }

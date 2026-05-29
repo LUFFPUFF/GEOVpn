@@ -16,7 +16,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     open-in-view: false
     properties:
       hibernate:
@@ -54,7 +54,7 @@ logging:
   level:
     root: INFO
     com.vpn: DEBUG
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: WARN
 
 management:
   endpoints:

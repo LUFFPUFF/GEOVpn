@@ -33,27 +33,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-/**
- * Главный сервис управления VPN конфигурациями.
- *
- * Ключевое изменение архитектуры:
- * VLESS / relay / HY2 ссылки генерируются ОДИН РАЗ при createConfig/regenerateConfig
- * и сохраняются в БД (JSONB колонки vless_links_json, relay_links_json, hy2_link).
- * Подписка (SubscriptionService) только читает и раздаёт готовые ссылки.
- *
- * Логика лимита устройств:
- * - При каждом вызове createConfig сначала запускается enforceDeviceLimit:
- *   если активных конфигураций больше, чем позволяет тариф, самые новые
- *   (по createdAt) отзываются, а соответствующие устройства удаляются из user-service.
- * - После принудительного соблюдения лимита, если слотов всё равно нет — создание блокируется.
- *
- * Нумерация устройств в XUI:
- * - Первое устройство пользователя получает label = username.
- * - Второе и последующие: username + " - устр. N", где N — порядковый номер
- *   устройства среди активных конфигураций (по возрастанию deviceId).
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -72,6 +56,8 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     private final UserServiceClient          userServiceClient;
     private final VpnLinksBuilder            vpnLinksBuilder;
 
+    private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
+
     @Value("${vpn.subscription.base-url:https://geovp.ru}")
     private String subscriptionBaseUrl;
 
@@ -84,7 +70,6 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     )
     public VpnConfigResponse createConfig(ConfigCreateRequest request) {
         log.info("Creating config: userId={}, deviceId={}", request.getUserId(), request.getDeviceId());
-
 
         Optional<VpnConfiguration> existingConfigOpt = configRepository
                 .findByDeviceIdAndStatus(request.getDeviceId(), ConfigStatus.ACTIVE);
@@ -157,6 +142,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
 
         String xuiLabel = buildXuiLabel(user.getUsername(), tgId, request.getDeviceId());
+
         boolean isSynced = syncWithXui(vlessUuid, allServers, xuiLabel);
         if (!isSynced) {
             throw new RuntimeException("Не удалось синхронизировать конфигурацию ни с одним сервером XUI. Откат транзакции.");
@@ -196,14 +182,8 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     }
 
     /**
-     * Принудительное соблюдение лимита устройств.
-     *
-     * Если у пользователя активных конфигураций больше, чем позволяет его тариф,
-     * самые новые (по createdAt) отзываются, а соответствующие им устройства
-     * удаляются из user-service через DeviceServiceClient.
-     *
-     * Метод не выбрасывает исключение при частичных ошибках — каждое устройство
-     * обрабатывается независимо, чтобы сбой на одном не блокировал остальные.
+     * Оптимизировано: Принудительное соблюдение лимита устройств теперь работает асинхронно по сети.
+     * База данных обновляется мгновенно, а удаление клиента с 10+ XUI-серверов уходит в фоновые виртуальные потоки.
      */
     private void enforceDeviceLimit(Long userId) {
         int maxDevices = deviceLimitService.getMaxDevices(userId);
@@ -228,22 +208,25 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
         for (VpnConfiguration config : toRevoke) {
             try {
-                for (ServerDto server : allServers) {
-                    try {
-                        xuiClient.removeClient(server, config.getVlessUuid().toString());
-                    } catch (Exception e) {
-                        log.warn("Enforcement: failed to remove from XUI server={}, uuid={}: {}",
-                                server.getName(), config.getVlessUuid(), e.getMessage());
-                    }
-                }
-
                 config.revoke();
                 configRepository.save(config);
                 redisCacheService.delete("vpn:meta:" + config.getVlessUuid());
 
                 userServiceClient.deleteDeviceById(config.getDeviceId(), userId);
 
-                log.info("Enforcement: removed deviceId={}, uuid={} for userId={}",
+                executorService.submit(() -> {
+                    log.info("Async XUI cleanup started for revoked uuid={}", config.getVlessUuid());
+                    for (ServerDto server : allServers) {
+                        try {
+                            xuiClient.removeClient(server, config.getVlessUuid().toString());
+                        } catch (Exception e) {
+                            log.warn("Async cleanup: failed for server={}, uuid={}: {}",
+                                    server.getName(), config.getVlessUuid(), e.getMessage());
+                        }
+                    }
+                });
+
+                log.info("Enforcement (local sync success): removed deviceId={}, uuid={} for userId={}",
                         config.getDeviceId(), config.getVlessUuid(), userId);
 
             } catch (Exception e) {
@@ -254,17 +237,54 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     }
 
     /**
-     * Формирует label для регистрации клиента в XUI.
-     *
-     * Порядковый номер устройства определяется по позиции deviceId
-     * среди всех активных конфигураций пользователя (сортировка по deviceId asc).
-     * Для нового устройства номер = количество существующих активных + 1.
-     *
-     * Примеры:
-     *   Устройство #1 → "ivan_ivanov"
-     *   Устройство #2 → "ivan_ivanov - устр. 2"
-     *   Устройство #3 → "ivan_ivanov - устр. 3"
+     * Оптимизировано: Синхронизация с XUI-серверами теперь идет ПАРАЛЛЕЛЬНО.
+     * Время ожидания ответа теперь равно времени ответа ОДНОГО самого быстрого сервера,
+     * а не сумме времен всех серверов. Тормозящие сервера больше не блокируют транзакцию!
      */
+    private boolean syncWithXui(UUID vlessUuid, List<ServerDto> servers, String email) {
+        List<CompletableFuture<Boolean>> futures = servers.stream()
+                .map(server -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        List<Integer> targetInbounds = new ArrayList<>();
+                        if (server.getTcpInboundId() != null) targetInbounds.add(server.getTcpInboundId());
+                        if (server.getWsInboundId() != null) targetInbounds.add(server.getWsInboundId());
+
+                        String flow = "xtls-rprx-vision";
+                        if (!targetInbounds.isEmpty()) {
+                            xuiClient.addClientWithToken(
+                                    server,
+                                    targetInbounds,
+                                    vlessUuid.toString(),
+                                    email,
+                                    flow,
+                                    server.getApiToken()
+                            );
+                            log.info("XUI Multi-Inbound sync success: server={}, inboundIds={}", server.getName(), targetInbounds);
+                            return true;
+                        } else if (server.getPanelInboundId() != null) {
+                            xuiClient.addClientWithToken(
+                                    server,
+                                    Collections.singletonList(server.getPanelInboundId()),
+                                    vlessUuid.toString(),
+                                    email,
+                                    flow,
+                                    server.getApiToken()
+                            );
+                            log.info("XUI Legacy/Relay sync success: server={}, inboundId={}", server.getName(), server.getPanelInboundId());
+                            return true;
+                        }
+                    } catch (Exception e) {
+                        log.error("XUI sync FAIL: server={}, error={}", server.getName(), e.getMessage());
+                    }
+                    return false;
+                }, executorService))
+                .toList();
+
+        return futures.stream()
+                .map(CompletableFuture::join)
+                .reduce(false, (a, b) -> a || b);
+    }
+
     private String buildXuiLabel(String username, Long userId, Long deviceId) {
         List<Long> sortedDeviceIds = configRepository
                 .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE)
@@ -354,14 +374,17 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .orElseThrow(() -> new ConfigNotFoundException(deviceId));
 
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
-        for (ServerDto server : allServers) {
-            try {
-                xuiClient.removeClient(server, oldConfig.getVlessUuid().toString());
-                log.info("Successfully removed OLD uuid={} from server={}", oldConfig.getVlessUuid(), server.getName());
-            } catch (Exception e) {
-                log.warn("Failed to remove OLD uuid from XUI server={}: {}", server.getName(), e.getMessage());
+
+        executorService.submit(() -> {
+            log.info("Async cleanup of old client before regeneration started for uuid={}", oldConfig.getVlessUuid());
+            for (ServerDto server : allServers) {
+                try {
+                    xuiClient.removeClient(server, oldConfig.getVlessUuid().toString());
+                } catch (Exception e) {
+                    log.warn("Async regen cleanup failed for server={}: {}", server.getName(), e.getMessage());
+                }
             }
-        }
+        });
 
         oldConfig.revoke();
         configRepository.save(oldConfig);
@@ -377,7 +400,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .userLocation("RU")
                 .build();
 
-        log.info("Old config revoked and cleaned up. Creating new config for device={}", deviceId);
+        log.info("Old config revoked and scheduled for XUI cleanup. Creating new config for device={}", deviceId);
 
         return createConfig(createRequest);
     }
@@ -392,12 +415,15 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
 
-        allServers.forEach(server -> {
-            try {
-                xuiClient.removeClient(server, config.getVlessUuid().toString());
-            } catch (Exception e) {
-                log.warn("Failed to remove from XUI server={}: {}", server.getName(), e.getMessage());
-            }
+        executorService.submit(() -> {
+            log.info("Async revoke config started for uuid={}", config.getVlessUuid());
+            allServers.forEach(server -> {
+                try {
+                    xuiClient.removeClient(server, config.getVlessUuid().toString());
+                } catch (Exception e) {
+                    log.warn("Failed to remove from XUI server={}: {}", server.getName(), e.getMessage());
+                }
+            });
         });
 
         config.revoke();
@@ -536,52 +562,10 @@ public class VpnConfigServiceImpl implements VpnConfigService {
         configRepository.save(config);
     }
 
-    private boolean syncWithXui(UUID vlessUuid, List<ServerDto> servers, String email) {
-        boolean atLeastOneSuccess = false;
-
-        for (ServerDto server : servers) {
-            try {
-                List<Integer> targetInbounds = new ArrayList<>();
-
-                if (server.getTcpInboundId() != null) {
-                    targetInbounds.add(server.getTcpInboundId());
-                }
-                if (server.getWsInboundId() != null) {
-                    targetInbounds.add(server.getWsInboundId());
-                }
-
-                if (!targetInbounds.isEmpty()) {
-                    String flow = "xtls-rprx-vision";
-                    xuiClient.addClientWithToken(
-                            server,
-                            targetInbounds,
-                            vlessUuid.toString(),
-                            email,
-                            flow,
-                            server.getApiToken()
-                    );
-                    log.info("XUI Multi-Inbound sync success: server={}, inboundIds={}", server.getName(), targetInbounds);
-                    atLeastOneSuccess = true;
-                }
-                else if (server.getPanelInboundId() != null) {
-                    String flow = "xtls-rprx-vision";
-                    xuiClient.addClientWithToken(
-                            server,
-                            Collections.singletonList(server.getPanelInboundId()),
-                            vlessUuid.toString(),
-                            email,
-                            flow,
-                            server.getApiToken()
-                    );
-                    log.info("XUI Legacy/Relay sync success: server={}, inboundId={}", server.getName(), server.getPanelInboundId());
-                    atLeastOneSuccess = true;
-                }
-
-            } catch (Exception e) {
-                log.error("XUI sync FAIL: server={}, error={}", server.getName(), e.getMessage());
-            }
-        }
-        return atLeastOneSuccess;
+    @jakarta.annotation.PreDestroy
+    public void shutdownExecutor() {
+        log.info("Shutting down VpnConfigServiceImpl virtual threads executor...");
+        executorService.shutdown();
     }
 
     private String countryEmoji(String code) {

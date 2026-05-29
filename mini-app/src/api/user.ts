@@ -59,4 +59,6 @@ export const userApi = {
         apiClient.put<ApiResponse<VpnConfigResponse>>(`/configs/${deviceId}/regenerate`, { preferredCountry: 'RU' }).then(r => r.data.data),
 
     checkMembership: () => apiClient.get<ApiResponse<boolean>>('/users/me/membership').then(r => r.data.data),
+
+    getInitData: () => apiClient.get<ApiResponse<UserInitResponse>>('/users/me/init').then(r => r.data.data),
 };

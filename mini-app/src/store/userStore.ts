@@ -6,7 +6,8 @@ import {
     DeviceResponse,
     VpnConfigResponse,
     DeviceLimitStatus,
-    LeaderboardEntry
+    LeaderboardEntry,
+    DeviceType
 } from '../types/api';
 
 export type TabId = 'home' | 'profile' | 'payments' | 'manage_subscription' | 'leaderboard' | 'deposit' | 'subscriptions';
@@ -30,12 +31,12 @@ interface UserStore {
 
     checkMembership:      () => Promise<void>;
     fetchAll:             () => Promise<void>;
-    register: (referralCode?: string) => Promise<void>;
+    register:             (referralCode?: string) => Promise<void>;
     regenerateConfig:     (deviceId: number) => Promise<void>;
     setActiveTab:         (tab: TabId) => void;
     purchaseSubscription: (planId: string, months?: number, promo?: boolean) => Promise<boolean>;
     purchaseExtraSlot:    () => Promise<void>;
-    addDevice:            (name: string, type: string) => Promise<void>;
+    addDevice:            (name: string, type: DeviceType) => Promise<void>;
     deleteDevice:         (uuid: string) => Promise<void>;
     createConfig:         (deviceId: number, country?: string) => Promise<void>;
     fetchLeaderboard:     () => Promise<void>;
@@ -79,7 +80,6 @@ export const useUserStore = create<UserStore>((set, get) => ({
     register: async (referralCode) => {
         const tg          = window.Telegram?.WebApp;
         const userDetails = tg?.initDataUnsafe?.user;
-
         const startParam  = referralCode || tg?.initDataUnsafe?.start_param;
 
         let telegramId: number;
@@ -126,36 +126,27 @@ export const useUserStore = create<UserStore>((set, get) => ({
     },
 
     fetchAll: async () => {
-        set({ loading: true, error: null });
+        set({ loading: true });
         try {
-            let profile = await userApi.getProfile().catch(() => null);
+            const initData = await userApi.getInitData();
 
-            if (!profile) {
-                try {
-                    await get().register();
-                    profile = get().user;
-                } catch (regError) {
-                    console.error('[fetchAll] Auto-registration failed', regError);
-                }
-            }
-
-            const [devices, configs, limit, isMember] = await Promise.all([
-                userApi.getDevices().catch(() => []),
-                userApi.getConfigs().catch(() => []),
-                userApi.getDeviceLimit().catch(() => null),
-                userApi.checkMembership().catch(() => false),
+            const [deviceLimit, devices, configs] = await Promise.all([
+                userApi.getDeviceLimit(),
+                userApi.getDevices(),
+                userApi.getConfigs()
             ]);
 
             set({
-                user:        profile,
+                user: initData.user,
+                isMember: initData.isMember,
+                deviceLimit,
                 devices,
                 configs,
-                deviceLimit: limit,
-                isMember,
-                loading:     false,
+                loading: false
             });
-        } catch (error: any) {
-            set({ error: error.message, loading: false });
+        } catch (error) {
+            console.error("Ошибка при инициализации данных приложения:", error);
+            set({ loading: false });
         }
     },
 
@@ -202,10 +193,14 @@ export const useUserStore = create<UserStore>((set, get) => ({
         if (deviceLimit && deviceLimit.limitReached) {
             throw new Error('Достигнут лимит устройств');
         }
+
         const device = await userApi.registerDevice(name, type);
-        set(s => ({ devices: [...s.devices, device] }));
         const limit = await userApi.getDeviceLimit().catch(() => null);
-        set({ deviceLimit: limit });
+
+        set(s => ({
+            devices: [...s.devices, device],
+            deviceLimit: limit || s.deviceLimit
+        }));
     },
 
     deleteDevice: async (uuid) => {
@@ -214,18 +209,19 @@ export const useUserStore = create<UserStore>((set, get) => ({
         if (!dev) return;
 
         if (configs.some(c => c.deviceId === dev.id)) {
-            await userApi.revokeConfig(dev.id).catch(() => {});
+            await userApi.revokeConfig(dev.id).catch((e) => {
+                console.warn("Failed to revoke config on delete", e);
+            });
         }
 
         await userApi.deleteDevice(dev.uuid);
+        const limit = await userApi.getDeviceLimit().catch(() => null);
 
         set(s => ({
             devices: s.devices.filter(d => d.uuid !== uuid),
             configs: s.configs.filter(c => c.deviceId !== dev.id),
+            deviceLimit: limit || s.deviceLimit
         }));
-
-        const limit = await userApi.getDeviceLimit().catch(() => null);
-        set({ deviceLimit: limit });
     },
 
     createConfig: async (deviceId, country = 'RU') => {

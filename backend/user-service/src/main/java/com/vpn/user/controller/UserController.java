@@ -2,10 +2,7 @@ package com.vpn.user.controller;
 
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.request.UserRegistrationRequest;
-import com.vpn.common.dto.response.LeaderboardEntryDto;
-import com.vpn.common.dto.response.TrafficStatsResponse;
-import com.vpn.common.dto.response.UserResponse;
-import com.vpn.common.dto.response.UserStatsResponse;
+import com.vpn.common.dto.response.*;
 import com.vpn.common.dto.request.UserUpdateRequest;
 import com.vpn.common.exception.UnauthorizedException;
 import com.vpn.common.security.UserRole;
@@ -196,5 +193,13 @@ public class UserController {
 
         userService.updateBanStatus(telegramId, isBanned, reason);
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/me/init")
+    @RequireUser
+    public ResponseEntity<ApiResponse<UserInitResponse>> getUserInitData() {
+        Long telegramId = SecurityContextHolder.getUserId();
+        UserInitResponse response = userService.getUserInitData(telegramId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

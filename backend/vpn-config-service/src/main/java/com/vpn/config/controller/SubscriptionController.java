@@ -13,6 +13,7 @@ import com.vpn.config.service.subscription.SubscriptionService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -34,6 +35,9 @@ public class SubscriptionController {
     private final SubscriptionHeaderBuilder headerBuilder;
     private final VpnConfigurationRepository configRepository;
     private final DeviceSessionService deviceSessionService;
+
+    @Value("${vpn.subscription.base-url:https://geovp.ru}")
+    private String subscriptionBaseUrl;
 
     /**
      * Эндпоинт подписки для VPN-клиентов
@@ -195,14 +199,7 @@ public class SubscriptionController {
      * Вспомогательный метод для получения закодированного URL самой подписки (без суффиксов import)
      */
     private String getEncodedSubscriptionUrl(UUID vlessUuid) {
-        String subscriptionUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/api/v1/subscription/" + vlessUuid)
-                .toUriString();
-
-        if (subscriptionUrl.startsWith("http://") && !subscriptionUrl.contains("localhost")) {
-            subscriptionUrl = subscriptionUrl.replaceFirst("http://", "https://");
-        }
-
+        String subscriptionUrl = subscriptionBaseUrl + "/api/v1/subscription/" + vlessUuid;
         return URLEncoder.encode(subscriptionUrl, StandardCharsets.UTF_8);
     }
 

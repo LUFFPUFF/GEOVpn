@@ -18,6 +18,14 @@ const safeConfirm = (text: string, callback: (ok: boolean) => void) => {
     }
 };
 
+const safeAlert = (text: string) => {
+    if (window.Telegram?.WebApp?.isVersionAtLeast('6.2')) {
+        window.Telegram.WebApp.showAlert(text);
+    } else {
+        alert(text);
+    }
+};
+
 export default function ManageSubscription() {
     const { user, devices, configs, deviceLimit, setActiveTab, deleteDevice, regenerateConfig } = useUserStore();
 
@@ -97,7 +105,7 @@ export default function ManageSubscription() {
                     useUserStore.setState({ deviceLimit: updatedLimit, user: updatedUser });
                     window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
                 } catch (e: any) {
-                    alert("Ошибка: " + (e.response?.data?.error?.message || e.message));
+                    safeAlert("Ошибка: " + (e.response?.data?.error?.message || e.message));
                 } finally {
                     setIsBuyingSlot(false);
                 }
@@ -112,9 +120,9 @@ export default function ManageSubscription() {
                     setIsRegenerating(deviceId);
                     await regenerateConfig(deviceId);
                     window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
-                    window.Telegram?.WebApp?.showAlert("Ключ успешно обновлен! Сделайте Авто-импорт заново.");
+                    safeAlert("Ключ успешно обновлен! Сделайте Авто-импорт заново.");
                 } catch (e: any) {
-                    window.Telegram?.WebApp?.showAlert("Ошибка: " + e.message);
+                    safeAlert("Ошибка: " + e.message);
                 } finally {
                     setIsRegenerating(null);
                 }
@@ -124,7 +132,7 @@ export default function ManageSubscription() {
 
     const handleDelete = async (uuid: string, deviceId: number) => {
         if (devices.length <= 1) {
-            window.Telegram?.WebApp?.showAlert("Нельзя удалить единственное устройство.");
+            safeAlert("Нельзя удалить единственное устройство.");
             return;
         }
         safeConfirm("Удалить это устройство? Доступ к VPN по этому ключу будет немедленно закрыт.", async (ok) => {
@@ -135,7 +143,7 @@ export default function ManageSubscription() {
                     setExpandedDevId(null);
                     window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
                 } catch (e: any) {
-                    window.Telegram?.WebApp?.showAlert("Ошибка: " + e.message);
+                    safeAlert("Ошибка: " + e.message);
                 } finally {
                     setIsDeleting(null);
                 }
@@ -155,11 +163,11 @@ export default function ManageSubscription() {
                     setIsRevokingSession(deviceId);
                     const urlParts = config.subscriptionUrl.split('/');
                     const uuid = urlParts[urlParts.length - 1];
-                    await apiClient.delete(`/api/v1/subscription/${uuid}/session`);
+                    await apiClient.delete(`/subscription/${uuid}/session`);
                     window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
-                    window.Telegram?.WebApp?.showAlert("Сессия отвязана! Теперь нажмите «Авто-импорт» для повторной привязки.");
+                    safeAlert("Сессия отвязана! Теперь нажмите «Авто-импорт» для повторной привязки.");
                 } catch (e: any) {
-                    window.Telegram?.WebApp?.showAlert("Ошибка: " + (e.response?.data?.error?.message || e.message));
+                    safeAlert("Ошибка: " + (e.response?.data?.error?.message || e.message));
                 } finally {
                     setIsRevokingSession(null);
                 }
@@ -305,15 +313,13 @@ export default function ManageSubscription() {
                                                         <Zap size={18} className="fill-black" /> Авто-импорт в Happ
                                                     </button>
 
-                                                    {isPC && (
-                                                        <button
-                                                            onClick={() => copyToClipboard(config?.subscriptionUrl || '')}
-                                                            className="w-full py-3 bg-white/5 border border-white/10 text-white rounded-xl flex items-center justify-center gap-2 font-black text-[11px] uppercase tracking-widest active:bg-white/10 transition-all outline-none mt-1"
-                                                        >
-                                                            {copyStatus ? <Check size={16} className="text-emerald-500" /> : <Link size={16} className="text-white/50" />}
-                                                            {copyStatus ? 'Скопировано!' : 'Скопировать ссылку'}
-                                                        </button>
-                                                    )}
+                                                    <button
+                                                        onClick={() => copyToClipboard(config?.subscriptionUrl || '')}
+                                                        className="w-full py-3 bg-white/5 border border-white/10 text-white rounded-xl flex items-center justify-center gap-2 font-black text-[11px] uppercase tracking-widest active:bg-white/10 transition-all outline-none mt-1"
+                                                    >
+                                                        {copyStatus ? <Check size={16} className="text-emerald-500" /> : <Link size={16} className="text-white/50" />}
+                                                        {copyStatus ? 'Скопировано!' : 'Скопировать ссылку'}
+                                                    </button>
                                                 </div>
 
                                                 <div className="flex gap-2 w-full mt-1">

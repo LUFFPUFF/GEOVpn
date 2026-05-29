@@ -173,6 +173,14 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(userService.getTrafficStats(telegramId)));
     }
 
+    @PostMapping("/internal/{telegramId}/membership")
+    public ApiResponse<Void> updateMembership(
+            @PathVariable Long telegramId,
+            @RequestParam boolean isMember) {
+        userService.updateMembershipStatus(telegramId, isMember);
+        return ApiResponse.success(null);
+    }
+
     @GetMapping("/{telegramId}/traffic")
     @RequireAnyRole({UserRole.ADMIN, UserRole.SERVICE})
     public ResponseEntity<ApiResponse<TrafficStatsResponse>> getUserTrafficStats(

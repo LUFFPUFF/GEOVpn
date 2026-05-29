@@ -37,6 +37,11 @@ public class UpdateDispatcher {
     @Async("botTaskExecutor")
     public void dispatch(Update update) {
         try {
+            if (update.hasChatMember()) {
+                handleChatMemberUpdate(update);
+                return;
+            }
+
             long userId = getUserId(update);
             if (userId == 0) return;
 
@@ -60,6 +65,20 @@ public class UpdateDispatcher {
             }
         } catch (Exception e) {
             log.error("Dispatcher error", e);
+        }
+    }
+
+    private void handleChatMemberUpdate(Update update) {
+        var chatMemberUpdated = update.getChatMember();
+
+        if (chatMemberUpdated.getChat().getId().toString().equals(subscriptionService.getChannelId())) {
+            long userId = chatMemberUpdated.getNewChatMember().getUser().getId();
+            String status = chatMemberUpdated.getNewChatMember().getStatus();
+
+            boolean isMember = List.of("member", "administrator", "creator").contains(status);
+
+            log.info("[BOT EVENT] User {} membership changed to {}", userId, isMember);
+            subscriptionService.updateMembershipInDb(userId, isMember);
         }
     }
 

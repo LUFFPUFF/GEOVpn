@@ -30,7 +30,7 @@ public class BotBusinessService {
 
     public void sendSubscriptionOptions(long chatId) {
         String text = "💎 <b>Тарифы GeoVPN</b>\n\n" +
-                "⚪️ <b>Пробный</b> - 6 руб. / день" +
+                "⚪️ <b>Пробный</b> - 6 руб. / день\n" +
                 "└ 1 устройство | Все сервера \n\n" +
                 "⚪️ <b>Стандарт</b> — 100 ₽ / мес\n" +
                 "└ 1 устройство | Все сервера \n\n" +
@@ -54,10 +54,11 @@ public class BotBusinessService {
         UserResponse u = res != null ? res.getData() : null;
         long balance = (u != null && u.getBalance() != null) ? u.getBalance() / 100 : 0;
 
+        assert u != null;
         String text = "🤝 <b>Партнерская программа</b>\n\n" +
                 "Делитесь свободным интернетом с друзьями и получайте бонусы на баланс!\n\n" +
                 "🔗 <b>Ваша пригласительная ссылка:</b>\n" +
-                "<code>https://t.me/geovpbot?start=" + chatId + "</code>\n\n" +
+                "<code>https://t.me/geovpbot?start=" + u.getReferralCode() + "</code>\n\n" +
                 "📊 <b>Ваша статистика:</b>\n" +
                 "👥 Приглашено друзей: 0\n" +
                 "💳 Оплатили подписку: 0\n" +
@@ -72,13 +73,8 @@ public class BotBusinessService {
 
     public void sendWebSiteInfo(long chatId) {
         String text = """
-                🌐 <b>Личный кабинет</b>
-                
-                Для авторизации на сайте мы используем ваш email. Это безопасно и удобно.
-                
-                📩 Пожалуйста, отправьте ваш email ответным сообщением.
-                
-                <i>Пример: user@example.com</i>""";
+                На данный момент Веб-сайт находится в разработке, вы обязательно узнаете об этом первыми
+                """;
         sendSimpleText(chatId, text, true);
     }
 

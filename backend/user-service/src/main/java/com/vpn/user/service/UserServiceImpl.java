@@ -38,9 +38,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
-import java.net.Proxy;
-import java.net.InetSocketAddress;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -459,11 +456,39 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public boolean isUserMemberOfChannel(Long telegramId) {
+        User user = userRepository.findByTelegramId(telegramId)
+                .orElseThrow(() -> new UserNotFoundException(telegramId));
+
+        if (user.getIsChannelMember() != null) {
+            return user.getIsChannelMember();
+        }
+
+        boolean isMember = fetchMembershipFromTelegramApi(telegramId);
+
+        user.setIsChannelMember(isMember);
+        userRepository.save(user);
+
+        return isMember;
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "users", key = "#telegramId")
+    public void updateMembershipStatus(Long telegramId, boolean isMember) {
+        userRepository.findByTelegramId(telegramId).ifPresent(user -> {
+            user.setIsChannelMember(isMember);
+            userRepository.save(user);
+            log.info("Membership status updated via bot event for user {}: {}", telegramId, isMember);
+        });
+    }
+
+    private boolean fetchMembershipFromTelegramApi(Long telegramId) {
         String url = "https://api.telegram.org/bot" + botToken + "/getChatMember?chat_id=" + channelId + "&user_id=" + telegramId;
 
         try {
-            log.info("Checking TG membership via configured restTemplate: user={}", telegramId);
+            log.info("Checking TG membership via restTemplate for the first time: user={}", telegramId);
             JsonNode response = restTemplate.getForObject(url, JsonNode.class);
 
             if (response != null && response.get("ok").asBoolean()) {
@@ -471,8 +496,8 @@ public class UserServiceImpl implements UserService {
                 return List.of("member", "administrator", "creator").contains(status);
             }
         } catch (Exception e) {
-            log.error("Error checking TG membership via restTemplate (falling back to true): {}", e.getMessage());
-            return true;
+            log.error("Error checking TG membership via restTemplate: {}", e.getMessage());
+            return false;
         }
         return false;
     }

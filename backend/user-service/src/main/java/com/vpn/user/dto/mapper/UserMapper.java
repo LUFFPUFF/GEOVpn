@@ -31,6 +31,7 @@ public class UserMapper {
                 .hasActiveSubscription(user.hasActiveSubscription())
                 .isBanned(user.isBanned())
                 .banReason(user.getBanReason())
+                .isChannelMember(user.getIsChannelMember())
                 .build();
     }
 }

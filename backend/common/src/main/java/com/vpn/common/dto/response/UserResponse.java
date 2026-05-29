@@ -27,4 +27,5 @@ public class UserResponse {
     private boolean hasActiveSubscription;
     private boolean isBanned;
     private String banReason;
+    private Boolean isChannelMember;
 }

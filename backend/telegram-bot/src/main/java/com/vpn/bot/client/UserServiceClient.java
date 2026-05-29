@@ -37,4 +37,10 @@ public interface UserServiceClient {
             @RequestBody DeviceCreateRequest request
     );
 
+    @PostMapping("/api/v1/users/internal/{telegramId}/membership")
+    ApiResponse<Void> updateMembership(
+            @PathVariable("telegramId") Long telegramId,
+            @RequestParam("isMember") boolean isMember
+    );
+
 }

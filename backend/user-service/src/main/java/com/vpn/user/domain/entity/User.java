@@ -69,6 +69,9 @@ public class User {
     @Column(name = "ban_reason")
     private String banReason;
 
+    @Column(name = "is_channel_member")
+    private Boolean isChannelMember;
+
     public boolean hasActiveSubscription() {
         return subscriptionExpiresAt != null &&
                 subscriptionExpiresAt.isAfter(LocalDateTime.now());

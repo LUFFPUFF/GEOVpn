@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vpn.common.constant.ErrorCode;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ErrorResponse;
+import com.vpn.common.dto.ServerDto;
 import com.vpn.common.security.UserRole;
 import com.vpn.common.security.annotations.Public;
 import com.vpn.common.security.annotations.RequireAnyRole;
@@ -14,6 +15,8 @@ import com.vpn.common.util.StringUtils;
 import com.vpn.common.dto.request.ConfigCreateRequest;
 import com.vpn.common.dto.request.ConfigRegenerateRequest;
 import com.vpn.common.dto.response.VpnConfigResponse;
+import com.vpn.config.client.XUIServerApiClient;
+import com.vpn.config.service.interf.ServerSelectionService;
 import com.vpn.config.service.interf.VpnConfigService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +26,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -33,6 +38,8 @@ import java.util.UUID;
 public class VpnConfigController {
 
     private final VpnConfigService vpnConfigService;
+    private final XUIServerApiClient xuiClient;
+    private final ServerSelectionService serverSelectionService;
 
     /**
      * Создать новую VPN подписку (набор серверов) для устройства.
@@ -117,12 +124,57 @@ public class VpnConfigController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    /**
+     * Выгрузить («вытащить») список всех пользователей с конкретного сервера.
+     * GET /api/v1/configs/admin/servers/{serverId}/clients
+     */
+    @GetMapping("/admin/servers/{serverId}/clients")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAllClientsFromServer(
+            @PathVariable Long serverId) {
+
+        ServerDto server = serverSelectionService.getAllActiveServers().stream()
+                .filter(s -> s.getId().equals(serverId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Server not found with ID: " + serverId));
+
+        List<Map<String, Object>> clients = xuiClient.getAllClients(server);
+        return ResponseEntity.ok(ApiResponse.success(clients));
+    }
 
     /**
-     * Возвращает зашифрованную ссылку вида happ://crypt5/... для копирования.
-     * При зашифрованной ссылке пользователь не видит адрес подписки и конфиги серверов.
-     * Если Happ Crypto API недоступен — возвращает обычный URL подписки как fallback.
+     * Запустить полный перенос (миграцию) всех пользователей с одного сервера на другой.
+     * POST /api/v1/configs/admin/servers/migrate?sourceServerId=X&targetServerId=Y
      */
+    @PostMapping("/admin/servers/migrate")
+    public ResponseEntity<ApiResponse<Void>> migrateAllClients(
+            @RequestParam Long sourceServerId,
+            @RequestParam Long targetServerId) {
+
+        List<ServerDto> activeServers = serverSelectionService.getAllActiveServers();
+
+        ServerDto sourceServer = activeServers.stream()
+                .filter(s -> s.getId().equals(sourceServerId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Source server not found with ID: " + sourceServerId));
+
+        ServerDto targetServer = activeServers.stream()
+                .filter(s -> s.getId().equals(targetServerId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Target server not found with ID: " + targetServerId));
+
+        List<Integer> targetInboundIds = new ArrayList<>();
+        if (targetServer.getTcpInboundId() != null) targetInboundIds.add(targetServer.getTcpInboundId());
+        if (targetServer.getWsInboundId()  != null) targetInboundIds.add(targetServer.getWsInboundId());
+        if (targetInboundIds.isEmpty() && targetServer.getPanelInboundId() != null) {
+            targetInboundIds.add(targetServer.getPanelInboundId());
+        }
+
+        xuiClient.moveAllClients(sourceServer, targetServer, targetInboundIds);
+
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+
     @GetMapping(value = "/encrypted-sub/{uuid}", produces = MediaType.TEXT_PLAIN_VALUE)
     @Public
     public ResponseEntity<String> getEncryptedSubLink(@PathVariable("uuid") UUID vlessUuid) {
@@ -147,10 +199,8 @@ public class VpnConfigController {
         String finalDeepLink;
         try {
             String encryptedLink = encryptHappSubscriptionUrl(subscriptionUrl);
-
             String encodedEncrypted = java.net.URLEncoder.encode(encryptedLink, java.nio.charset.StandardCharsets.UTF_8);
             finalDeepLink = "happ://add-sub?url=" + encodedEncrypted;
-
             log.info("Generated encrypted auto-import deeplink for uuid={}", vlessUuid);
         } catch (Exception e) {
             log.warn("Happ crypto API unavailable, using plain URL fallback: {}", e.getMessage());
@@ -176,18 +226,6 @@ public class VpnConfigController {
         return ResponseEntity.ok(html);
     }
 
-    /**
-     * Шифрует URL подписки через Happ Crypto API и возвращает
-     * зашифрованный диплинк вида happ://crypt5/...
-     *
-     * После добавления такой подписки пользователь не может
-     * редактировать, просматривать или делиться конфигурациями серверов.
-     *
-     * Документация: https://crypto.happ.su
-     * API endpoint:  POST https://crypto.happ.su/api-v2.php
-     *                Body: {"url":"<subscription_url>"}
-     *                Response: happ://crypt5/<encrypted_data>
-     */
     private String encryptHappSubscriptionUrl(String url) throws Exception {
         String requestBody = "{\"url\":\"" + url + "\"}";
 
@@ -219,7 +257,6 @@ public class VpnConfigController {
         throw new RuntimeException("Invalid Crypto API response: " + body);
     }
 
-
     private ResponseEntity<ApiResponse<VpnConfigResponse>> buildConfigNotFoundResponse() {
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .code(ErrorCode.CONFIG_GENERATION_FAILED.getCode())
@@ -229,6 +266,4 @@ public class VpnConfigController {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(errorResponse));
     }
-
-
 }

@@ -28,16 +28,8 @@ public class XUIServerApiClient {
     private final ConcurrentHashMap<String, String> resolvedBaseUrls  = new ConcurrentHashMap<>();
 
     private final RestTemplate restTemplate;
-    /**
-     * Xray пишет строки вида:
-     *   2025/01/01 12:34:56 tg_123_dev_1 >> example.com:443
-     * Нас интересует только часть после " >> ".
-     */
+
     private static final Pattern XRAY_LOG_LINE   = Pattern.compile(">>(\\s*)([\\w.\\-]+):(\\d+)");
-    /**
-     * Грубая проверка: хост содержит точку и заканчивается на 2-6 латинских букв (TLD).
-     * Отсекает IP-адреса, версии пакетов, короткие идентификаторы.
-     */
     private static final Pattern VALID_DOMAIN     = Pattern.compile("(?i)^(?:[a-z0-9](?:[a-z0-9\\-]{0,61}[a-z0-9])?\\.)+[a-z]{2,6}$");
 
     public XUIServerApiClient(RestTemplateBuilder builder) {
@@ -134,26 +126,22 @@ public class XUIServerApiClient {
         }
     }
 
+    /**
+     * Скорректировано под новый API: теперь логин всегда отправляется в формате JSON
+     */
     private void login(ServerDto server, String baseUrl) {
         String loginUrl = baseUrl + "/login";
         log.info(">>>> [XUI LOGIN] Server: {}, URL: {}, User: {}", server.getName(), loginUrl, server.getPanelUsername());
 
         HttpHeaders headers = new HttpHeaders();
-        HttpEntity<?> entity;
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-        if (server.isRelay()) {
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            Map<String, String> jsonBody = new HashMap<>();
-            jsonBody.put("username", server.getPanelUsername());
-            jsonBody.put("password", server.getPanelPassword());
-            entity = new HttpEntity<>(jsonBody, headers);
-        } else {
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-            MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-            form.add("username", server.getPanelUsername());
-            form.add("password", server.getPanelPassword());
-            entity = new HttpEntity<>(form, headers);
-        }
+        Map<String, String> jsonBody = new HashMap<>();
+        jsonBody.put("username", server.getPanelUsername());
+        jsonBody.put("password", server.getPanelPassword());
+        jsonBody.put("twoFactorCode", ""); // Обязательное пустое поле для нового API
+
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(jsonBody, headers);
 
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(loginUrl, entity, String.class);
@@ -229,12 +217,15 @@ public class XUIServerApiClient {
         addClientWithToken(server, Collections.singletonList(targetInboundId), uuid, email, flow, server.getApiToken());
     }
 
+    /**
+     * Скорректировано под новый API: теперь передается обязательный параметр `keepTraffic=0`
+     */
     public void removeClient(ServerDto server, String uuid) {
         String baseUrl = buildBaseUrl(server);
         ensureAuthenticated(server, baseUrl);
         String email = findEmailByUuidWithRetry(server, baseUrl, uuid);
         if (email != null && !email.isBlank()) {
-            executeWithRetry(server, baseUrl, baseUrl + "/panel/api/clients/del/" + email, null);
+            executeWithRetry(server, baseUrl, baseUrl + "/panel/api/clients/del/" + email + "?keepTraffic=0", null);
             log.info("Successfully deleted client by email {} on server {}", email, server.getName());
         } else {
             log.warn("Client with UUID {} not found on server {}, skipping deletion", uuid, server.getName());
@@ -242,12 +233,89 @@ public class XUIServerApiClient {
     }
 
     /**
-     * Запрашивает последние N строк лога Xray, отфильтрованных по email.
-     *
-     * ВАЖНО: showDirect ДОЛЖЕН быть "true".
-     * Большинство обычных сайтов логируется именно через direct-маршрут
-     * Xray. Без этого флага домены практически не собираются.
+     * Вытягивает полный список клиентов с конкретного сервера.
+     * Возвращает список объектов в оригинальной структуре 3x-ui.
      */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getAllClients(ServerDto server) {
+        String baseUrl = buildBaseUrl(server);
+        ensureAuthenticated(server, baseUrl);
+
+        HttpHeaders headers = buildAuthHeaders(server);
+        HttpEntity<?> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    baseUrl + "/panel/api/clients/list", HttpMethod.GET, entity, Map.class);
+
+            if (response.getBody() != null && Boolean.TRUE.equals(response.getBody().get("success"))) {
+                return (List<Map<String, Object>>) response.getBody().get("obj");
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch full clients list from server {}: {}", server.getName(), e.getMessage());
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Пакетное создание клиентов на сервере за ОДИН запрос.
+     * Использует новую ручку /panel/api/clients/bulkCreate.
+     *
+     * @param bulkPayload Массив объектов вида: {"client": { ... }, "inboundIds": [ids]}
+     */
+    public void bulkCreateClients(ServerDto server, List<Map<String, Object>> bulkPayload) {
+        if (bulkPayload == null || bulkPayload.isEmpty()) return;
+
+        String baseUrl = buildBaseUrl(server);
+        ensureAuthenticated(server, baseUrl);
+
+        executeWithRetry(server, baseUrl, baseUrl + "/panel/api/clients/bulkCreate", bulkPayload);
+        log.info("Bulk creation success for {} clients on server {}", bulkPayload.size(), server.getName());
+    }
+
+    /**
+     * Полный перенос (миграция) всех пользователей с одного сервера на другой.
+     * Считывает базу клиентов с исходного сервера и мгновенно создает их на целевом.
+     *
+     * @param sourceServer Сервер-источник (откуда забираем)
+     * @param targetServer Целевой сервер (куда переносим)
+     * @param targetInboundIds В какие инбаунды привязать перенесенных клиентов на новом сервере
+     */
+    @SuppressWarnings("unchecked")
+    public void moveAllClients(ServerDto sourceServer, ServerDto targetServer, List<Integer> targetInboundIds) {
+        log.info("Starting migration of clients from {} to {}", sourceServer.getName(), targetServer.getName());
+
+        List<Map<String, Object>> sourceClients = getAllClients(sourceServer);
+        if (sourceClients.isEmpty()) {
+            log.warn("No clients found on source server {}, migration aborted.", sourceServer.getName());
+            return;
+        }
+
+        List<Map<String, Object>> bulkPayload = new ArrayList<>();
+
+        for (Map<String, Object> src : sourceClients) {
+            Map<String, Object> clientObj = new HashMap<>();
+            clientObj.put("id",        src.get("id") != null ? src.get("id") : src.get("uuid"));
+            clientObj.put("email",     src.get("email"));
+            clientObj.put("flow",      src.get("flow") != null ? src.get("flow") : "xtls-rprx-vision");
+            clientObj.put("limitIp",   src.get("limitIp") != null ? src.get("limitIp") : 0);
+            clientObj.put("totalGB",   src.get("totalGB") != null ? src.get("totalGB") : 0);
+            clientObj.put("expiryTime",src.get("expiryTime") != null ? src.get("expiryTime") : 0);
+            clientObj.put("enable",    src.get("enable") != null ? src.get("enable") : true);
+            clientObj.put("tgId",      src.get("tgId") != null ? src.get("tgId") : 0);
+            clientObj.put("subId",     src.get("subId"));
+
+            Map<String, Object> bulkItem = new HashMap<>();
+            bulkItem.put("client",     clientObj);
+            bulkItem.put("inboundIds", targetInboundIds);
+
+            bulkPayload.add(bulkItem);
+        }
+
+        bulkCreateClients(targetServer, bulkPayload);
+        log.info("Successfully migrated {} clients from {} to {}", bulkPayload.size(), sourceServer.getName(), targetServer.getName());
+    }
+
     public String getXrayLogs(ServerDto server, int count, String emailFilter) {
         String      baseUrl = buildBaseUrl(server);
         ensureAuthenticated(server, baseUrl);
@@ -269,23 +337,12 @@ public class XUIServerApiClient {
             if (response.getBody() != null && Boolean.TRUE.equals(response.getBody().get("success"))) {
                 return (String) response.getBody().get("obj");
             }
-            log.warn("getXrayLogs: panel returned success=false for filter={} on server {}", emailFilter, server.getName());
         } catch (Exception e) {
             log.error("Failed to fetch Xray logs for filter={} from server {}: {}", emailFilter, server.getName(), e.getMessage());
         }
         return "";
     }
 
-    /**
-     * Извлекает уникальные домены из текста лога Xray.
-     *
-     * Изменения по сравнению с исходной реализацией в VpnAbuseMonitorJob:
-     * 1. Паттерн ищет хост только в части строки после " >> " — это
-     *    гарантирует, что мы берём именно destination, а не системный мусор.
-     * 2. VALID_DOMAIN проверяет TLD (2-6 alpha) — отсекает IP-адреса,
-     *    версии пакетов (v25.10.31) и прочий шум.
-     * 3. Фильтрация whitelist-доменов вынесена сюда же.
-     */
     public Set<String> extractDomainsFromLogs(String logs) {
         if (logs == null || logs.isBlank()) return Collections.emptySet();
 
@@ -301,10 +358,6 @@ public class XUIServerApiClient {
         return domains;
     }
 
-    /**
-     * Системный фоновый шум: обновления ОС, CDN, телеметрия.
-     * Оставляем только реальные сайты пользователя.
-     */
     public boolean isWhiteNoiseDomain(String d) {
         return d.contains("yastatic")     || d.contains("cloudfront")      || d.contains("cloudflare")
                 || d.contains("geovp")        || d.contains("apple.com")       || d.contains("icloud")
@@ -313,10 +366,6 @@ public class XUIServerApiClient {
                 || d.contains("akamaitechnologies") || d.contains("akamaiedge")|| d.contains("fastly");
     }
 
-    /**
-     * МАССОВЫЙ СБОР: один запрос на сервер вместо N запросов на каждого клиента.
-     * Возвращает Map: email -> {up, down} в байтах.
-     */
     @SuppressWarnings("unchecked")
     public Map<String, Map<String, Long>> getAllClientsTraffic(ServerDto server) {
         String      baseUrl = buildBaseUrl(server);

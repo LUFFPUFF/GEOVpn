@@ -245,8 +245,17 @@ public class VpnAbuseMonitorJob {
      */
     private Set<String> fetchDomainsLazy(ServerDto server, String email, int logLines) {
         String logs = xuiClient.getXrayLogs(server, logLines, email);
-        if (logs == null || logs.isBlank()) return Collections.emptySet();
-        return xuiClient.extractDomainsFromLogs(logs);
+        if (logs == null || logs.isBlank()) {
+            log.debug("fetchDomainsLazy: empty logs from server {} for email {}", server.getName(), email);
+            return Collections.emptySet();
+        }
+        log.debug("fetchDomainsLazy: got {} chars from server {} for email {}. Sample:\n{}",
+                logs.length(), server.getName(), email,
+                logs.length() > 300 ? logs.substring(0, 300) : logs);
+        Set<String> domains = xuiClient.extractDomainsFromLogs(logs);
+        log.debug("fetchDomainsLazy: extracted {} domains from server {} for email {}",
+                domains.size(), server.getName(), email);
+        return domains;
     }
 
     private boolean containsTorrentDomains(Set<String> domains) {

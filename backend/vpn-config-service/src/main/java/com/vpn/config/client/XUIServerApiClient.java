@@ -26,14 +26,18 @@ public class XUIServerApiClient {
 
     private final ConcurrentHashMap<String, String> sessionCookies    = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> resolvedBaseUrls  = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> unavailableUntil = new ConcurrentHashMap<>();
 
     private final RestTemplate restTemplate;
     private final RestTemplate bulkRestTemplate;
 
-    private static final Pattern XRAY_LOG_LINE   = Pattern.compile(">>(\\s*)([\\w.\\-]+):(\\d+)");
+    private static final Pattern XRAY_LOG_LINE = Pattern.compile(
+            ">>\\s*(?:tcp:|udp:)?([\\w][\\w.\\-]{2,}\\.[a-zA-Z]{2,6}):(\\d+)"
+    );
     private static final Pattern VALID_DOMAIN     = Pattern.compile("(?i)^(?:[a-z0-9](?:[a-z0-9\\-]{0,61}[a-z0-9])?\\.)+[a-z]{2,6}$");
 
     private static final int BULK_BATCH_SIZE = 500;
+    private static final long UNAVAILABLE_COOLDOWN_MS = 5 * 60 * 1000L;
 
     public XUIServerApiClient(RestTemplateBuilder builder) {
         this.restTemplate     = createTrustAllRestTemplate(10_000);
@@ -373,18 +377,12 @@ public class XUIServerApiClient {
     }
 
     public Set<String> extractDomainsFromLogs(String logs) {
-        if (logs == null || logs.isBlank()) {
-            log.debug("extractDomains: logs is blank");
-            return Collections.emptySet();
-        }
-
-        log.debug("extractDomains: raw log sample:\n{}",
-                logs.length() > 500 ? logs.substring(0, 500) : logs);
+        if (logs == null || logs.isBlank()) return Collections.emptySet();
 
         Set<String> domains = new HashSet<>();
         Matcher matcher = XRAY_LOG_LINE.matcher(logs);
         while (matcher.find()) {
-            String host = matcher.group(2).toLowerCase();
+            String host = matcher.group(1).toLowerCase();
             if (host.startsWith(".")) host = host.substring(1);
             if (VALID_DOMAIN.matcher(host).matches() && !isWhiteNoiseDomain(host)) {
                 domains.add(host);
@@ -440,14 +438,36 @@ public class XUIServerApiClient {
                                                  String uuid, String expectedEmail, String flow) {
         if (targetInboundIds == null || targetInboundIds.isEmpty()) return false;
 
-        String baseUrl = buildBaseUrl(server);
-        ensureAuthenticated(server, baseUrl);
+        if (isServerUnavailable(server)) return false;
 
-        ClientPanelInfo panelInfo = findClientInfoByUuidWithRetry(server, baseUrl, uuid);
+        String baseUrl = buildBaseUrl(server);
+        try {
+            ensureAuthenticated(server, baseUrl);
+        } catch (Exception e) {
+            markServerUnavailable(server);
+            log.warn("Cannot authenticate on server {}, skipping: {}", server.getName(), e.getMessage());
+            return false;
+        }
+
+        ClientPanelInfo panelInfo;
+        try {
+            panelInfo = findClientInfoByUuidWithRetry(server, baseUrl, uuid);
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            markServerUnavailable(server);
+            log.warn("Server {} unreachable, skipping client check for uuid {}",
+                    server.getName(), uuid);
+            return false;
+        }
 
         if (panelInfo == null || panelInfo.email == null || panelInfo.email.isBlank()) {
-            log.info("Client UUID {} not found on server {}. Restoring to inbounds {}...", uuid, server.getName(), targetInboundIds);
-            addClientWithToken(server, targetInboundIds, uuid, expectedEmail, flow, server.getApiToken());
+            log.info("Client UUID {} not found on server {}. Restoring to inbounds {}...",
+                    uuid, server.getName(), targetInboundIds);
+            try {
+                addClientWithToken(server, targetInboundIds, uuid, expectedEmail, flow, server.getApiToken());
+            } catch (org.springframework.web.client.ResourceAccessException e) {
+                markServerUnavailable(server);
+                return false;
+            }
             return true;
         }
 
@@ -457,9 +477,12 @@ public class XUIServerApiClient {
         }
 
         if (!missingInbounds.isEmpty()) {
-            log.info("Client UUID {} exists on server {}, but missing in inbounds {}. Attaching...",
-                    uuid, server.getName(), missingInbounds);
-            attachClientToInbounds(server, baseUrl, panelInfo.email, missingInbounds);
+            try {
+                attachClientToInbounds(server, baseUrl, panelInfo.email, missingInbounds);
+            } catch (org.springframework.web.client.ResourceAccessException e) {
+                markServerUnavailable(server);
+                return false;
+            }
             return true;
         }
 
@@ -531,10 +554,17 @@ public class XUIServerApiClient {
                     }
                 }
             }
+            return null;
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            log.error("Network error fetching clients list from server {}: {}",
+                    server.getName(), e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("Failed to fetch clients list from server {}: {}", server.getName(), e.getMessage());
+            log.error("Failed to fetch clients list from server {}: {}",
+                    server.getName(), e.getMessage());
+            throw new RuntimeException("Cannot determine client state on server " +
+                    server.getName() + ": " + e.getMessage(), e);
         }
-        return null;
     }
 
     private ClientPanelInfo findClientInfoByUuidWithRetry(ServerDto server, String baseUrl, String uuid) {
@@ -555,4 +585,20 @@ public class XUIServerApiClient {
         if (server.getPanelUsername() == null || server.getPanelUsername().isBlank())
             throw new IllegalStateException("Server '" + server.getName() + "' has no panelUsername configured");
     }
+
+    private boolean isServerUnavailable(ServerDto server) {
+        Long until = unavailableUntil.get(server.getIpAddress());
+        if (until == null) return false;
+        if (System.currentTimeMillis() < until) return true;
+        unavailableUntil.remove(server.getIpAddress());
+        return false;
+    }
+
+    private void markServerUnavailable(ServerDto server) {
+        long until = System.currentTimeMillis() + UNAVAILABLE_COOLDOWN_MS;
+        unavailableUntil.put(server.getIpAddress(), until);
+        log.warn("Server {} ({}) marked UNAVAILABLE for 5 minutes",
+                server.getName(), server.getIpAddress());
+    }
+
 }

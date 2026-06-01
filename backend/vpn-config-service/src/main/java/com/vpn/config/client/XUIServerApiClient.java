@@ -373,7 +373,13 @@ public class XUIServerApiClient {
     }
 
     public Set<String> extractDomainsFromLogs(String logs) {
-        if (logs == null || logs.isBlank()) return Collections.emptySet();
+        if (logs == null || logs.isBlank()) {
+            log.debug("extractDomains: logs is blank");
+            return Collections.emptySet();
+        }
+
+        log.debug("extractDomains: raw log sample:\n{}",
+                logs.length() > 500 ? logs.substring(0, 500) : logs);
 
         Set<String> domains = new HashSet<>();
         Matcher matcher = XRAY_LOG_LINE.matcher(logs);

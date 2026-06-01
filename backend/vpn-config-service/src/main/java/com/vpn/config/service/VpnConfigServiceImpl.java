@@ -299,14 +299,19 @@ public class VpnConfigServiceImpl implements VpnConfigService {
 
         String baseName;
         if (username != null && !username.trim().isEmpty()) {
-            baseName = username + "_" + userId;
+            String safeUsername = username.replaceAll("[^a-zA-Z0-9_\\-]", "");
+            if (safeUsername.isEmpty()) {
+                baseName = "tg_" + userId;
+            } else {
+                baseName = safeUsername + "_" + userId;
+            }
         } else {
             baseName = "tg_" + userId;
         }
 
         return deviceNumber <= 1
                 ? baseName
-                : baseName + " - устр. " + deviceNumber;
+                : baseName + "_dev_" + deviceNumber;
     }
 
     @Override

@@ -287,18 +287,31 @@ public class XUIServerApiClient {
         }
 
         List<Map<String, Object>> bulkPayload = new ArrayList<>();
+        int skipped = 0;
 
         for (Map<String, Object> src : sourceClients) {
+            Object uuidRaw = src.get("uuid");
+            if (uuidRaw == null) uuidRaw = src.get("id");
+            if (uuidRaw == null) {
+                log.warn("Skipping client '{}': no uuid/id found", src.get("email"));
+                skipped++;
+                continue;
+            }
+            String uuid = uuidRaw.toString();
+
+            Object tgIdRaw = src.get("tgId");
+            long tgId = tgIdRaw instanceof Number ? ((Number) tgIdRaw).longValue() : 0L;
+
             Map<String, Object> clientObj = new HashMap<>();
-            clientObj.put("id",        src.get("id") != null ? src.get("id") : src.get("uuid"));
-            clientObj.put("email",     src.get("email"));
-            clientObj.put("flow",      src.get("flow") != null ? src.get("flow") : "xtls-rprx-vision");
-            clientObj.put("limitIp",   src.get("limitIp") != null ? src.get("limitIp") : 0);
-            clientObj.put("totalGB",   src.get("totalGB") != null ? src.get("totalGB") : 0);
-            clientObj.put("expiryTime",src.get("expiryTime") != null ? src.get("expiryTime") : 0);
-            clientObj.put("enable",    src.get("enable") != null ? src.get("enable") : true);
-            clientObj.put("tgId",      src.get("tgId") != null ? src.get("tgId") : 0);
-            clientObj.put("subId",     src.get("subId"));
+            clientObj.put("id",         uuid);
+            clientObj.put("email",      src.get("email"));
+            clientObj.put("flow",       src.get("flow") != null ? src.get("flow") : "xtls-rprx-vision");
+            clientObj.put("limitIp",    src.get("limitIp")    != null ? src.get("limitIp")    : 0);
+            clientObj.put("totalGB",    src.get("totalGB")    != null ? src.get("totalGB")    : 0);
+            clientObj.put("expiryTime", src.get("expiryTime") != null ? src.get("expiryTime") : 0);
+            clientObj.put("enable",     src.get("enable")     != null ? src.get("enable")     : true);
+            clientObj.put("tgId",       tgId);
+            clientObj.put("subId",      src.get("subId") != null ? src.get("subId") : "");
 
             Map<String, Object> bulkItem = new HashMap<>();
             bulkItem.put("client",     clientObj);
@@ -306,6 +319,14 @@ public class XUIServerApiClient {
 
             bulkPayload.add(bulkItem);
         }
+
+        if (bulkPayload.isEmpty()) {
+            log.warn("Migration aborted: all {} clients were skipped (no uuid/id)", skipped);
+            return;
+        }
+
+        log.info("Prepared {} clients for migration ({} skipped), sending to {}",
+                bulkPayload.size(), skipped, targetServer.getName());
 
         bulkCreateClients(targetServer, bulkPayload);
         log.info("Successfully migrated {} clients from {} to {}", bulkPayload.size(), sourceServer.getName(), targetServer.getName());

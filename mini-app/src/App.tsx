@@ -7,8 +7,7 @@ import { useUserStore } from './store/userStore';
 import Header from './components/layout/Header';
 import BottomNav from './components/layout/BottomNav';
 import BanScreen from './components/layout/BanScreen';
-// Временно импорт проверки подписки комментируется
-// import SubscriptionGuard from './components/guards/SubscriptionGuard';
+import SubscriptionGuard from './components/guards/SubscriptionGuard';
 
 import { BANNED_TELEGRAM_IDS, SUPPORT_LINK } from './bannedUsers';
 import bgVideo from './assets/fon/video10.mp4';
@@ -172,13 +171,11 @@ export default function App() {
                 <div style={STYLES.flexShrinkZero}>
                     <Header />
                 </div>
-                {/* Временно отключаем проверку SubscriptionGuard */}
-                {/* {isDev ? renderAppContent() : (
+                {isDev ? renderAppContent() : (
                     <SubscriptionGuard>
                         {renderAppContent()}
                     </SubscriptionGuard>
-                )} */}
-                {renderAppContent()}
+                )}
             </div>
         </div>
     );

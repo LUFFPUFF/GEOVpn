@@ -34,3 +34,8 @@ backend/billing-service/src/main/resources/application-local.yml
 backend/api-gateway/src/main/resources/application-local.yml
 
 docs/VLESS_Reality_XHTTP_Guide.md
+
+node_modules/
+**/node_modules/
+.eslintcache
+admin-panel/node_modules

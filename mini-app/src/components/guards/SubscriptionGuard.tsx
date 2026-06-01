@@ -1,12 +1,33 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useUserStore } from '../../store/userStore';
 import { motion } from 'framer-motion';
 import { Bell, ArrowRight, CheckCircle2, RefreshCcw } from 'lucide-react';
 
 export default function SubscriptionGuard({ children }: { children: React.ReactNode }) {
-    const { isMember, checkMembership, loading } = useUserStore();
+    const { isMember, checkMembership, loading, user } = useUserStore();
 
-    if (isMember) return <>{children}</>;
+    const [cachedMember, setCachedMember] = useState<boolean>(() => {
+        return localStorage.getItem('is_member_cached') === 'true';
+    });
+
+    useEffect(() => {
+        if (isMember === true) {
+            localStorage.setItem('is_member_cached', 'true');
+            setCachedMember(true);
+        }
+        else if (isMember === false && user) {
+            localStorage.removeItem('is_member_cached');
+            setCachedMember(false);
+        }
+    }, [isMember, user]);
+
+    if (cachedMember || isMember) {
+        return <>{children}</>;
+    }
+
+    if (!user && loading) {
+        return null;
+    }
 
     return (
         <div className="fixed inset-0 z-[9999] bg-[#0a0a0f] flex flex-col items-center justify-center p-8 text-center">

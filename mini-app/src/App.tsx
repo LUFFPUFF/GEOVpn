@@ -28,6 +28,8 @@ export default function App() {
     const [showWarning, setShowWarning] = useState(false);
     const [dontShowAgain, setDontShowAgain] = useState(false);
 
+    const [warningDismissed, setWarningDismissed] = useState(false);
+
     const isDev = import.meta.env.DEV;
     const currentTgId = tg?.initDataUnsafe?.user?.id;
     const isStaticBanned = currentTgId ? BANNED_TELEGRAM_IDS.includes(Number(currentTgId)) : false;
@@ -35,12 +37,13 @@ export default function App() {
     const isBanned = isStaticBanned || isDynamicBanned;
 
     useEffect(() => {
-        if (isBanned) return;
+        if (isBanned || warningDismissed) return;
+
         const isHidden = localStorage.getItem('hide_anti_glush_warning');
         if (!isHidden) {
             setShowWarning(true);
         }
-    }, [isBanned]);
+    }, [isBanned, warningDismissed])
 
     useEffect(() => {
         if (!tg) return;
@@ -80,6 +83,7 @@ export default function App() {
         if (dontShowAgain) {
             localStorage.setItem('hide_anti_glush_warning', 'true');
         }
+        setWarningDismissed(true);
         setShowWarning(false);
     };
 

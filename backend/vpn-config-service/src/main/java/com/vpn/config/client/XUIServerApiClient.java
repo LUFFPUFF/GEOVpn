@@ -127,31 +127,42 @@ public class XUIServerApiClient {
     }
 
     /**
-     * Скорректировано под новый API: теперь логин всегда отправляется в формате JSON
+     * Скорректировано под новый API: поддержка двухшаговой авторизации
      */
     private void login(ServerDto server, String baseUrl) {
-        String loginUrl = baseUrl + "/login";
-        log.info(">>>> [XUI LOGIN] Server: {}, URL: {}, User: {}", server.getName(), loginUrl, server.getPanelUsername());
-
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, String> jsonBody = new HashMap<>();
         jsonBody.put("username", server.getPanelUsername());
         jsonBody.put("password", server.getPanelPassword());
-        jsonBody.put("twoFactorCode", ""); // Обязательное пустое поле для нового API
+        jsonBody.put("twoFactorCode", "");
 
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(jsonBody, headers);
+
+        String loginUrl = baseUrl + "/panel/api/login";
+        log.info(">>>> [XUI LOGIN] Server: {}, Trying new API login URL: {}, User: {}", server.getName(), loginUrl, server.getPanelUsername());
 
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(loginUrl, entity, String.class);
             String cookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
-            if (cookie == null) throw new RuntimeException("No cookie returned from " + server.getIpAddress());
+            if (cookie == null) throw new RuntimeException("No cookie returned");
             sessionCookies.put(server.getIpAddress(), cookie);
-            log.info("<<<< [XUI LOGIN] SUCCESS for {}", server.getName());
+            log.info("<<<< [XUI LOGIN] SUCCESS (New API) for {}", server.getName());
         } catch (Exception e) {
-            log.error("!!!! [XUI LOGIN] FAILED for {}: {}", server.getName(), e.getMessage());
-            throw new RuntimeException("Login failed: " + e.getMessage());
+            log.info("<<<< [XUI LOGIN] New API login failed: {}. Trying legacy /login fallback...", e.getMessage());
+
+            String legacyLoginUrl = baseUrl + "/login";
+            try {
+                ResponseEntity<String> response = restTemplate.postForEntity(legacyLoginUrl, entity, String.class);
+                String cookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
+                if (cookie == null) throw new RuntimeException("No cookie returned");
+                sessionCookies.put(server.getIpAddress(), cookie);
+                log.info("<<<< [XUI LOGIN] SUCCESS (Legacy API) for {}", server.getName());
+            } catch (Exception ex) {
+                log.error("!!!! [XUI LOGIN] BOTH LOGINS FAILED for {}: {}", server.getName(), ex.getMessage());
+                throw new RuntimeException("Login failed: " + ex.getMessage());
+            }
         }
     }
 
@@ -217,9 +228,6 @@ public class XUIServerApiClient {
         addClientWithToken(server, Collections.singletonList(targetInboundId), uuid, email, flow, server.getApiToken());
     }
 
-    /**
-     * Скорректировано под новый API: теперь передается обязательный параметр `keepTraffic=0`
-     */
     public void removeClient(ServerDto server, String uuid) {
         String baseUrl = buildBaseUrl(server);
         ensureAuthenticated(server, baseUrl);
@@ -232,10 +240,6 @@ public class XUIServerApiClient {
         }
     }
 
-    /**
-     * Вытягивает полный список клиентов с конкретного сервера.
-     * Возвращает список объектов в оригинальной структуре 3x-ui.
-     */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> getAllClients(ServerDto server) {
         String baseUrl = buildBaseUrl(server);
@@ -257,12 +261,6 @@ public class XUIServerApiClient {
         return Collections.emptyList();
     }
 
-    /**
-     * Пакетное создание клиентов на сервере за ОДИН запрос.
-     * Использует новую ручку /panel/api/clients/bulkCreate.
-     *
-     * @param bulkPayload Массив объектов вида: {"client": { ... }, "inboundIds": [ids]}
-     */
     public void bulkCreateClients(ServerDto server, List<Map<String, Object>> bulkPayload) {
         if (bulkPayload == null || bulkPayload.isEmpty()) return;
 
@@ -273,14 +271,6 @@ public class XUIServerApiClient {
         log.info("Bulk creation success for {} clients on server {}", bulkPayload.size(), server.getName());
     }
 
-    /**
-     * Полный перенос (миграция) всех пользователей с одного сервера на другой.
-     * Считывает базу клиентов с исходного сервера и мгновенно создает их на целевом.
-     *
-     * @param sourceServer Сервер-источник (откуда забираем)
-     * @param targetServer Целевой сервер (куда переносим)
-     * @param targetInboundIds В какие инбаунды привязать перенесенных клиентов на новом сервере
-     */
     @SuppressWarnings("unchecked")
     public void moveAllClients(ServerDto sourceServer, ServerDto targetServer, List<Integer> targetInboundIds) {
         log.info("Starting migration of clients from {} to {}", sourceServer.getName(), targetServer.getName());

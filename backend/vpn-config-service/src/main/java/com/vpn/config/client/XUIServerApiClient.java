@@ -169,9 +169,19 @@ public class XUIServerApiClient {
 
     private void sendRequest(ServerDto server, String url, Object body) {
         HttpHeaders headers = buildAuthHeaders(server);
-        ResponseEntity<String> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), String.class);
-        if (response.getStatusCode() == HttpStatus.FOUND || response.getStatusCode() == HttpStatus.MOVED_PERMANENTLY) {
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                url, new HttpEntity<>(body, headers), Map.class);
+
+        if (response.getStatusCode() == HttpStatus.FOUND ||
+                response.getStatusCode() == HttpStatus.MOVED_PERMANENTLY) {
             throw new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "Authentication failed (Redirected)");
+        }
+
+        Map<?, ?> responseBody = response.getBody();
+        if (responseBody != null && Boolean.FALSE.equals(responseBody.get("success"))) {
+            String msg = (String) responseBody.get("msg");
+            log.error("Panel API error for {}: {}", url, msg);
+            throw new RuntimeException("Panel API error: " + msg);
         }
     }
 
@@ -257,7 +267,12 @@ public class XUIServerApiClient {
         String baseUrl = buildBaseUrl(server);
         ensureAuthenticated(server, baseUrl);
 
-        executeWithRetry(server, baseUrl, baseUrl + "/panel/api/clients/bulkCreate", bulkPayload);
+        HttpHeaders headers = buildAuthHeaders(server);
+        ResponseEntity<String> response = restTemplate.postForEntity(
+                baseUrl + "/panel/api/clients/bulkCreate",
+                new HttpEntity<>(bulkPayload, headers), String.class);
+        log.info("bulkCreate response for {}: {}", server.getName(), response.getBody());
+
         log.info("Bulk creation success for {} clients on server {}", bulkPayload.size(), server.getName());
     }
 

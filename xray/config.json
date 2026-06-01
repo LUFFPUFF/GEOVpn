@@ -1,0 +1,76 @@
+{
+  "log": {
+    "level": "warn"
+  },
+  "inbounds": [
+    {
+      "type": "socks",
+      "tag": "socks-in",
+      "listen": "0.0.0.0",
+      "listen_port": 10808
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-out",
+      "server": "fi.geovp.ru",
+      "server_port": 443,
+      "password": "25bfe47e",
+      "tls": {
+        "enabled": true,
+        "server_name": "fi.geovp.ru",
+        "insecure": false
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-ws-out",
+      "server": "fi.geovp.ru",
+      "server_port": 2053,
+      "uuid": "ac51ef57-d768-43ba-af9f-1141b375ded3",
+      "tls": {
+        "enabled": true,
+        "server_name": "fi.geovp.ru",
+        "insecure": false
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/finland-cl",
+        "headers": {
+          "Host": "fi.geovp.ru"
+        }
+      }
+    },
+    {
+      "type": "urltest",
+      "tag": "auto",
+      "outbounds": ["hy2-out", "vless-ws-out"],
+      "url": "https://api.telegram.org",
+      "interval": "30s",
+      "tolerance": 50
+    }
+  ],
+  "route": {
+    "final": "direct",
+    "rules": [
+      {
+        "domain": [
+          "api.telegram.org",
+          "telegram.org",
+          "core.telegram.org"
+        ],
+        "domain_suffix": [
+          ".telegram.org",
+          ".t.me"
+        ],
+        "outbound": "auto"
+      }
+    ]
+  }
+}
+

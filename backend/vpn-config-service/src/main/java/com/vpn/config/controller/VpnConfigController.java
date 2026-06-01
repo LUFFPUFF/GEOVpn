@@ -1,7 +1,5 @@
 package com.vpn.config.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vpn.common.constant.ErrorCode;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.ErrorResponse;
@@ -129,11 +127,12 @@ public class VpnConfigController {
      * GET /api/v1/configs/admin/servers/{serverId}/clients
      */
     @GetMapping("/admin/servers/{serverId}/clients")
+    @RequireAnyRole({UserRole.ADMIN, UserRole.SERVICE})
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAllClientsFromServer(
             @PathVariable Long serverId) {
 
         ServerDto server = serverSelectionService.getAllActiveServers().stream()
-                .filter(s -> s.getId().equals(serverId))
+                .filter(s -> s.getId() != null && s.getId().longValue() == serverId.longValue())
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Server not found with ID: " + serverId));
 
@@ -146,6 +145,7 @@ public class VpnConfigController {
      * POST /api/v1/configs/admin/servers/migrate?sourceServerId=X&targetServerId=Y
      */
     @PostMapping("/admin/servers/migrate")
+    @RequireAnyRole({UserRole.ADMIN, UserRole.SERVICE})
     public ResponseEntity<ApiResponse<Void>> migrateAllClients(
             @RequestParam Long sourceServerId,
             @RequestParam Long targetServerId) {
@@ -153,12 +153,12 @@ public class VpnConfigController {
         List<ServerDto> activeServers = serverSelectionService.getAllActiveServers();
 
         ServerDto sourceServer = activeServers.stream()
-                .filter(s -> s.getId().equals(sourceServerId))
+                .filter(s -> s.getId() != null && s.getId().longValue() == sourceServerId.longValue())
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Source server not found with ID: " + sourceServerId));
 
         ServerDto targetServer = activeServers.stream()
-                .filter(s -> s.getId().equals(targetServerId))
+                .filter(s -> s.getId() != null && s.getId().longValue() == targetServerId.longValue())
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Target server not found with ID: " + targetServerId));
 
@@ -174,16 +174,13 @@ public class VpnConfigController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-
     @GetMapping(value = "/encrypted-sub/{uuid}", produces = MediaType.TEXT_PLAIN_VALUE)
     @Public
     public ResponseEntity<String> getEncryptedSubLink(@PathVariable("uuid") UUID vlessUuid) {
         String baseUrl = "https://geovp.ru";
         String subscriptionUrl = baseUrl + "/api/v1/configs/subscription/" + vlessUuid;
         try {
-            String encryptedLink = encryptHappSubscriptionUrl(subscriptionUrl);
-            log.info("Returning encrypted sub link for uuid={}", vlessUuid);
-            return ResponseEntity.ok(encryptedLink);
+            return ResponseEntity.ok(encryptHappSubscriptionUrl(subscriptionUrl));
         } catch (Exception e) {
             log.warn("Crypto API failed, returning plain URL for copy: {}", e.getMessage());
             return ResponseEntity.ok(subscriptionUrl);

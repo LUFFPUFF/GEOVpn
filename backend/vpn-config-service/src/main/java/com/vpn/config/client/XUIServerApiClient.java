@@ -28,12 +28,16 @@ public class XUIServerApiClient {
     private final ConcurrentHashMap<String, String> resolvedBaseUrls  = new ConcurrentHashMap<>();
 
     private final RestTemplate restTemplate;
+    private final RestTemplate bulkRestTemplate;
 
     private static final Pattern XRAY_LOG_LINE   = Pattern.compile(">>(\\s*)([\\w.\\-]+):(\\d+)");
     private static final Pattern VALID_DOMAIN     = Pattern.compile("(?i)^(?:[a-z0-9](?:[a-z0-9\\-]{0,61}[a-z0-9])?\\.)+[a-z]{2,6}$");
 
+    private static final int BULK_BATCH_SIZE = 500;
+
     public XUIServerApiClient(RestTemplateBuilder builder) {
-        this.restTemplate = createTrustAllRestTemplate();
+        this.restTemplate     = createTrustAllRestTemplate(10_000);
+        this.bulkRestTemplate = createTrustAllRestTemplate(120_000);
     }
 
     public static class ClientPanelInfo {
@@ -46,7 +50,7 @@ public class XUIServerApiClient {
         }
     }
 
-    private RestTemplate createTrustAllRestTemplate() {
+    private RestTemplate createTrustAllRestTemplate(int readTimeout) {
         try {
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, new TrustManager[]{new X509TrustManager() {
@@ -54,14 +58,15 @@ public class XUIServerApiClient {
                 public void checkClientTrusted(X509Certificate[] certs, String authType) {}
                 public void checkServerTrusted(X509Certificate[] certs, String authType) {}
             }}, new SecureRandom());
-            return new RestTemplate(getSimpleClientHttpRequestFactory(sslContext));
+            return new RestTemplate(getSimpleClientHttpRequestFactory(sslContext, readTimeout));
         } catch (Exception e) {
             log.error("Failed to initialize trust-all SSL context", e);
-            return new RestTemplateBuilder().setConnectTimeout(Duration.ofSeconds(5)).build();
+            return new RestTemplateBuilder().setReadTimeout(Duration.ofMillis(readTimeout)).build();
         }
     }
 
-    private static SimpleClientHttpRequestFactory getSimpleClientHttpRequestFactory(SSLContext sslContext) {
+    private static SimpleClientHttpRequestFactory getSimpleClientHttpRequestFactory(
+            SSLContext sslContext, int readTimeout) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory() {
             @Override
             protected void prepareConnection(java.net.HttpURLConnection connection, String httpMethod)
@@ -74,8 +79,8 @@ public class XUIServerApiClient {
                 super.prepareConnection(connection, httpMethod);
             }
         };
-        requestFactory.setConnectTimeout(5000);
-        requestFactory.setReadTimeout(10000);
+        requestFactory.setConnectTimeout(5_000);
+        requestFactory.setReadTimeout(readTimeout);
         return requestFactory;
     }
 
@@ -267,13 +272,21 @@ public class XUIServerApiClient {
         String baseUrl = buildBaseUrl(server);
         ensureAuthenticated(server, baseUrl);
 
-        HttpHeaders headers = buildAuthHeaders(server);
-        ResponseEntity<String> response = restTemplate.postForEntity(
-                baseUrl + "/panel/api/clients/bulkCreate",
-                new HttpEntity<>(bulkPayload, headers), String.class);
-        log.info("bulkCreate response for {}: {}", server.getName(), response.getBody());
+        for (int i = 0; i < bulkPayload.size(); i += BULK_BATCH_SIZE) {
+            List<Map<String, Object>> batch = bulkPayload.subList(i,
+                    Math.min(i + BULK_BATCH_SIZE, bulkPayload.size()));
 
-        log.info("Bulk creation success for {} clients on server {}", bulkPayload.size(), server.getName());
+            HttpHeaders headers = buildAuthHeaders(server);
+            ResponseEntity<String> response = bulkRestTemplate.postForEntity(
+                    baseUrl + "/panel/api/clients/bulkCreate",
+                    new HttpEntity<>(batch, headers),
+                    String.class);
+
+            log.info("bulkCreate batch {}/{} response for {}: {}",
+                    (i / BULK_BATCH_SIZE) + 1,
+                    (int) Math.ceil((double) bulkPayload.size() / BULK_BATCH_SIZE),
+                    server.getName(), response.getBody());
+        }
     }
 
     @SuppressWarnings("unchecked")

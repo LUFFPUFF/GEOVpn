@@ -140,29 +140,19 @@ public class XUIServerApiClient {
 
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(jsonBody, headers);
 
-        String loginUrl = baseUrl + "/panel/api/login";
-        log.info(">>>> [XUI LOGIN] Server: {}, Trying new API login URL: {}, User: {}", server.getName(), loginUrl, server.getPanelUsername());
+        String loginUrl = baseUrl + "/login";
+        log.info(">>>> [XUI LOGIN] Server: {}, Trying login URL: {}, User: {}", server.getName(), loginUrl, server.getPanelUsername());
 
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(loginUrl, entity, String.class);
             String cookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
-            if (cookie == null) throw new RuntimeException("No cookie returned");
-            sessionCookies.put(server.getIpAddress(), cookie);
-            log.info("<<<< [XUI LOGIN] SUCCESS (New API) for {}", server.getName());
-        } catch (Exception e) {
-            log.info("<<<< [XUI LOGIN] New API login failed: {}. Trying legacy /login fallback...", e.getMessage());
+            if (cookie == null) throw new RuntimeException("No cookie returned from panel");
 
-            String legacyLoginUrl = baseUrl + "/login";
-            try {
-                ResponseEntity<String> response = restTemplate.postForEntity(legacyLoginUrl, entity, String.class);
-                String cookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
-                if (cookie == null) throw new RuntimeException("No cookie returned");
-                sessionCookies.put(server.getIpAddress(), cookie);
-                log.info("<<<< [XUI LOGIN] SUCCESS (Legacy API) for {}", server.getName());
-            } catch (Exception ex) {
-                log.error("!!!! [XUI LOGIN] BOTH LOGINS FAILED for {}: {}", server.getName(), ex.getMessage());
-                throw new RuntimeException("Login failed: " + ex.getMessage());
-            }
+            sessionCookies.put(server.getIpAddress(), cookie);
+            log.info("<<<< [XUI LOGIN] SUCCESS for {}", server.getName());
+        } catch (Exception e) {
+            log.error("!!!! [XUI LOGIN] FAILED for {}: {}", server.getName(), e.getMessage());
+            throw new RuntimeException("Login failed: " + e.getMessage());
         }
     }
 

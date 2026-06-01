@@ -44,15 +44,12 @@ public class UpdateDispatcher {
             long userId = getUserId(update);
             if (userId == 0) return;
 
-            // Временно комментируем проверку подписки, чтобы разрешить доступ всем пользователям
-            /*
             boolean isSubscribed = subscriptionService.isSubscribed(sender.getAbsSender(), userId);
 
             if (!isSubscribed) {
                 sendSubscriptionRequiredMessage(userId);
                 return;
             }
-            */
 
             if (update.hasMessage()) {
                 registrationService.registerUserIfAbsent(update.getMessage().getFrom());

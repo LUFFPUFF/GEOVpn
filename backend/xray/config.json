@@ -1,87 +1,74 @@
 {
   "log": {
-    "loglevel": "warning"
+    "level": "warn"
   },
   "inbounds": [
     {
+      "type": "socks",
       "tag": "socks-in",
-      "port": 10808,
       "listen": "0.0.0.0",
-      "protocol": "socks",
-      "settings": {
-        "auth": "noauth",
-        "udp": false
-      },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls"]
-      }
+      "listen_port": 10808
     }
   ],
   "outbounds": [
     {
-      "tag": "vless-out",
-      "protocol": "vless",
-      "settings": {
-        "vnext": [
-          {
-            "address": "81.19.137.208",
-            "port": 8443,
-            "users": [
-              {
-                "id": "fa219463-8470-4b94-8fea-ecbe01a702cc",
-                "encryption": "none",
-                "flow": ""
-              }
-            ]
-          }
-        ]
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-out",
+      "server": "fi.geovp.ru",
+      "server_port": 443,
+      "password": "25bfe47e",
+      "tls": {
+        "enabled": true,
+        "server_name": "fi.geovp.ru",
+        "insecure": false
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-ws-out",
+      "server": "fi.geovp.ru",
+      "server_port": 2053,
+      "uuid": "ac51ef57-d768-43ba-af9f-1141b375ded3",
+      "tls": {
+        "enabled": true,
+        "server_name": "fi.geovp.ru",
+        "insecure": false
       },
-      "streamSettings": {
-        "network": "xhttp",
-        "security": "reality",
-        "realitySettings": {
-          "fingerprint": "chrome",
-          "serverName": "ign.com",
-          "publicKey": "n486OShJAfFSq5qtPxf0lkbqm1uAAmh5f58BXnSGbz8",
-          "shortId": "c5b15f90f034ed25",
-          "spiderX": "/"
-        },
-        "xhttpSettings": {
-          "path": "/api/v1/update",
-          "mode": "stream-one",
-          "extra": {
-            "xPaddingBytes": "100-1000"
-          }
+      "transport": {
+        "type": "ws",
+        "path": "/finland-cl",
+        "headers": {
+          "Host": "fi.geovp.ru"
         }
       }
     },
     {
-      "tag": "direct",
-      "protocol": "freedom",
-      "settings": {}
-    },
-    {
-      "tag": "block",
-      "protocol": "blackhole"
+      "type": "urltest",
+      "tag": "auto",
+      "outbounds": ["hy2-out", "vless-ws-out"],
+      "url": "https://api.telegram.org",
+      "interval": "30s",
+      "tolerance": 50
     }
   ],
-  "routing": {
-    "domainStrategy": "IPIfNonMatch",
+  "route": {
+    "final": "direct",
     "rules": [
       {
-        "type": "field",
         "domain": [
           "api.telegram.org",
           "telegram.org",
           "core.telegram.org"
         ],
-        "outboundTag": "vless-out"
-      },
-      {
-        "type": "field",
-        "network": "tcp,udp",
-        "outboundTag": "direct"
+        "domain_suffix": [
+          ".telegram.org",
+          ".t.me"
+        ],
+        "outbound": "auto"
       }
     ]
   }

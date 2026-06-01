@@ -1,0 +1,8 @@
+    image: ghcr.io/sagernet/sing-box:latest container_name: vpn-proxy-bridge restart: always env_file: .env volumes:
+      - /home/ubuntu/GEOVpn/backend/xray/config.json:/etc/sing-box/config.json
+    command: run -c /etc/sing-box/config.json
+    networks:
+      - vpn-network
+    logging: *default-logging
+    depends_on:
+      vpn-api-gateway: { condition: service_started }

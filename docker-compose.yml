@@ -183,18 +183,19 @@ services:
       vpn-postgres: { condition: service_healthy }
       vpn-redis: { condition: service_healthy }
 
-  # ─────────────────────────────────────────
-  # FRONTEND
-  # ─────────────────────────────────────────
-  #vpn-admin-panel:
-   # build:
-    #  context: ./admin-panel/vpn-admin-panel
-     # dockerfile: Dockerfile
-   # container_name: vpn-admin-panel
-   # restart: always
-   # networks:
-    #  - vpn-network
-   # logging: *default-logging
+  admin-panel:
+    build:
+      context: ./admin-panel
+      dockerfile: Dockerfile
+    container_name: vpn-admin-panel
+    restart: always
+    networks:
+      - vpn-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   vpn-mini-app:
     build: ./mini-app

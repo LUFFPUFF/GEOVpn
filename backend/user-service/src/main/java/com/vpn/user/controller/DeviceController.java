@@ -11,6 +11,7 @@ import com.vpn.common.security.context.SecurityContextHolder;
 import com.vpn.user.service.interf.DeviceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/devices")
 @RequiredArgsConstructor
@@ -51,6 +53,15 @@ public class DeviceController {
         DeviceResponse response = deviceService.syncDeviceWithPlatform(telegramId, platform);
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/user/{telegramId}/active")
+    @com.vpn.common.security.annotations.RequireService
+    public ResponseEntity<ApiResponse<List<DeviceResponse>>> getUserActiveDevices(
+            @PathVariable("telegramId") Long telegramId) {
+        log.info("Internal: fetching active devices for user {}", telegramId);
+        List<DeviceResponse> devices = deviceService.getUserActiveDevices(telegramId);
+        return ResponseEntity.ok(ApiResponse.success(devices));
     }
 
     /**

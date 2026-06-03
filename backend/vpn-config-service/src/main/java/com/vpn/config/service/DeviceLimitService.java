@@ -2,8 +2,11 @@ package com.vpn.config.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vpn.common.dto.ServerDto;
 import com.vpn.common.dto.response.DeviceLimitStatus;
+import com.vpn.config.client.XUIServerApiClient;
 import com.vpn.config.domain.entity.DeviceLimit;
+import com.vpn.config.domain.entity.VpnConfiguration;
 import com.vpn.config.repository.DeviceLimitRepository;
 import com.vpn.config.repository.VpnConfigurationRepository;
 import com.vpn.common.dto.enums.ConfigStatus;
@@ -24,7 +27,41 @@ public class DeviceLimitService {
 
     private final DeviceLimitRepository      deviceLimitRepository;
     private final VpnConfigurationRepository configurationRepository;
-    private final ObjectMapper               objectMapper;
+    private final ServerSelectionServiceImpl serverSelectionService;
+    private final XUIServerApiClient xuiClient;
+    private final ObjectMapper objectMapper;
+
+    private final java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+
+    public void updateXuiExpiryOnSubscriptionRenewal(Long userId, LocalDateTime expiresAt) {
+        if (expiresAt == null) return;
+
+        long expiryTimeMillis = expiresAt.toInstant(java.time.ZoneOffset.UTC).toEpochMilli();
+
+        List<VpnConfiguration> userConfigs = configurationRepository.findByUserIdAndStatus(userId, ConfigStatus.ACTIVE);
+        if (userConfigs.isEmpty()) return;
+
+        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
+
+        executor.submit(() -> {
+            log.info("Async updating XUI expiryTime for user {} on {} configs due to renewal", userId, userConfigs.size());
+            for (VpnConfiguration config : userConfigs) {
+                String email = "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
+                String uuid = config.getVlessUuid().toString();
+
+                for (ServerDto server : allServers) {
+                    try {
+                        List<Integer> inboundIds = resolveInboundIds(server);
+                        if (inboundIds.isEmpty()) continue;
+
+                        xuiClient.addClientWithExpiryTime(server, inboundIds, uuid, email, "xtls-rprx-vision", expiryTimeMillis);
+                    } catch (Exception e) {
+                        log.warn("Failed to update expiry for user {} on server {}: {}", userId, server.getName(), e.getMessage());
+                    }
+                }
+            }
+        });
+    }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public void markAsExtraDeviceIfNecessary(Long userId, Long deviceId) {
@@ -95,6 +132,8 @@ public class DeviceLimitService {
         deviceLimitRepository.save(limit);
         log.info("Device limit set: userId={}, max={}, plan={}, expires={}",
                 userId, maxDevices, planName, expiresAt);
+
+        updateXuiExpiryOnSubscriptionRenewal(userId, expiresAt);
     }
 
     public DeviceLimitStatus getStatus(Long userId) {
@@ -158,5 +197,13 @@ public class DeviceLimitService {
             log.warn("Could not parse extra_device_ids JSON '{}', resetting to empty list: {}", json, e.getMessage());
             return new ArrayList<>();
         }
+    }
+
+    private List<Integer> resolveInboundIds(ServerDto server) {
+        List<Integer> ids = new ArrayList<>();
+        if (server.getTcpInboundId() != null) ids.add(server.getTcpInboundId());
+        if (server.getWsInboundId() != null) ids.add(server.getWsInboundId());
+        if (ids.isEmpty() && server.getPanelInboundId() != null) ids.add(server.getPanelInboundId());
+        return ids;
     }
 }

@@ -79,6 +79,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(userService.isUserMemberOfChannel(telegramId)));
     }
 
+    @GetMapping("/internal/active-ids")
+    @RequireAnyRole({UserRole.ADMIN, UserRole.SERVICE})
+    public ResponseEntity<ApiResponse<List<Long>>> getAllActiveUserIds() {
+        return ResponseEntity.ok(ApiResponse.success(userService.getAllActiveUserIds()));
+    }
+
     /**
      * Оформление подписки.
      *

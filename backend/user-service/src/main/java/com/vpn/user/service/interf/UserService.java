@@ -61,4 +61,6 @@ public interface UserService {
     UserResponse updateBanStatus(Long telegramId, boolean isBanned, String reason);
 
     UserInitResponse getUserInitData(Long telegramId);
+
+    List<Long> getAllActiveUserIds();
 }

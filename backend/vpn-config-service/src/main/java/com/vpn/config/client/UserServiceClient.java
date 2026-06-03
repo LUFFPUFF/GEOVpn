@@ -10,6 +10,8 @@ import com.vpn.common.dto.response.UserResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @FeignClient(name = "user-service", url = "${USER_SERVICE_URL}", configuration = FeignClientConfiguration.class)
 public interface UserServiceClient {
 
@@ -43,4 +45,10 @@ public interface UserServiceClient {
             @RequestParam("isBanned") boolean isBanned,
             @RequestParam(value = "reason", required = false) String reason
     );
+
+    @GetMapping("/api/v1/devices/user/{telegramId}/active")
+    ApiResponse<List<DeviceResponse>> getUserActiveDevices(@PathVariable("telegramId") Long telegramId);
+
+    @GetMapping("/api/v1/users/internal/active-ids")
+    ApiResponse<List<Long>> getAllActiveUserIds();
 }

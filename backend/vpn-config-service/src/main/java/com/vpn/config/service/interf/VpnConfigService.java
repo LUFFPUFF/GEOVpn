@@ -5,6 +5,8 @@ package com.vpn.config.service.interf;
 import com.vpn.common.dto.request.ConfigCreateRequest;
 import com.vpn.common.dto.request.ConfigRegenerateRequest;
 import com.vpn.common.dto.response.VpnConfigResponse;
+import com.vpn.config.dto.admin.AdminConfigDetailResponse;
+import com.vpn.config.dto.admin.AdminConfigUpdateRequest;
 
 import java.util.List;
 import java.util.Map;
@@ -68,4 +70,8 @@ public interface VpnConfigService {
      * Проверить, принадлежит ли UUID/Конфигурация данному пользователю.
      */
     boolean isConfigOwnedByUser(Long deviceId, Long userId);
+
+    AdminConfigDetailResponse getAdminConfigDetails(Long deviceId);
+
+    AdminConfigDetailResponse updateConfigAndServers(Long deviceId, AdminConfigUpdateRequest request);
 }

@@ -1,5 +1,6 @@
 package com.vpn.config.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vpn.common.dto.ServerDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -12,6 +13,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import javax.net.ssl.*;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -39,7 +42,10 @@ public class XUIServerApiClient {
     private static final int BULK_BATCH_SIZE = 500;
     private static final long UNAVAILABLE_COOLDOWN_MS = 5 * 60 * 1000L;
 
-    public XUIServerApiClient(RestTemplateBuilder builder) {
+    private final ObjectMapper objectMapper;
+
+    public XUIServerApiClient(RestTemplateBuilder builder, ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
         this.restTemplate     = createTrustAllRestTemplate(10_000);
         this.bulkRestTemplate = createTrustAllRestTemplate(120_000);
     }
@@ -135,9 +141,6 @@ public class XUIServerApiClient {
         }
     }
 
-    /**
-     * Скорректировано под новый API: поддержка двухшаговой авторизации
-     */
     private void login(ServerDto server, String baseUrl) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -229,7 +232,17 @@ public class XUIServerApiClient {
         body.put("client",     clientFields);
         body.put("inboundIds", inboundIds);
 
-        executeWithRetry(server, baseUrl, baseUrl + "/panel/api/clients/add", body);
+        try {
+            executeWithRetry(server, baseUrl, baseUrl + "/panel/api/clients/add", body);
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("email already in use")) {
+                log.warn("Email '{}' already in use on server {}. Deleting old client and retrying...", email, server.getName());
+                deleteClientByEmail(server, email);
+                executeWithRetry(server, baseUrl, baseUrl + "/panel/api/clients/add", body);
+            } else {
+                throw e;
+            }
+        }
     }
 
     public void addClient(ServerDto server, String uuid, String email, int limitIp, String flow) {
@@ -242,10 +255,24 @@ public class XUIServerApiClient {
         ensureAuthenticated(server, baseUrl);
         String email = findEmailByUuidWithRetry(server, baseUrl, uuid);
         if (email != null && !email.isBlank()) {
-            executeWithRetry(server, baseUrl, baseUrl + "/panel/api/clients/del/" + email + "?keepTraffic=0", null);
-            log.info("Successfully deleted client by email {} on server {}", email, server.getName());
+            deleteClientByEmail(server, email);
         } else {
             log.warn("Client with UUID {} not found on server {}, skipping deletion", uuid, server.getName());
+        }
+    }
+
+    /**
+     * Удаление клиента по email с URL-кодированием имени
+     */
+    public void deleteClientByEmail(ServerDto server, String email) {
+        String baseUrl = buildBaseUrl(server);
+        ensureAuthenticated(server, baseUrl);
+        try {
+            String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8).replace("+", "%20");
+            executeWithRetry(server, baseUrl, baseUrl + "/panel/api/clients/del/" + encodedEmail + "?keepTraffic=0", null);
+            log.info("Successfully deleted client by email {} on server {}", email, server.getName());
+        } catch (Exception e) {
+            log.error("Failed to delete client by email {} on server {}: {}", email, server.getName(), e.getMessage());
         }
     }
 
@@ -374,6 +401,85 @@ public class XUIServerApiClient {
             log.error("Failed to fetch Xray logs for filter={} from server {}: {}", emailFilter, server.getName(), e.getMessage());
         }
         return "";
+    }
+
+    @SuppressWarnings("unchecked")
+    public void addClientWithExpiryTime(ServerDto server, List<Integer> inboundIds,
+                                        String uuid, String email,
+                                        String flow, long expiryTimeMs) {
+        if (inboundIds == null || inboundIds.isEmpty()) return;
+
+        String baseUrl = buildBaseUrl(server);
+
+        try {
+            Map<String, Object> clientObj = new LinkedHashMap<>();
+            clientObj.put("id", uuid);
+            clientObj.put("email", email);
+            clientObj.put("flow", flow != null && !flow.isBlank() ? flow : "xtls-rprx-vision");
+            clientObj.put("limitIp", 0);
+            clientObj.put("totalGB", 0);
+            clientObj.put("expiryTime", expiryTimeMs);
+            clientObj.put("enable", true);
+            clientObj.put("tgId", 0);
+            clientObj.put("subId", "");
+
+            Map<String, Object> payload = Map.of(
+                    "client", clientObj,
+                    "inboundIds", inboundIds
+            );
+
+            String sessionAuthValue = getOrRefreshSession(server);
+            HttpHeaders headers = buildHeaders(sessionAuthValue, server);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    baseUrl + "/panel/api/clients/add",
+                    HttpMethod.POST,
+                    new HttpEntity<>(payload, headers),
+                    String.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                String responseBodyStr = response.getBody();
+                if (responseBodyStr != null) {
+                    Map<?, ?> resMap = objectMapper.readValue(responseBodyStr, Map.class);
+                    if (Boolean.FALSE.equals(resMap.get("success"))) {
+                        String msg = (String) resMap.get("msg");
+
+                        if (msg != null && msg.contains("email already in use")) {
+                            log.warn("Email '{}' already in use on server {}. Deleting old client and retrying...", email, server.getName());
+                            deleteClientByEmail(server, email);
+
+                            response = restTemplate.exchange(
+                                    baseUrl + "/panel/api/clients/add",
+                                    HttpMethod.POST,
+                                    new HttpEntity<>(payload, headers),
+                                    String.class
+                            );
+
+                            String retryBodyStr = response.getBody();
+                            if (retryBodyStr != null) {
+                                Map<?, ?> retryMap = objectMapper.readValue(retryBodyStr, Map.class);
+                                if (Boolean.FALSE.equals(retryMap.get("success"))) {
+                                    log.error("Retry of addClientWithExpiryTime failed on server {}: {}", server.getName(), retryMap.get("msg"));
+                                } else {
+                                    log.info("Retry of addClientWithExpiryTime succeeded on server {}", server.getName());
+                                }
+                            }
+                        } else {
+                            log.error("Panel API error in addClientWithExpiryTime for server={}: {}", server.getName(), msg);
+                        }
+                    } else {
+                        log.debug("addClientWithExpiryTime OK: server={}, inboundIds={}, email={}, expiry={}",
+                                server.getName(), inboundIds, email, expiryTimeMs);
+                    }
+                }
+            } else {
+                log.warn("addClientWithExpiryTime non-2xx: server={}, status={}", server.getName(), response.getStatusCode());
+            }
+
+        } catch (Exception e) {
+            log.error("addClientWithExpiryTime failed: server={}, email={}: {}", server.getName(), email, e.getMessage());
+        }
     }
 
     public Set<String> extractDomainsFromLogs(String logs) {
@@ -599,6 +705,32 @@ public class XUIServerApiClient {
         unavailableUntil.put(server.getIpAddress(), until);
         log.warn("Server {} ({}) marked UNAVAILABLE for 5 minutes",
                 server.getName(), server.getIpAddress());
+    }
+
+    public String getOrRefreshSession(ServerDto server) {
+        String baseUrl = buildBaseUrl(server);
+        ensureAuthenticated(server, baseUrl);
+
+        if (hasApiToken(server)) {
+            return server.getApiToken();
+        }
+        return sessionCookies.get(server.getIpAddress());
+    }
+
+    public HttpHeaders buildHeaders(String authValue, ServerDto server) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        if (hasApiToken(server)) {
+            headers.setBearerAuth(authValue);
+        } else {
+            headers.add(HttpHeaders.COOKIE, authValue);
+        }
+        return headers;
+    }
+
+    public String getPanelUrl(ServerDto server) {
+        return buildBaseUrl(server);
     }
 
 }

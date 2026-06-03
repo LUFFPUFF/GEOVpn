@@ -8,7 +8,11 @@ import {
     Wallet,
     UserPlus,
     X,
-    Check
+    Check,
+    SlidersHorizontal,
+    Download,
+    ChevronLeft,
+    ChevronRight
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
@@ -19,12 +23,6 @@ import { adminApi } from "@/api/admin"
 import { UserResponse, AdminDashboardResponse } from "@/types/api"
 import UserDetailsPanel from "./UserDetailsPanel"
 
-export const STATUS_CONFIG: Record<string, { color: string, label: string }> = {
-    ACTIVE: { color: "bg-emerald-500", label: "Активен" },
-    BANNED: { color: "bg-red-500", label: "Бан" },
-    INACTIVE: { color: "bg-slate-300", label: "Спит" }
-}
-
 export default function Users() {
     const [users, setUsers] = useState<UserResponse[]>([])
     const [stats, setStats] = useState<AdminDashboardResponse | null>(null)
@@ -32,12 +30,19 @@ export default function Users() {
     const [search, setSearch] = useState("")
     const [loading, setLoading] = useState(true)
 
-    // Create User Modal state
+    const [currentPage, setCurrentPage] = useState(0)
+    const [pageSize, setPageSize] = useState(25)
+
+    const [showFilters, setShowFilters] = useState(false)
+    const [filterStatus, setFilterStatus] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'BANNED'>('ALL')
+    const [filterPlan, setFilterPlan] = useState<'ALL' | 'payg' | 'classic' | 'vip'>('ALL')
+    const [sortBy, setSortBy] = useState<'date_desc' | 'balance_desc' | 'balance_asc' | 'name_asc'>('date_desc')
+
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [newTgId, setNewTgId] = useState("")
     const [newUsername, setNewUsername] = useState("")
     const [newFirstName, setNewFirstName] = useState("")
-    const [newSubPlan, setNewSubPlan] = useState("payg")
+    const [newSubPlan, setNewSubPlan] = useState("PAYG")
     const [newBalance, setNewBalance] = useState("")
     const [createError, setCreateError] = useState("")
 
@@ -45,7 +50,7 @@ export default function Users() {
         setLoading(true)
         try {
             const [usersData, statsData] = await Promise.all([
-                adminApi.getUsers(0, 100, searchQuery),
+                adminApi.getUsers(currentPage, pageSize, searchQuery),
                 adminApi.getDashboard()
             ])
 
@@ -69,7 +74,64 @@ export default function Users() {
 
     useEffect(() => {
         loadData(search)
-    }, [search])
+    }, [search, currentPage, pageSize])
+
+    const totalUsersCount = stats?.totalUsers || users.length
+    const totalPages = Math.ceil(totalUsersCount / pageSize)
+
+    const processedUsers = useMemo(() => {
+        let result = [...users]
+
+        if (filterStatus !== 'ALL') {
+            result = result.filter(u => {
+                const isBanned = u.isBanned || (u as any).banned || u.status === "BANNED"
+                if (filterStatus === 'BANNED') return isBanned
+                if (filterStatus === 'ACTIVE') return !isBanned && u.hasActiveSubscription
+                if (filterStatus === 'INACTIVE') return !isBanned && !u.hasActiveSubscription
+                return true
+            })
+        }
+
+        if (filterPlan !== 'ALL') {
+            result = result.filter(u => {
+                const plan = (u.subscriptionType || "").toUpperCase();
+                return plan === filterPlan;
+            });
+        }
+
+        result.sort((a, b) => {
+            if (sortBy === 'balance_desc') return b.balance - a.balance
+            if (sortBy === 'balance_asc') return a.balance - b.balance
+            if (sortBy === 'name_asc') return (a.firstName || "").localeCompare(b.firstName || "")
+            return b.id - a.id
+        })
+
+        return result
+    }, [users, filterStatus, filterPlan, sortBy])
+
+    const handleExportCSV = () => {
+        const headers = ["ID", "Telegram ID", "Username", "First Name", "Balance (RUB)", "Tariff", "Banned"]
+        const rows = processedUsers.map(u => [
+            u.id,
+            u.telegramId,
+            u.username || "N/A",
+            u.firstName || "N/A",
+            u.balance / 100,
+            u.subscriptionType,
+            (u.isBanned || (u as any).banned) ? "Yes" : "No"
+        ])
+
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF"
+            + [headers.join(";"), ...rows.map(e => e.join(";"))].join("\n")
+
+        const encodedUri = encodeURI(csvContent)
+        const link = document.createElement("a")
+        link.setAttribute("href", encodedUri)
+        link.setAttribute("download", `users_export_page_${currentPage + 1}.csv`)
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+    }
 
     const handleCreateUserSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -89,14 +151,14 @@ export default function Users() {
                 username: newUsername.replace("@", "").trim(),
                 firstName: newFirstName.trim(),
                 subscriptionType: newSubPlan,
-                balance: Number(newBalance) * 100 || 0, // Convert to kopecks
+                balance: Number(newBalance) * 100 || 0,
                 status: "ACTIVE"
             })
             setShowCreateModal(false)
             setNewTgId("")
             setNewUsername("")
             setNewFirstName("")
-            setNewSubPlan("payg")
+            setNewSubPlan("PAYG")
             setNewBalance("")
             loadData(search)
         } catch (err: any) {
@@ -106,15 +168,12 @@ export default function Users() {
 
     const listContainer = {
         hidden: { opacity: 0 },
-        show: {
-            opacity: 1,
-            transition: { staggerChildren: 0.05 }
-        }
+        show: { opacity: 1, transition: { staggerChildren: 0.03 } }
     }
 
     const listItem = {
-        hidden: { opacity: 0, y: 20, scale: 0.95 },
-        show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
+        hidden: { opacity: 0, y: 10 },
+        show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 26 } }
     }
 
     return (
@@ -123,13 +182,13 @@ export default function Users() {
                 <ResizablePanel defaultSize={42} minSize={35} className="bg-white relative flex flex-col">
                     <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-slate-50 to-transparent z-0 pointer-events-none" />
 
-                    <div className="p-8 pb-4 relative z-10">
+                    <div className="p-8 pb-3 relative z-10">
                         <header className="flex justify-between items-end mb-6">
                             <div>
                                 <h2 className="text-4xl font-black tracking-tighter text-slate-900 italic drop-shadow-sm">Клиенты</h2>
                                 <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mt-2 flex items-center gap-2 bg-slate-50 w-fit px-3 py-1.5 rounded-full border border-slate-100 font-sans">
                                     <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse shadow-[0_0_10px_rgba(37,99,235,0.5)]" />
-                                    Всего: {stats?.totalUsers || 2585}
+                                    Всего в БД: {totalUsersCount}
                                 </div>
                             </div>
                             <div className="flex gap-2">
@@ -151,35 +210,91 @@ export default function Users() {
                             </div>
                         </header>
 
-                        <div className="grid grid-cols-2 gap-4 mb-6">
-                            <motion.div whileHover={{ y: -2 }} className="p-4 bg-gradient-to-br from-slate-900 to-slate-800 rounded-[1.5rem] text-white shadow-xl shadow-slate-900/20 relative overflow-hidden">
+                        {/* KPI Cards */}
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="p-4 bg-gradient-to-br from-slate-900 to-slate-800 rounded-[1.5rem] text-white shadow-xl shadow-slate-900/20 relative overflow-hidden">
                                 <div className="absolute -right-4 -top-4 h-16 w-16 bg-emerald-500 rounded-full blur-[30px] opacity-20" />
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5 relative z-10 font-sans">
                                     <TrendingUp size={11} className="text-emerald-400" /> Подписки
                                 </p>
                                 <p className="text-2xl font-black italic tracking-tighter relative z-10 leading-none">{stats?.activeSubscriptions || 0}</p>
-                            </motion.div>
-                            <motion.div whileHover={{ y: -2 }} className="p-4 bg-white border-2 border-slate-100 rounded-[1.5rem] shadow-xl shadow-slate-200/20 relative overflow-hidden">
+                            </div>
+                            <div className="p-4 bg-white border-2 border-slate-100 rounded-[1.5rem] shadow-xl shadow-slate-200/20 relative overflow-hidden">
                                 <div className="absolute -right-4 -top-4 h-16 w-16 bg-blue-500 rounded-full blur-[30px] opacity-10" />
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5 relative z-10 font-sans">
                                     <Wallet size={11} className="text-blue-600" /> Оборот
                                 </p>
                                 <p className="text-2xl font-black italic tracking-tighter text-slate-900 relative z-10 leading-none">{(stats?.totalBalanceRub || 0)} <span className="text-xs text-slate-300">₽</span></p>
-                            </motion.div>
+                            </div>
                         </div>
 
-                        <div className="relative mb-2 group">
-                            <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300 group-focus-within:text-blue-600 transition-colors" strokeWidth={2.5} />
-                            <Input
-                                placeholder="Поиск по ID, нику или имени..."
-                                className="pl-16 h-14 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-950 placeholder:text-slate-300 shadow-inner transition-all focus-visible:ring-4 focus-visible:ring-blue-50 focus-visible:border-blue-300 text-sm"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
+                        {/* Поисковая строка и триггер фильтров */}
+                        <div className="flex gap-2 mb-2">
+                            <div className="relative flex-1 group">
+                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300 group-focus-within:text-blue-600 transition-colors" strokeWidth={2.5} />
+                                <Input
+                                    placeholder="Поиск по ID, нику или имени..."
+                                    className="pl-16 h-14 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-950 placeholder:text-slate-300 shadow-inner transition-all focus-visible:ring-4 focus-visible:ring-blue-50 focus-visible:border-blue-300 text-sm"
+                                    value={search}
+                                    onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
+                                />
+                            </div>
+                            <button
+                                onClick={() => setShowFilters(!showFilters)}
+                                className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all cursor-pointer ${showFilters ? 'bg-blue-55 text-blue-600 border-blue-200' : 'bg-slate-50 border-slate-100 hover:border-slate-200 text-slate-500'}`}
+                            >
+                                <SlidersHorizontal size={18} />
+                            </button>
                         </div>
+
+                        {/* --- ВЫЕЗЖАЮЩАЯ ПАНЕЛЬ РАСШИРЕННЫХ ФИЛЬТРОВ --- */}
+                        <AnimatePresence>
+                            {showFilters && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                                    className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 mb-4 grid grid-cols-3 gap-3 overflow-hidden shadow-inner"
+                                >
+                                    <div>
+                                        <label className="text-[8px] font-black uppercase text-slate-400 tracking-wider block mb-1">Тарифный план</label>
+                                        <select value={filterPlan} onChange={e => { setFilterPlan(e.target.value as any); setCurrentPage(0); }} className="w-full h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold px-2 outline-none">
+                                            <option value="ALL">Все тарифы</option>
+                                            <option value="PAYG">PAYG</option>
+                                            <option value="BASIC">BASIC</option>
+                                            <option value="DAILY">DAILY</option>
+                                            <option value="STANDARD">STANDARD</option>
+                                            <option value="FAMILY">FAMILY</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-black uppercase text-slate-400 tracking-wider block mb-1">Тарифный план</label>
+                                        <select value={filterPlan} onChange={e => setFilterPlan(e.target.value as any)} className="w-full h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold px-2 outline-none">
+                                            <option value="ALL">Все тарифы</option>
+                                            <option value="payg">PAYG</option>
+                                            <option value="classic">Classic</option>
+                                            <option value="vip">VIP PRO</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-black uppercase text-slate-400 tracking-wider block mb-1">Сортировка</label>
+                                        <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} className="w-full h-9 bg-white border border-slate-200 rounded-lg text-xs font-bold px-2 outline-none">
+                                            <option value="date_desc">Сначала новые</option>
+                                            <option value="balance_desc">Баланс: Сначала много</option>
+                                            <option value="balance_asc">Баланс: Сначала мало</option>
+                                            <option value="name_asc">По алфавиту (А-Я)</option>
+                                        </select>
+                                    </div>
+                                    <div className="col-span-3 flex justify-end pt-2 border-t border-slate-200/50 mt-1">
+                                        <button onClick={handleExportCSV} className="text-[9px] font-black uppercase tracking-wider text-blue-600 hover:text-blue-700 flex items-center gap-1.5 cursor-pointer bg-blue-50/50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-100">
+                                            <Download size={12} /> Экспорт в CSV (Excel)
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
+                    {/* СПИСОК ПОЛЬЗОВАТЕЛЕЙ */}
+                    <div className="flex-1 overflow-y-auto px-8 pb-4 custom-scrollbar">
                         {loading && users.length === 0 ? (
                             <div className="h-full flex items-center justify-center">
                                 <div className="animate-pulse flex flex-col items-center gap-3">
@@ -188,39 +303,42 @@ export default function Users() {
                                 </div>
                             </div>
                         ) : (
-                            <motion.div variants={listContainer} initial="hidden" animate="show" className="space-y-3 pt-2">
-                                {Array.isArray(users) && users.map((user) => {
+                            <motion.div variants={listContainer} initial="hidden" animate="show" className="space-y-3 pt-1">
+                                {processedUsers.map((user) => {
                                     const isSelected = selectedUser?.telegramId === user.telegramId
-                                    const statusColor = STATUS_CONFIG[user.status || 'ACTIVE']?.color || "bg-emerald-500"
+                                    const isBanned = user.isBanned || (user as any).banned || user.status === "BANNED"
+
+                                    const statusColor = isBanned
+                                        ? "bg-red-500"
+                                        : (user.hasActiveSubscription ? "bg-emerald-500" : "bg-slate-300")
+
+                                    const cardStyle = isSelected
+                                        ? (isBanned ? "bg-[#2D0B0E] text-white border-[#541217] shadow-[0_0_30px_rgba(239,68,68,0.25)] scale-[1.01]" : "bg-slate-900 text-white border-slate-900 shadow-2xl scale-[1.01]")
+                                        : (isBanned ? "bg-red-50/30 border-red-100 hover:border-red-200" : "bg-white border-slate-100 hover:border-blue-200")
 
                                     return (
                                         <motion.div
                                             variants={listItem}
                                             key={user.id}
                                             onClick={() => setSelectedUser(user)}
-                                            className={`group p-4.5 rounded-[1.8rem] cursor-pointer transition-all duration-300 relative overflow-hidden border-2 ${
-                                                isSelected
-                                                    ? "bg-slate-900 text-white border-slate-900 shadow-2xl shadow-slate-900/30 scale-[1.01] z-10"
-                                                    : "bg-white border-slate-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/10 text-slate-900"
-                                            }`}
+                                            className={`group p-4.5 rounded-[1.8rem] cursor-pointer transition-all duration-300 relative overflow-hidden border-2 ${cardStyle}`}
                                         >
                                             <div className="flex items-center justify-between relative z-10">
                                                 <div className="flex items-center gap-4">
                                                     <div className="relative">
                                                         <Avatar className={`h-12 w-12 rounded-[1rem] transition-all duration-550 shadow-sm ${isSelected ? "rotate-6 scale-110 ring-4 ring-white/10" : "group-hover:rotate-6"}`}>
-                                                            <AvatarFallback className={`${(user.status === "BANNED" || user.isBlocked) ? "bg-red-500 text-white" : (isSelected ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-600")} font-black text-base`}>
-                                                                {user.firstName ? user.firstName[0].toUpperCase() : '?'}
+                                                            <AvatarFallback className={`${isBanned ? (isSelected ? "bg-red-500 text-white" : "bg-red-100 text-red-600") : (isSelected ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-600")} font-black text-base`}>
+                                                                {isBanned ? '🚫' : (user.firstName ? user.firstName[0].toUpperCase() : '?')}
                                                             </AvatarFallback>
                                                         </Avatar>
-                                                        <div className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 ${isSelected ? "border-slate-900" : "border-white"} ${statusColor} transition-colors`} />
+                                                        <div className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 ${isSelected ? (isBanned ? "border-[#2D0B0E]" : "border-slate-900") : "border-white"} ${statusColor} transition-colors`} />
                                                     </div>
                                                     <div>
-                                                        <p className={`font-extrabold text-sm uppercase tracking-tight italic truncate max-w-[150px] flex items-center gap-1.5 ${user.status === 'BANNED' || user.isBlocked ? 'line-through text-red-500/80 opacity-75' : ''}`}>
+                                                        <p className={`font-extrabold text-sm uppercase tracking-tight italic truncate max-w-[150px] flex items-center gap-1.5 ${isBanned ? 'line-through text-red-400/80 opacity-90' : ''}`}>
                                                             {user.firstName || 'Без имени'}
-                                                            {(user.status === 'BANNED' || user.isBlocked) && <span className="text-xs no-underline font-normal inline-block" title="Пользователь заблокирован">🚫</span>}
                                                         </p>
                                                         <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className={`text-[10px] font-bold tracking-wider ${isSelected ? "text-slate-300" : ((user.status === 'BANNED' || user.isBlocked) ? "text-red-400 font-semibold" : "text-blue-650")}`}>
+                                                            <span className={`text-[10px] font-bold tracking-wider ${isSelected ? (isBanned ? "text-red-300/80" : "text-slate-300") : (isBanned ? "text-red-500" : "text-blue-650")}`}>
                                                                 @{user.username || user.telegramId}
                                                             </span>
                                                         </div>
@@ -230,15 +348,15 @@ export default function Users() {
                                                     <p className={`font-mono font-extrabold text-lg italic tracking-tighter ${isSelected ? "text-white" : "text-slate-900"}`}>
                                                         {user.balance / 100} <span className="text-[9px]">₽</span>
                                                     </p>
-                                                    <Badge className={`mt-1.5 border-none text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${isSelected ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-500"}`}>
-                                                        {user.subscriptionType}
+                                                    <Badge className={`mt-1.5 border-none text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${isSelected ? (isBanned ? "bg-red-500 text-white" : "bg-blue-500 text-white") : (isBanned ? "bg-red-100 text-red-600" : "bg-slate-100 text-slate-500")}`}>
+                                                        {isBanned ? "BANNED" : user.subscriptionType}
                                                     </Badge>
                                                 </div>
                                             </div>
                                         </motion.div>
                                     )
                                 })}
-                                {(!users || users.length === 0) && (
+                                {processedUsers.length === 0 && (
                                     <div className="py-20 text-center flex flex-col items-center justify-center opacity-50">
                                         <Search size={44} strokeWidth={1} className="text-slate-300 mb-4" />
                                         <p className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 font-sans">Клиентов не найдено</p>
@@ -246,6 +364,43 @@ export default function Users() {
                                 )}
                             </motion.div>
                         )}
+                    </div>
+
+                    {/* --- ФУТЕР С ПАГИНАЦИЕЙ (PAGINATION PANEL) --- */}
+                    <div className="px-8 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
+                        <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
+                            <span className="hidden sm:inline">Показывать:</span>
+                            <select
+                                value={pageSize}
+                                onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
+                                className="h-8 bg-white border border-slate-200 rounded-lg px-1.5 font-bold text-slate-700 outline-none"
+                            >
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                disabled={currentPage === 0}
+                                onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 cursor-pointer"
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+                            <span className="text-xs font-mono font-bold text-slate-600 px-3">
+                                Страница {currentPage + 1} из {Math.max(1, totalPages)}
+                            </span>
+                            <button
+                                disabled={currentPage >= totalPages - 1}
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 cursor-pointer"
+                            >
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
                     </div>
                 </ResizablePanel>
 
@@ -352,9 +507,11 @@ export default function Users() {
                                         value={newSubPlan}
                                         onChange={e => setNewSubPlan(e.target.value)}
                                     >
-                                        <option value="payg">PAYG (По трафику)</option>
-                                        <option value="经典极速classic">经典极速classic</option>
-                                        <option value="VIP PRO">VIP PRO</option>
+                                        <option value="PAYG">PAYG (По трафику)</option>
+                                        <option value="BASIC">BASIC</option>
+                                        <option value="DAILY">DAILY</option>
+                                        <option value="STANDARD">STANDARD</option>
+                                        <option value="FAMILY">FAMILY</option>
                                     </select>
                                 </div>
                                 <div>

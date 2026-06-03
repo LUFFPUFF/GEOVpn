@@ -4,6 +4,7 @@ import com.vpn.common.dto.ConfigMetadataDto;
 import com.vpn.common.dto.ServerDto;
 import com.vpn.common.dto.response.UserResponse;
 import com.vpn.common.service.RedisCacheService;
+import com.vpn.config.client.ServerManagementClient;
 import com.vpn.config.client.UserServiceClient;
 import com.vpn.config.client.XUIServerApiClient;
 import com.vpn.config.domain.entity.VpnConfiguration;
@@ -13,6 +14,9 @@ import com.vpn.common.dto.request.ConfigRegenerateRequest;
 import com.vpn.common.dto.request.ServerSelectionRequest;
 import com.vpn.common.dto.ServerSelectionResult;
 import com.vpn.common.dto.response.VpnConfigResponse;
+import com.vpn.config.domain.valueobject.StoredVpnLinks;
+import com.vpn.config.dto.admin.AdminConfigDetailResponse;
+import com.vpn.config.dto.admin.AdminConfigUpdateRequest;
 import com.vpn.config.exception.ConfigNotFoundException;
 import com.vpn.config.generator.*;
 import com.vpn.config.repository.VpnConfigurationRepository;
@@ -31,6 +35,9 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -55,6 +62,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     private final RedisCacheService          redisCacheService;
     private final UserServiceClient          userServiceClient;
     private final VpnLinksBuilder            vpnLinksBuilder;
+    private final ServerManagementClient serverManagementClient;
 
     private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
 
@@ -286,32 +294,7 @@ public class VpnConfigServiceImpl implements VpnConfigService {
     }
 
     private String buildXuiLabel(String username, Long userId, Long deviceId) {
-        List<Long> sortedDeviceIds = configRepository
-                .findByUserIdAndStatus(userId, ConfigStatus.ACTIVE)
-                .stream()
-                .map(VpnConfiguration::getDeviceId)
-                .distinct()
-                .sorted()
-                .toList();
-
-        int deviceIndex = sortedDeviceIds.indexOf(deviceId);
-        int deviceNumber = deviceIndex >= 0 ? deviceIndex + 1 : sortedDeviceIds.size();
-
-        String baseName;
-        if (username != null && !username.trim().isEmpty()) {
-            String safeUsername = username.replaceAll("[^a-zA-Z0-9_\\-]", "");
-            if (safeUsername.isEmpty()) {
-                baseName = "tg_" + userId;
-            } else {
-                baseName = safeUsername + "_" + userId;
-            }
-        } else {
-            baseName = "tg_" + userId;
-        }
-
-        return deviceNumber <= 1
-                ? baseName
-                : baseName + "_dev_" + deviceNumber;
+        return "tg_" + userId + "_dev_" + deviceId;
     }
 
     @Override
@@ -454,6 +437,50 @@ public class VpnConfigServiceImpl implements VpnConfigService {
                 .orElse(false);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public AdminConfigDetailResponse getAdminConfigDetails(Long deviceId) {
+        VpnConfiguration config = configRepository
+                .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
+                .orElseThrow(() -> new ConfigNotFoundException("Config not found for device " + deviceId));
+
+        if (config.hasNoStoredLinks()) {
+            rebuildLinks(config);
+        }
+
+        return buildAdminResponse(config);
+    }
+
+    @Override
+    @Transactional
+    public AdminConfigDetailResponse updateConfigAndServers(Long deviceId, AdminConfigUpdateRequest request) {
+        VpnConfiguration config = configRepository
+                .findByDeviceIdAndStatus(deviceId, ConfigStatus.ACTIVE)
+                .orElseThrow(() -> new ConfigNotFoundException("Config not found for device " + deviceId));
+
+        if (request.getVlessLinks() != null) {
+            config.setVlessLinks(request.getVlessLinks());
+            for (StoredVpnLinks.DirectLink linkObj : request.getVlessLinks()) {
+                updateServerFromVlessUri(linkObj.getServerId(), linkObj.getLink(), false);
+            }
+        }
+
+        if (request.getRelayLinks() != null) {
+            config.setRelayLinks(request.getRelayLinks());
+            for (StoredVpnLinks.RelayLink linkObj : request.getRelayLinks()) {
+                updateServerFromVlessUri(linkObj.getServerId(), linkObj.getLink(), true);
+            }
+        }
+
+        if (request.getHy2Links() != null) {
+            config.setHy2Links(request.getHy2Links());
+        }
+
+        configRepository.save(config);
+
+        return buildAdminResponse(config);
+    }
+
     private String buildPrimaryLink(UUID uuid, ServerDto server) {
         try {
             return vlessLinkBuilder.buildVlessLinkCustom(
@@ -582,5 +609,82 @@ public class VpnConfigServiceImpl implements VpnConfigService {
             case "LV" -> "🇱🇻"; case "LT" -> "🇱🇹"; case "RU" -> "🇷🇺";
             default   -> "🌐";
         };
+    }
+
+    private void updateServerFromVlessUri(Integer serverId, String vlessUri, boolean isRelay) {
+        if (serverId == null || vlessUri == null || vlessUri.isBlank()) return;
+        if (!vlessUri.startsWith("vless://")) return;
+
+        try {
+            ServerDto server = serverManagementClient.getServerById(serverId).getData();
+            if (server == null) return;
+
+            URI uri = new URI(vlessUri);
+            String host = uri.getHost();
+            int port = uri.getPort();
+
+            Map<String, String> queryParams = new HashMap<>();
+            String query = uri.getRawQuery();
+            if (query != null) {
+                for (String param : query.split("&")) {
+                    String[] pair = param.split("=", 2);
+                    if (pair.length == 2) {
+                        queryParams.put(
+                                URLDecoder.decode(pair[0], StandardCharsets.UTF_8),
+                                URLDecoder.decode(pair[1], StandardCharsets.UTF_8)
+                        );
+                    }
+                }
+            }
+
+            Map<String, Object> updatePayload = new HashMap<>();
+            boolean isUpdated = false;
+
+            if (host != null && !host.equals(server.getIpAddress())) {
+                updatePayload.put("ipAddress", host);
+                isUpdated = true;
+            }
+            if (port > 0 && port != server.getPort()) {
+                updatePayload.put("port", port);
+                isUpdated = true;
+            }
+
+            String sni = queryParams.get("sni");
+            String pbk = queryParams.get("pbk");
+            String sid = queryParams.get("sid");
+
+            if (isRelay) {
+                if (sni != null && !sni.equals(server.getRelaySni())) { updatePayload.put("relaySni", sni); isUpdated = true; }
+                if (pbk != null && !pbk.equals(server.getRelayPublicKey())) { updatePayload.put("relayPublicKey", pbk); isUpdated = true; }
+                if (sid != null && !sid.equals(server.getRelayShortId())) { updatePayload.put("relayShortId", sid); isUpdated = true; }
+            } else {
+                if (sni != null && !sni.equals(server.getRealitySni())) { updatePayload.put("realitySni", sni); isUpdated = true; }
+                if (pbk != null && !pbk.equals(server.getRealityPublicKey())) { updatePayload.put("realityPublicKey", pbk); isUpdated = true; }
+                if (sid != null && !sid.equals(server.getRealityShortId())) { updatePayload.put("realityShortId", sid); isUpdated = true; }
+            }
+
+            if (isUpdated) {
+                serverManagementClient.updateServer(serverId, updatePayload);
+                log.info("Admin updated Server ID: {} via config link parsing (Feign Call)", serverId);
+            }
+
+        } catch (Exception e) {
+            log.error("Failed to parse VLESS URI and update server ID {}: {}", serverId, e.getMessage());
+        }
+    }
+
+    private AdminConfigDetailResponse buildAdminResponse(VpnConfiguration config) {
+        return AdminConfigDetailResponse.builder()
+                .id(config.getId())
+                .deviceId(config.getDeviceId())
+                .userId(config.getUserId())
+                .vlessUuid(config.getVlessUuid())
+                .status(config.getStatus().name())
+                .deviceOs(config.getDeviceOs())
+                .deviceName(config.getDeviceName())
+                .vlessLinks(config.getVlessLinks())
+                .relayLinks(config.getRelayLinks())
+                .hy2Links(config.getHy2Links())
+                .build();
     }
 }

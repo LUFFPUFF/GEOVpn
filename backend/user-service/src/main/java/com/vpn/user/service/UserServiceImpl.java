@@ -277,6 +277,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public List<Long> getAllActiveUserIds() {
+        return userRepository.findAllActiveUserIds(LocalDateTime.now());
+    }
+
+    @Override
     @Transactional
     @CachePut(value = "users", key = "#telegramId")
     public UserResponse updateReferralCode(Long telegramId, String newCode) {

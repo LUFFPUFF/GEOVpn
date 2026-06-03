@@ -61,6 +61,16 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(updatedUser));
     }
 
+    @PostMapping("/users/{telegramId}/deduct-balance")
+    @RequireAnyRole({UserRole.ADMIN})
+    public ResponseEntity<ApiResponse<UserResponse>> deductBalanceFromUser(
+            @PathVariable Long telegramId,
+            @RequestParam Integer amount) {
+
+        UserResponse updatedUser = userService.deductBalance(telegramId, amount);
+        return ResponseEntity.ok(ApiResponse.success(updatedUser));
+    }
+
     @GetMapping("/users/{telegramId}/devices")
     @RequireAnyRole({UserRole.ADMIN})
     public ResponseEntity<ApiResponse<List<DeviceResponse>>> getUserDevices(@PathVariable Long telegramId) {

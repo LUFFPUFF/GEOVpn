@@ -6,6 +6,7 @@ import com.vpn.billing.dto.platega.PlategaCreateRequest;
 import com.vpn.billing.dto.platega.PlategaCreateResponse;
 import com.vpn.billing.dto.request.DepositRequest;
 import com.vpn.billing.dto.response.DepositResponse;
+import com.vpn.billing.dto.response.RevenueStatDto;
 import com.vpn.billing.exception.PaymentException;
 import com.vpn.billing.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -98,5 +105,33 @@ public class BillingServiceImpl implements BillingService{
 
             throw new PaymentException("Не удалось создать платеж. Попробуйте позже.");
         }
+    }
+
+    @Override
+    public List<RevenueStatDto> getRevenueStats(int days) {
+        log.info("Сбор статистики доходов за последние {} дней", days);
+
+        LocalDateTime startDate = LocalDate.now().minusDays(days - 1).atStartOfDay();
+        List<Transaction> transactions = transactionRepository.findAllCompletedDepositsAfter(startDate);
+
+        Map<String, Long> aggregated = transactions.stream()
+                .collect(Collectors.groupingBy(
+                        t -> t.getCreatedAt().toLocalDate().toString(),
+                        Collectors.summingLong(t -> t.getAmount() / 100)
+                ));
+
+        List<RevenueStatDto> result = new ArrayList<>();
+        for (int i = days - 1; i >= 0; i--) {
+            String dateStr = LocalDate.now().minusDays(i).toString();
+            result.add(new RevenueStatDto(dateStr, aggregated.getOrDefault(dateStr, 0L)));
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<Transaction> getUserTransactions(Long userId) {
+        log.info("Получение истории транзакций для пользователя: {}", userId);
+        return transactionRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 }

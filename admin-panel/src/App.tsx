@@ -29,13 +29,11 @@ export default function App() {
     return (
         <BrowserRouter>
             <Routes>
-                {/* Auth Gate Routing */}
                 <Route
                     path="/login"
                     element={isAuth ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />}
                 />
 
-                {/* Primary Panel Pages */}
                 <Route
                     path="/"
                     element={isAuth ? <AdminLayout onLogout={handleLogout} /> : <Navigate to="/login" replace />}

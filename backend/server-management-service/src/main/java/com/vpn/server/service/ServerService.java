@@ -70,15 +70,20 @@ public class ServerService {
                         "Server not found: " + id
                 ));
 
-        if (request.getLocation() != null) {
-            server.setLocation(request.getLocation());
-        }
-        if (request.getMaxConnections() != null) {
-            server.setMaxConnections(request.getMaxConnections());
-        }
-        if (request.getIsActive() != null) {
-            server.setIsActive(request.getIsActive());
-        }
+        if (request.getLocation() != null) server.setLocation(request.getLocation());
+        if (request.getMaxConnections() != null) server.setMaxConnections(request.getMaxConnections());
+        if (request.getIsActive() != null) server.setIsActive(request.getIsActive());
+
+        if (request.getIpAddress() != null) server.setIpAddress(request.getIpAddress());
+        if (request.getPort() != null) server.setPort(request.getPort());
+
+        if (request.getRealitySni() != null) server.setRealitySni(request.getRealitySni());
+        if (request.getRealityPublicKey() != null) server.setRealityPublicKey(request.getRealityPublicKey());
+        if (request.getRealityShortId() != null) server.setRealityShortId(request.getRealityShortId());
+
+        if (request.getRelaySni() != null) server.setRelaySni(request.getRelaySni());
+        if (request.getRelayPublicKey() != null) server.setRelayPublicKey(request.getRelayPublicKey());
+        if (request.getRelayShortId() != null) server.setRelayShortId(request.getRelayShortId());
 
         Server updated = serverRepository.save(server);
         return serverMapper.toDto(updated);

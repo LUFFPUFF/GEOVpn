@@ -6,41 +6,52 @@ export interface UserResponse {
     balance: number;
     subscriptionType: string;
     subscriptionExpiresAt?: string;
-    hasActiveSubscription: boolean;
+    referralCode?: string;
     createdAt: string;
-    status: "ACTIVE" | "BANNED" | "INACTIVE";
-    isBlocked?: boolean;
+    lastActiveAt?: string;
+    hasActiveSubscription: boolean;
+    isBanned: boolean;
+    banReason?: string;
+    isChannelMember?: boolean;
 }
 
 export interface AdminDashboardResponse {
     totalUsers: number;
     activeSubscriptions: number;
+    totalServers: number;
+    activeServers: number;
+    totalTrafficGb: number;
     totalBalanceRub: number;
 }
 
 export interface DeviceResponse {
     id: number;
-    userId: number;
     deviceName: string;
     deviceType: string;
     uuid: string;
     isActive: boolean;
-    created_at?: string;
-    trafficUsedGb?: number;
-    trafficLimitGb?: number;
+    lastConnectedAt?: string;
+    createdAt?: string;
 }
 
 export interface UserStatsResponse {
-    totalTrafficBytes: number;
+    telegramId: number;
+    balance: number;
+    totalDevices: number;
+    activeDevices: number;
     totalReferrals: number;
+    totalReferralEarnings: number;
+    totalSpentKopecks: number;
     totalConnections: number;
+    totalTrafficBytes: number;
 }
 
 export interface DeviceLimitStatus {
     userId: number;
-    activeDevices: number;
     maxDevices: number;
-    planName: string;
+    activeDevices: number;
+    remainingSlots: number;
+    limitReached: boolean;
 }
 
 export interface VpnConfigResponse {
@@ -142,4 +153,55 @@ export interface VpnBanLog {
     reason: string;
     adminUsername: string;
     createdAt: string;
+}
+
+export interface DirectLink {
+    serverId: number;
+    serverName: string;
+    countryCode: string;
+    link: string;
+    avgLatencyMs?: number;
+    healthScore?: number;
+    displayName?: string;
+}
+
+export interface RelayLink {
+    serverId: number;
+    serverName: string;
+    countryCode: string;
+    link: string;
+    relayPriority: number;
+    description?: string;
+}
+
+export interface AdminConfigDetailResponse {
+    id: number;
+    deviceId: number;
+    userId: number;
+    vlessUuid: string;
+    status: string;
+    deviceOs: string;
+    deviceName: string;
+    vlessLinks: DirectLink[];
+    relayLinks: RelayLink[];
+    hy2Links: string[];
+}
+
+export interface TransactionResponse {
+    id: number;
+    userId: number;
+    amount: number;
+    transactionType: string;
+    paymentMethod?: string;
+    status: "PENDING" | "COMPLETED" | "SUCCESS" | "FAILED";
+    externalTransactionId?: string;
+    paymentProvider?: string;
+    description?: string;
+    createdAt: string;
+    completedAt?: string;
+}
+
+export interface RevenueStat {
+    date: string;
+    amountRub: number;
 }

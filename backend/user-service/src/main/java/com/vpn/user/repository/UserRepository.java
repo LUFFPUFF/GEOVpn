@@ -2,6 +2,7 @@ package com.vpn.user.repository;
 
 import com.vpn.common.dto.response.LeaderboardEntryDto;
 import com.vpn.user.domain.entity.User;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -33,4 +34,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "GROUP BY r.telegramId, r.firstName, r.username " +
             "ORDER BY COUNT(u.id) DESC")
     List<LeaderboardEntryDto> getTopReferrals(LocalDateTime startDate, LocalDateTime endDate, Pageable pageable);
+
+    @Query("SELECT u FROM User u WHERE u.subscriptionExpiresAt > :now AND u.isBanned = false")
+    Page<User> findActiveSubscribers(@Param("now") LocalDateTime now, Pageable pageable);
+
+    @Query("SELECT u.subscriptionExpiresAt FROM User u WHERE u.telegramId = :telegramId")
+    Optional<LocalDateTime> findSubscriptionExpiry(@Param("telegramId") Long telegramId);
+
+    @Query("SELECT u.telegramId FROM User u WHERE " +
+            "((u.subscriptionExpiresAt > :now AND u.subscriptionType <> 'PAYG') OR u.subscriptionType = 'PAYG') " +
+            "AND u.isBanned = false")
+    List<Long> findAllActiveUserIds(@Param("now") LocalDateTime now);
 }

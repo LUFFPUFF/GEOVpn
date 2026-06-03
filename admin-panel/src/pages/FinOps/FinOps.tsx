@@ -16,11 +16,8 @@ function PnLChart({ data }: { data: { month: string, rev: number, exp: number }[
                 const hExp = (d.exp / maxVal) * H;
                 return (
                     <g key={i}>
-                        {/* Revenues */}
                         <rect x={x} y={H - hRev} width={barW} height={hRev} fill="#10b981" rx="4" />
-                        {/* Expenses */}
                         <rect x={x + barW + gap} y={H - hExp} width={barW} height={hExp} fill="#ef4444" rx="4" />
-                        {/* Month labels */}
                         <text x={x + barW + gap / 2} y={H + 20} fontSize="11" fill="#64748b" textAnchor="middle" fontFamily="Inter">{d.month}</text>
                     </g>
                 );

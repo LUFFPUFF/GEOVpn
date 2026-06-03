@@ -61,7 +61,7 @@ public class ServerMonitoringService {
 
                 XrayGrpcClient.SysMetrics metrics = xrayGrpcClient.getSysMetrics(
                         server.getIpAddress(),
-                        xrayGrpcPort
+                        server.getGrpcPort()
                 );
 
                 if (metrics != null) {

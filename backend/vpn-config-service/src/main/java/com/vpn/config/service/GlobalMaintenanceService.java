@@ -18,15 +18,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
@@ -34,77 +30,116 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor
 public class GlobalMaintenanceService {
 
+    /** Размер батча при переборе пользователей (запросы к User-Service). */
     private static final int BATCH_SIZE = 200;
 
-    private static final List<Integer> TOKEN_SERVER_IDS = List.of(8, 4, 3);
-    private static final List<String> TOKEN_SERVER_TOKENS = List.of("UPDATE_ME_8", "UPDATE_ME_4", "UPDATE_ME_3");
+    /**
+     * Максимальное количество ПАРАЛЛЕЛЬНЫХ HTTP-запросов к одной XUI-панели.
+     * SQLite не выдерживает больше ~10 одновременных write-запросов:
+     * при превышении этого числа начинаются "database is locked" → таймауты.
+     *
+     * Значение выбрано с запасом безопасности: реальный предел ≈ 15,
+     * мы держим 10, чтобы оставить ресурс для собственного Xray-трафика.
+     */
+    private static final int XUI_CONCURRENCY_PER_SERVER = 10;
 
-    private final UserServiceClient userServiceClient;
-    private final ServerManagementClient serverManagementClient;
-    private final VpnConfigurationRepository configRepository;
-    private final ServerSelectionService serverSelectionService;
-    private final XUIServerApiClient xuiClient;
-    private final VpnLinksBuilder vpnLinksBuilder;
-    private final RedisCacheService redisCacheService;
+    /** Время жизни SSE-соединения с фронтендом (15 минут достаточно для полного прогона). */
+    private static final long SSE_TIMEOUT_MS = Duration.ofMinutes(20).toMillis();
 
+    /** Сердцебиение SSE: раз в 25 секунд, чтобы nginx/браузер не закрыл idle-соединение. */
+    private static final long SSE_HEARTBEAT_INTERVAL_MS = 25_000L;
+
+    private static final List<Integer> TOKEN_SERVER_IDS     = List.of(8, 4, 3);
+    private static final List<String>  TOKEN_SERVER_TOKENS  = List.of("UPDATE_ME_8", "UPDATE_ME_4", "UPDATE_ME_3");
+
+
+    private final UserServiceClient            userServiceClient;
+    private final ServerManagementClient       serverManagementClient;
+    private final VpnConfigurationRepository   configRepository;
+    private final ServerSelectionService       serverSelectionService;
+    private final XUIServerApiClient           xuiClient;
+    private final VpnLinksBuilder              vpnLinksBuilder;
+    private final RedisCacheService            redisCacheService;
+
+    /**
+     * Пул виртуальных потоков для параллельных задач.
+     * Virtual threads — лёгкие, создаём сколько нужно,
+     * но реальный параллелизм к XUI ограничиваем через Semaphore ниже.
+     */
     private final ExecutorService virtualExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
+
+    /** Живые SSE-соединения с фронтом (CopyOnWriteArrayList — lock-free на чтение). */
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
     /**
-     * Регистрация нового эмиттера для админ-панели
+     * Планировщик heartbeat-пингов.
+     * Единственный поток достаточен: задача — отправить мелкий JSON раз в 25 сек.
+     */
+    private final ScheduledExecutorService heartbeatScheduler =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "sse-heartbeat");
+                t.setDaemon(true);
+                return t;
+            });
+
+    /**
+     * Статический инициализатор heartbeat: запускается один раз при создании бина.
+     * Spring вызывает конструктор → поле инициализировано → @PostConstruct не нужен,
+     * но здесь удобнее использовать init-блок.
+     */
+    {
+        heartbeatScheduler.scheduleAtFixedRate(
+                this::sendHeartbeat,
+                SSE_HEARTBEAT_INTERVAL_MS,
+                SSE_HEARTBEAT_INTERVAL_MS,
+                TimeUnit.MILLISECONDS
+        );
+    }
+
+    /**
+     * Регистрирует нового SSE-подписчика.
+     *
+     * <p>Особенности:
+     * <ul>
+     *   <li>Таймаут 20 мин — с запасом относительно реального прогона.</li>
+     *   <li>onCompletion/onTimeout/onError — чистим список эмиттеров немедленно.</li>
+     *   <li>Сразу отправляем "connected"-пинг, чтобы клиент убедился в живом стриме.</li>
+     * </ul>
      */
     public SseEmitter registerEmitter() {
-        SseEmitter emitter = new SseEmitter(Duration.ofMinutes(15).toMillis());
-        this.emitters.add(emitter);
-        emitter.onCompletion(() -> this.emitters.remove(emitter));
-        emitter.onTimeout(() -> this.emitters.remove(emitter));
-        emitter.onError((e) -> this.emitters.remove(emitter));
+        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
+
+        Runnable cleanup = () -> emitters.remove(emitter);
+        emitter.onCompletion(cleanup);
+        emitter.onTimeout(cleanup);
+        emitter.onError(e -> {
+            log.debug("SSE emitter error (client likely disconnected): {}", e.getMessage());
+            cleanup.run();
+        });
+
+        emitters.add(emitter);
+
+        try {
+            emitter.send(SseEmitter.event()
+                    .name("connected")
+                    .data(Map.of(
+                            "timestamp", LocalDateTime.now().toString(),
+                            "message",   "SSE stream established. Waiting for maintenance events..."
+                    )));
+        } catch (Exception e) {
+            log.warn("Could not send initial SSE ping: {}", e.getMessage());
+            emitters.remove(emitter);
+        }
+
+        log.info("SSE emitter registered. Total active emitters: {}", emitters.size());
         return emitter;
     }
 
     /**
-     * Логирует сообщение в консоль бэкенда и одновременно транслирует его на фронтенд
+     * Точка входа: полный прогон технического обслуживания.
+     * Вызывается из {@code AdminController} в фоновом CompletableFuture.
      */
-    private void broadcastLog(String message, String level) {
-        switch (level) {
-            case "INFO" -> log.info(message);
-            case "WARN" -> log.warn(message);
-            case "ERROR" -> log.error(message);
-        }
-
-        Map<String, String> logPayload = Map.of(
-                "timestamp", LocalDateTime.now().toString(),
-                "level", level,
-                "message", message
-        );
-
-        List<SseEmitter> deadEmitters = new ArrayList<>();
-        for (SseEmitter emitter : emitters) {
-            try {
-                emitter.send(SseEmitter.event().name("log").data(logPayload));
-            } catch (Exception e) {
-                deadEmitters.add(emitter);
-            }
-        }
-        emitters.removeAll(deadEmitters);
-    }
-
-    /**
-     * Отправляет финальный отчет и закрывает соединения
-     */
-    private void broadcastReport(MaintenanceReport report) {
-        List<SseEmitter> deadEmitters = new ArrayList<>();
-        for (SseEmitter emitter : emitters) {
-            try {
-                emitter.send(SseEmitter.event().name("report").data(report));
-            } catch (Exception e) {
-                deadEmitters.add(emitter);
-            }
-        }
-        emitters.removeAll(deadEmitters);
-    }
-
     public MaintenanceReport runFullMaintenance() {
         long startMs = System.currentTimeMillis();
         broadcastLog("=== GLOBAL MAINTENANCE STARTED ===", "WARN");
@@ -113,10 +148,12 @@ public class GlobalMaintenanceService {
 
         List<VpnConfiguration> activeConfigs = configRepository.findByStatus(ConfigStatus.ACTIVE);
         List<String> activeEmails = activeConfigs.stream()
-                .map(config -> "tg_" + config.getUserId() + "_dev_" + config.getDeviceId())
+                .map(c -> "tg_" + c.getUserId() + "_dev_" + c.getDeviceId())
                 .distinct()
                 .toList();
-        broadcastLog("[STEP 2] Found " + activeEmails.size() + " active configurations in local DB to clear from XUI panels", "INFO");
+
+        broadcastLog("[STEP 2] Found " + activeEmails.size()
+                + " active configurations in local DB to clear from XUI panels", "INFO");
 
         step3ClearXuiPanels(activeEmails, report);
 
@@ -132,17 +169,19 @@ public class GlobalMaintenanceService {
             broadcastLog("[STEP 5] Failed to fetch active users from User-Service: " + e.getMessage(), "ERROR");
         }
 
-        broadcastLog("[STEP 5] Found " + targetUserIds.size() + " active users from User-Service to re-sync", "INFO");
+        broadcastLog("[STEP 5] Found " + targetUserIds.size()
+                + " active users from User-Service to re-sync", "INFO");
 
         step5BatchGenerateAndSync(targetUserIds, report);
 
         long elapsedSec = (System.currentTimeMillis() - startMs) / 1000;
         report.setElapsedSeconds(elapsedSec);
 
-        broadcastLog("=== GLOBAL MAINTENANCE COMPLETED in " + elapsedSec + "s | processed=" + report.getUsersProcessed() + " | failed=" + report.getUsersFailed() + " ===", "WARN");
+        broadcastLog("=== GLOBAL MAINTENANCE COMPLETED in " + elapsedSec + "s"
+                + " | processed=" + report.getUsersProcessed()
+                + " | failed="    + report.getUsersFailed() + " ===", "WARN");
 
         broadcastReport(report);
-
         return report;
     }
 
@@ -150,50 +189,77 @@ public class GlobalMaintenanceService {
         broadcastLog("[STEP 1] Updating API tokens for servers: " + TOKEN_SERVER_IDS, "INFO");
         for (int i = 0; i < TOKEN_SERVER_IDS.size(); i++) {
             Integer serverId = TOKEN_SERVER_IDS.get(i);
-            String token = TOKEN_SERVER_TOKENS.get(i);
+            String  token    = TOKEN_SERVER_TOKENS.get(i);
             try {
-                Map<String, Object> updateRequest = Map.of("apiToken", token);
-                serverManagementClient.updateServer(serverId, updateRequest);
-                broadcastLog("Token updated via Feign for server id=" + serverId, "INFO");
+                serverManagementClient.updateServer(serverId, Map.of("apiToken", token));
+                broadcastLog("Token updated for server id=" + serverId, "INFO");
             } catch (Exception e) {
-                broadcastLog("Failed to update token via Feign for server id=" + serverId + ": " + e.getMessage(), "ERROR");
+                broadcastLog("Failed to update token for server id=" + serverId + ": " + e.getMessage(), "ERROR");
             }
         }
     }
 
+    /**
+     * Шаг 3: параллельно очищаем клиентов на всех XUI-серверах.
+     *
+     * <p><b>Ключевое изменение</b>: для каждого сервера создаётся свой {@link Semaphore}
+     * на {@value XUI_CONCURRENCY_PER_SERVER} разрешений. Это гарантирует,
+     * что к одной SQLite-базе панели одновременно пишет не более 10 потоков,
+     * что полностью исключает "database is locked" и перегрузку CPU Xray-перезапусками.
+     */
     protected void step3ClearXuiPanels(List<String> activeEmails, MaintenanceReport report) {
         if (activeEmails.isEmpty()) {
-            broadcastLog("[STEP 3] No active configurations found in local DB. Skipping XUI panels clear.", "WARN");
+            broadcastLog("[STEP 3] No active configurations found. Skipping XUI panels clear.", "WARN");
             return;
         }
 
         List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
-        broadcastLog("[STEP 3] Clearing " + activeEmails.size() + " targeted clients on " + allServers.size() + " servers in parallel...", "INFO");
+        broadcastLog("[STEP 3] Clearing " + activeEmails.size() + " clients on "
+                + allServers.size() + " servers (max " + XUI_CONCURRENCY_PER_SERVER
+                + " concurrent requests per server)...", "INFO");
 
-        List<CompletableFuture<Void>> futures = allServers.stream()
-                .map(server -> CompletableFuture.runAsync(() -> {
+        List<CompletableFuture<Void>> serverFutures = allServers.stream()
+                .map(server -> CompletableFuture.runAsync(
+                        () -> clearSingleServer(server, activeEmails, report),
+                        virtualExecutor))
+                .toList();
+
+        awaitAll(serverFutures);
+        broadcastLog("[STEP 3] XUI panels clearing completed.", "INFO");
+    }
+
+    /**
+     * Удаляем всех переданных клиентов с одного сервера,
+     * ограничивая конкурентность через {@link Semaphore}.
+     */
+    private void clearSingleServer(ServerDto server, List<String> emails, MaintenanceReport report) {
+        Semaphore semaphore = new Semaphore(XUI_CONCURRENCY_PER_SERVER);
+
+        broadcastLog("Clearing " + emails.size() + " clients from server=" + server.getName()
+                + " (concurrency=" + XUI_CONCURRENCY_PER_SERVER + ")...", "INFO");
+
+        List<CompletableFuture<Void>> deleteFutures = emails.stream()
+                .map(email -> CompletableFuture.runAsync(() -> {
                     try {
-                        broadcastLog("Removing " + activeEmails.size() + " targeted clients from server=" + server.getName() + "...", "INFO");
-                        List<CompletableFuture<Void>> removeFutures = activeEmails.stream()
-                                .map(email -> CompletableFuture.runAsync(() -> {
-                                    try {
-                                        xuiClient.deleteClientByEmail(server, email);
-                                    } catch (Exception e) {
-                                        broadcastLog("Failed to remove client " + email + " from " + server.getName() + ": " + e.getMessage(), "WARN");
-                                    }
-                                }, virtualExecutor))
-                                .toList();
-
-                        awaitAll(removeFutures);
-                        report.incrementServersCleared();
+                        semaphore.acquire();                   // ← ждём разрешения
+                        try {
+                            xuiClient.deleteClientByEmail(server, email);
+                        } finally {
+                            semaphore.release();               // ← всегда освобождаем
+                        }
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.warn("Interrupted while waiting for semaphore on server={}", server.getName());
                     } catch (Exception e) {
-                        broadcastLog("Failed to clear panel for server=" + server.getName() + ": " + e.getMessage(), "ERROR");
+                        // Отдельные ошибки удаления логируем тихо, не прерывая весь прогон
+                        log.debug("Failed to delete email={} on server={}: {}", email, server.getName(), e.getMessage());
                     }
                 }, virtualExecutor))
                 .toList();
 
-        awaitAll(futures);
-        broadcastLog("[STEP 3] Targeted XUI panels clearing completed.", "INFO");
+        awaitAll(deleteFutures);
+        report.incrementServersCleared();
+        broadcastLog("Done clearing server=" + server.getName(), "INFO");
     }
 
     protected void step4ClearDatabase() {
@@ -211,15 +277,20 @@ public class GlobalMaintenanceService {
     }
 
     protected void step5BatchGenerateAndSync(List<Long> targetUserIds, MaintenanceReport report) {
-        broadcastLog("[STEP 5] Starting batch generation & sync for " + targetUserIds.size() + " users...", "INFO");
-        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
+        broadcastLog("[STEP 5] Starting batch generation & sync for "
+                + targetUserIds.size() + " users...", "INFO");
 
+        List<ServerDto> allServers = serverSelectionService.getAllActiveServers();
         AtomicInteger processed = new AtomicInteger(0);
-        AtomicInteger failed = new AtomicInteger(0);
+        AtomicInteger failed    = new AtomicInteger(0);
+
+        int totalBatches = (int) Math.ceil((double) targetUserIds.size() / BATCH_SIZE);
 
         for (int i = 0; i < targetUserIds.size(); i += BATCH_SIZE) {
             List<Long> batchIds = targetUserIds.subList(i, Math.min(i + BATCH_SIZE, targetUserIds.size()));
-            broadcastLog("Processing batch " + ((i / BATCH_SIZE) + 1) + "/" + (int) Math.ceil((double) targetUserIds.size() / BATCH_SIZE), "INFO");
+            int batchNum = (i / BATCH_SIZE) + 1;
+            broadcastLog("[STEP 5] Processing batch " + batchNum + "/" + totalBatches
+                    + " (" + batchIds.size() + " users)...", "INFO");
             processBatch(batchIds, allServers, processed, failed);
         }
 
@@ -230,46 +301,57 @@ public class GlobalMaintenanceService {
     private void processBatch(List<Long> batchIds, List<ServerDto> allServers,
                               AtomicInteger processed, AtomicInteger failed) {
 
-        List<VpnConfiguration> configsToSave = new ArrayList<>();
-        Map<VpnConfiguration, Long> configToExpiryMap = new HashMap<>();
+        List<VpnConfiguration> configsToSave   = new ArrayList<>();
+        Map<VpnConfiguration, Long> expiryMap  = new HashMap<>();
 
-        for (Long userId : batchIds) {
-            try {
-                UserResponse user = userServiceClient.getUserByTelegramId(userId).getData();
-                if (user == null || user.isBanned()) continue;
+        List<CompletableFuture<Void>> prepareFutures = batchIds.stream()
+                .map(userId -> CompletableFuture.runAsync(() -> {
+                    try {
+                        UserResponse user = userServiceClient.getUserByTelegramId(userId).getData();
+                        if (user == null || user.isBanned()) return;
 
-                LocalDateTime expiryDate = parseLocalDateTime(user.getSubscriptionExpiresAt());
-                if (expiryDate == null || expiryDate.isBefore(LocalDateTime.now())) continue;
+                        LocalDateTime expiryDate = parseLocalDateTime(user.getSubscriptionExpiresAt());
+                        if (expiryDate == null || expiryDate.isBefore(LocalDateTime.now())) return;
 
-                long expiryTimeMillis = expiryDate.toInstant(ZoneOffset.UTC).toEpochMilli();
+                        long expiryMs = expiryDate.toInstant(ZoneOffset.UTC).toEpochMilli();
 
-                List<DeviceResponse> devices = userServiceClient.getUserActiveDevices(userId).getData();
-                if (devices == null || devices.isEmpty()) continue;
+                        List<DeviceResponse> devices = userServiceClient.getUserActiveDevices(userId).getData();
+                        if (devices == null || devices.isEmpty()) return;
 
-                for (DeviceResponse device : devices) {
-                    VpnConfiguration config = buildNewConfig(user, device, allServers);
-                    configsToSave.add(config);
-                    configToExpiryMap.put(config, expiryTimeMillis);
-                }
+                        for (DeviceResponse device : devices) {
+                            VpnConfiguration config = buildNewConfig(user, device, allServers);
+                            synchronized (configsToSave) {
+                                configsToSave.add(config);
+                                expiryMap.put(config, expiryMs);
+                            }
+                        }
+                    } catch (Exception e) {
+                        broadcastLog("Failed to prepare config for userId=" + userId + ": " + e.getMessage(), "ERROR");
+                        failed.incrementAndGet();
+                    }
+                }, virtualExecutor))
+                .toList();
 
-            } catch (Exception e) {
-                broadcastLog("Failed to prepare config for userId=" + userId + ": " + e.getMessage(), "ERROR");
-                failed.incrementAndGet();
-            }
-        }
+        awaitAll(prepareFutures);
 
         if (configsToSave.isEmpty()) return;
 
         List<VpnConfiguration> savedConfigs = configRepository.saveAll(configsToSave);
 
+        Map<Integer, Semaphore> serverSemaphores = new ConcurrentHashMap<>();
+        for (ServerDto s : allServers) {
+            serverSemaphores.put(s.getId(), new Semaphore(XUI_CONCURRENCY_PER_SERVER));
+        }
+
         List<CompletableFuture<Void>> xuiFutures = savedConfigs.stream()
                 .map(config -> CompletableFuture.runAsync(() -> {
                     try {
-                        long expiryMs = configToExpiryMap.getOrDefault(config, 0L);
-                        syncConfigToXui(config, allServers, expiryMs);
+                        long expiryMs = expiryMap.getOrDefault(config, 0L);
+                        syncConfigToXuiThrottled(config, allServers, expiryMs, serverSemaphores);
                         processed.incrementAndGet();
                     } catch (Exception e) {
-                        broadcastLog("XUI sync failed for uuid=" + config.getVlessUuid() + ": " + e.getMessage(), "ERROR");
+                        broadcastLog("XUI sync failed for uuid=" + config.getVlessUuid()
+                                + ": " + e.getMessage(), "ERROR");
                         failed.incrementAndGet();
                     }
                 }, virtualExecutor))
@@ -278,16 +360,52 @@ public class GlobalMaintenanceService {
         awaitAll(xuiFutures);
     }
 
+    /**
+     * Синхронизирует один конфиг на все серверы, соблюдая per-server rate-limit.
+     */
+    private void syncConfigToXuiThrottled(VpnConfiguration config,
+                                          List<ServerDto> allServers,
+                                          long expiryTimeMillis,
+                                          Map<Integer, Semaphore> serverSemaphores) {
+        String email = "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
+        String uuid  = config.getVlessUuid().toString();
+
+        for (ServerDto server : allServers) {
+            Semaphore sem = serverSemaphores.get(server.getId());
+            try {
+                if (sem != null) sem.acquire();
+                try {
+                    List<Integer> inboundIds = resolveInboundIds(server);
+                    if (inboundIds.isEmpty()) continue;
+                    xuiClient.addClientWithExpiryTime(server, inboundIds, uuid, email, "xtls-rprx-vision", expiryTimeMillis);
+                } finally {
+                    if (sem != null) sem.release();
+                }
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted during XUI sync for uuid={} server={}", uuid, server.getName());
+            } catch (Exception e) {
+                broadcastLog("Failed to sync uuid=" + uuid + " to server=" + server.getName()
+                        + ": " + e.getMessage(), "WARN");
+            }
+        }
+    }
+
     private VpnConfiguration buildNewConfig(UserResponse user, DeviceResponse device, List<ServerDto> allServers) {
-        UUID vlessUuid = UUID.nameUUIDFromBytes((user.getTelegramId() + "_" + device.getId()).getBytes());
+        UUID vlessUuid = UUID.nameUUIDFromBytes(
+                (user.getTelegramId() + "_" + device.getId()).getBytes());
 
         ServerDto primaryServer = allServers.stream()
                 .filter(s -> !s.isRelay())
                 .findFirst()
                 .orElse(allServers.getFirst());
 
-        String sni = primaryServer.getRealitySni() != null ? primaryServer.getRealitySni() : "www.microsoft.com";
-        String primaryLink = String.format("vless://%s@%s:%d?security=reality&encryption=none&pbk=%s&fp=chrome&sni=%s&sid=%s&type=tcp&flow=xtls-rprx-vision#GeoVPN",
+        String sni = primaryServer.getRealitySni() != null
+                ? primaryServer.getRealitySni()
+                : "www.microsoft.com";
+
+        String primaryLink = String.format(
+                "vless://%s@%s:%d?security=reality&encryption=none&pbk=%s&fp=chrome&sni=%s&sid=%s&type=tcp&flow=xtls-rprx-vision#GeoVPN",
                 vlessUuid, primaryServer.getIpAddress(), primaryServer.getPort(),
                 primaryServer.getRealityPublicKey(), sni, primaryServer.getRealityShortId());
 
@@ -303,42 +421,24 @@ public class GlobalMaintenanceService {
                 .build();
 
         vpnLinksBuilder.buildAndStore(config);
-
         return config;
-    }
-
-    private void syncConfigToXui(VpnConfiguration config, List<ServerDto> allServers, long expiryTimeMillis) {
-        String email = "tg_" + config.getUserId() + "_dev_" + config.getDeviceId();
-        String uuid = config.getVlessUuid().toString();
-
-        for (ServerDto server : allServers) {
-            try {
-                List<Integer> inboundIds = resolveInboundIds(server);
-                if (inboundIds.isEmpty()) continue;
-
-                xuiClient.addClientWithExpiryTime(server, inboundIds, uuid, email, "xtls-rprx-vision", expiryTimeMillis);
-            } catch (Exception e) {
-                broadcastLog("Failed to sync uuid=" + uuid + " to server=" + server.getName() + ": " + e.getMessage(), "WARN");
-            }
-        }
     }
 
     private List<Integer> resolveInboundIds(ServerDto server) {
         List<Integer> ids = new ArrayList<>();
         if (server.getTcpInboundId() != null) ids.add(server.getTcpInboundId());
-        if (server.getWsInboundId() != null) ids.add(server.getWsInboundId());
+        if (server.getWsInboundId()  != null) ids.add(server.getWsInboundId());
         if (ids.isEmpty() && server.getPanelInboundId() != null) ids.add(server.getPanelInboundId());
         return ids;
     }
 
     private LocalDateTime parseLocalDateTime(Object obj) {
         return switch (obj) {
-            case null -> null;
+            case null             -> null;
             case LocalDateTime ldt -> ldt;
-            case String s -> {
-                try {
-                    yield LocalDateTime.parse(s);
-                } catch (Exception e) {
+            case String s         -> {
+                try { yield LocalDateTime.parse(s); }
+                catch (Exception e) {
                     broadcastLog("Failed to parse date: " + s, "WARN");
                     yield null;
                 }
@@ -351,11 +451,75 @@ public class GlobalMaintenanceService {
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
+    /**
+     * Логирует сообщение в консоль бэкенда и транслирует всем подключённым клиентам.
+     * Мёртвые эмиттеры (IOException при отправке) немедленно удаляются из списка.
+     */
+    private void broadcastLog(String message, String level) {
+        switch (level) {
+            case "INFO"  -> log.info(message);
+            case "WARN"  -> log.warn(message);
+            case "ERROR" -> log.error(message);
+        }
+
+        Map<String, String> payload = Map.of(
+                "timestamp", LocalDateTime.now().toString(),
+                "level",     level,
+                "message",   message
+        );
+
+        broadcastEvent("log", payload);
+    }
+
+    /**
+     * Отправляет финальный отчёт и закрывает SSE-соединения.
+     */
+    private void broadcastReport(MaintenanceReport report) {
+        broadcastEvent("report", report);
+
+        try { Thread.sleep(500); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+
+        List<SseEmitter> snapshot = new ArrayList<>(emitters);
+        for (SseEmitter emitter : snapshot) {
+            try { emitter.complete(); } catch (Exception ignored) {}
+        }
+        emitters.clear();
+    }
+
+    /**
+     * Общий метод отправки SSE-события.
+     * CopyOnWriteArrayList итерируется по snapshot-у — безопасно при одновременных удалениях.
+     */
+    private void broadcastEvent(String eventName, Object data) {
+        List<SseEmitter> dead = new ArrayList<>();
+        for (SseEmitter emitter : emitters) {
+            try {
+                emitter.send(SseEmitter.event().name(eventName).data(data));
+            } catch (Exception e) {
+                dead.add(emitter);
+            }
+        }
+        if (!dead.isEmpty()) {
+            emitters.removeAll(dead);
+            log.debug("Removed {} dead SSE emitters", dead.size());
+        }
+    }
+
+    /**
+     * Периодический heartbeat, чтобы nginx/браузер не закрыл idle SSE-соединение.
+     * Отправляем пустой "ping" каждые {@value SSE_HEARTBEAT_INTERVAL_MS} мс.
+     */
+    private void sendHeartbeat() {
+        if (emitters.isEmpty()) return;
+        broadcastEvent("ping", Map.of("ts", System.currentTimeMillis()));
+    }
+
+
     @Getter
     public static class MaintenanceReport {
-        @Setter private int usersProcessed = 0;
-        @Setter private int usersFailed = 0;
-        private int serversCleared = 0;
+        @Setter private int  usersProcessed = 0;
+        @Setter private int  usersFailed    = 0;
+        private int          serversCleared = 0;
         @Setter private long elapsedSeconds = 0;
 
         public void incrementServersCleared() { this.serversCleared++; }

@@ -26,7 +26,7 @@ services:
   internal-secret: ${INTERNAL_SECRET}
   user-service:
     url: ${USER_SERVICE_URL}
-  vpn-config-service:
+  vpn-service:
     url: ${VPN_CONFIG_SERVICE_URL}
   billing-service:
     url: ${BILLING_SERVICE_URL}

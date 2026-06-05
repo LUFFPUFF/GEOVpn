@@ -11,9 +11,14 @@ import java.util.List;
 @FeignClient(name = "vpn-service", url = "${services.vpn-service.url}")
 public interface VpnServiceClient {
 
-    @PostMapping("/api/vpn/configs")
-    ApiResponse<VpnConfigResponse> createConfig(@RequestParam("chatId") long chatId, @RequestBody ConfigCreateRequest request);
+    @PostMapping("/api/v1/configs")
+    ApiResponse<VpnConfigResponse> createConfig(
+            @RequestHeader("X-User-Id") long telegramId,
+            @RequestBody ConfigCreateRequest request
+    );
 
-    @GetMapping("/api/vpn/configs/my")
-    ApiResponse<List<VpnConfigResponse>> getMyConfigs(@RequestParam("chatId") long chatId);
+    @GetMapping("/api/v1/configs/configs")
+    ApiResponse<List<VpnConfigResponse>> getMyConfigs(
+            @RequestHeader("X-User-Id") long telegramId
+    );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useUserStore } from '../../store/userStore';
+import { apiClient } from '../../api/client';
 import {
     Download, Rocket, Smartphone, Laptop, Tv,
     ShieldCheck, Info, Check, ArrowLeft, ArrowRight,
@@ -13,6 +14,7 @@ export default function Subscriptions() {
     const [step, setStep] = useState(1);
     const [isConnecting, setIsConnecting] = useState(false);
     const [copyStatus, setCopyStatus] = useState(false);
+    const [isCopying, setIsCopying] = useState(false); // ИСПРАВЛЕНО: Объявлено состояние isCopying
 
     const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
 
@@ -40,7 +42,7 @@ export default function Subscriptions() {
         const urlParts = activeConfig.subscriptionUrl.split('/');
         const uuid = urlParts[urlParts.length - 1];
 
-        const redirectUrl = `https://geovp.ru/api/v1/configs/import-happ/${uuid}`;
+        const redirectUrl = `https://geovp.ru/api/v1/subscription/${uuid}/import-happ`;
 
         if (window.Telegram?.WebApp) {
             window.Telegram.WebApp.openLink(redirectUrl);
@@ -342,7 +344,6 @@ export default function Subscriptions() {
                             </p>
                         </div>
 
-                        {/* Инструкция */}
                         <div className="bg-[#12141d] border border-white/10 rounded-[2.5rem] p-6 shadow-xl">
                             <div className="flex items-center gap-3 mb-5 border-b border-white/5 pb-4">
                                 <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">

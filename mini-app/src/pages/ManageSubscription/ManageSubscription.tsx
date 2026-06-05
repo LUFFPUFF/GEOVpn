@@ -77,7 +77,7 @@ export default function ManageSubscription() {
         const urlParts = config.subscriptionUrl.split('/');
         const uuid = urlParts[urlParts.length - 1];
 
-        const redirectUrl = `https://geovp.ru/api/v1/configs/import-happ/${uuid}`;
+        const redirectUrl = `https://geovp.ru/api/v1/subscription/${uuid}/import-happ`;
 
         if (window.Telegram?.WebApp) {
             window.Telegram.WebApp.openLink(redirectUrl);

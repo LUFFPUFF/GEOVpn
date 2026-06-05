@@ -61,15 +61,17 @@ export default function App() {
         setHeight();
         tg.onEvent('viewportChanged', setHeight);
 
+        let attempts = 0;
         const checkUserInitialization = () => {
             const currentTgId = tg?.initDataUnsafe?.user?.id;
             if (currentTgId || isDev) {
                 setTgReady(true);
-            } else {
+            } else if (attempts++ < 30) {
                 setTimeout(checkUserInitialization, 100);
+            } else {
+                setTgReady(true);
             }
         };
-        checkUserInitialization();
 
         return () => tg.offEvent('viewportChanged', setHeight);
     }, [tg]);

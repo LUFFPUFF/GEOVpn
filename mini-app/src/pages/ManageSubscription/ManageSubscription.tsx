@@ -31,6 +31,7 @@ export default function ManageSubscription() {
 
     const [expandedDevId, setExpandedDevId] = useState<number | null>(null);
     const [copyStatus, setCopyStatus] = useState(false);
+    const [isCopying, setIsCopying] = useState(false);
 
     const [isBuyingSlot, setIsBuyingSlot] = useState(false);
     const [isRegenerating, setIsRegenerating] = useState<number | null>(null);
@@ -67,28 +68,45 @@ export default function ManageSubscription() {
 
     if (isExpired) return null;
 
-    const handleAutoConnect = (deviceId: number) => {
+    const handleAutoConnect = async (deviceId: number) => {
         const config = configs.find(c => c.deviceId === deviceId);
         if (!config?.subscriptionUrl) return;
 
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('heavy');
-
         const urlParts = config.subscriptionUrl.split('/');
         const uuid = urlParts[urlParts.length - 1];
-        const redirectUrl = `https://geovp.ru/api/v1/subscription/${uuid}/import-happ`;
 
-        if (window.Telegram?.WebApp) {
-            window.Telegram.WebApp.openLink(redirectUrl);
-        } else {
-            window.location.href = redirectUrl;
+        try {
+            const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
+            window.location.assign(response.data.deeplink);
+        } catch (error) {
+            const fallbackLink = config.subscriptionUrl.replace(/^https?:\/\//, 'happ://');
+            window.location.assign(fallbackLink);
         }
     };
 
-    const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text);
-        setCopyStatus(true);
-        window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
-        setTimeout(() => setCopyStatus(false), 2000);
+    const handleCopyLink = async (subscriptionUrl: string | undefined) => {
+        if (!subscriptionUrl) return;
+
+        setIsCopying(true);
+        window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
+
+        const urlParts = subscriptionUrl.split('/');
+        const uuid = urlParts[urlParts.length - 1];
+
+        try {
+            const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
+            await navigator.clipboard.writeText(response.data.deeplink);
+        } catch (error) {
+            console.error('Copy link fetch failed:', error);
+            await navigator.clipboard.writeText(subscriptionUrl);
+        } finally {
+            setIsCopying(false);
+            setCopyStatus(true);
+            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+
+            setTimeout(() => setCopyStatus(false), 2000);
+        }
     };
 
     const handleBuyExtraSlot = async () => {
@@ -314,11 +332,19 @@ export default function ManageSubscription() {
                                                     </button>
 
                                                     <button
-                                                        onClick={() => copyToClipboard(config?.subscriptionUrl || '')}
-                                                        className="w-full py-3 bg-white/5 border border-white/10 text-white rounded-xl flex items-center justify-center gap-2 font-black text-[11px] uppercase tracking-widest active:bg-white/10 transition-all outline-none mt-1"
+                                                        onClick={() => handleCopyLink(config?.subscriptionUrl)}
+                                                        disabled={isCopying}
+                                                        className="w-full py-3 bg-white/5 border border-white/10 text-white rounded-xl flex items-center justify-center gap-2 font-black text-[11px] uppercase tracking-widest active:bg-white/10 transition-all outline-none mt-1 disabled:opacity-50"
                                                     >
-                                                        {copyStatus ? <Check size={16} className="text-emerald-500" /> : <Link size={16} className="text-white/50" />}
-                                                        {copyStatus ? 'Скопировано!' : 'Скопировать ссылку'}
+                                                        {isCopying ? (
+                                                            <Loader2 size={16} className="animate-spin text-white/50" />
+                                                        ) : copyStatus ? (
+                                                            <Check size={16} className="text-emerald-500" />
+                                                        ) : (
+                                                            <Link size={16} className="text-white/50" />
+                                                        )}
+
+                                                        {isCopying ? 'Шифруем...' : copyStatus ? 'Скопировано!' : 'Скопировать ссылку'}
                                                     </button>
                                                 </div>
 

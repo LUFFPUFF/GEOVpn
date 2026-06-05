@@ -32,7 +32,7 @@ export default function Subscriptions() {
 
     const activeConfig = configs.find(c => c.deviceId === selectedDeviceId) || configs[0];
 
-    const handleAutoConnect = () => {
+    const handleAutoConnect = async () => {
         if (!activeConfig?.subscriptionUrl) return;
         setIsConnecting(true);
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('heavy');
@@ -40,15 +40,19 @@ export default function Subscriptions() {
         const urlParts = activeConfig.subscriptionUrl.split('/');
         const uuid = urlParts[urlParts.length - 1];
 
-        const redirectUrl = `https://geovp.ru/api/v1/subscription/${uuid}/import-happ`;
+        try {
+            const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
+            const { deeplink } = response.data;
 
-        if (window.Telegram?.WebApp) {
-            window.Telegram.WebApp.openLink(redirectUrl);
-        } else {
-            window.location.href = redirectUrl;
+            window.location.assign(deeplink);
+
+        } catch (error) {
+            console.error('Deeplink fetch failed:', error);
+            const fallbackLink = activeConfig.subscriptionUrl.replace(/^https?:\/\//, 'happ://');
+            window.location.assign(fallbackLink);
+        } finally {
+            setTimeout(() => setIsConnecting(false), 3000);
         }
-
-        setTimeout(() => setIsConnecting(false), 3000);
     };
 
     const handleAlternativeImport = (client: 'hiddify' | 'v2box') => {
@@ -69,8 +73,15 @@ export default function Subscriptions() {
 
     const handleCopyLink = async () => {
         if (!activeConfig) return;
+        const urlParts = activeConfig.subscriptionUrl.split('/');
+        const uuid = urlParts[urlParts.length - 1];
 
-        await navigator.clipboard.writeText(activeConfig.subscriptionUrl);
+        try {
+            const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
+            await navigator.clipboard.writeText(response.data.deeplink);
+        } catch (error) {
+            await navigator.clipboard.writeText(activeConfig.subscriptionUrl);
+        }
 
         setCopyStatus(true);
         window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');

@@ -23,6 +23,7 @@ import org.springframework.web.servlet.view.RedirectView;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -119,6 +120,29 @@ public class SubscriptionController {
                 "</div></body></html>";
 
         return ResponseEntity.ok(html);
+    }
+
+    /**
+     * Отдает готовый deeplink в формате JSON.
+     * Используется фронтендом (TMA) для прямого редиректа через window.location.assign()
+     */
+    @Public
+    @GetMapping(value = "/{vlessUuid}/deeplink", produces = "application/json; charset=utf-8")
+    public ResponseEntity<Map<String, String>> getDeeplinkJson(@PathVariable UUID vlessUuid) {
+        String subscriptionUrl = subscriptionBaseUrl + "/api/v1/subscription/" + vlessUuid;
+        String finalDeepLink;
+
+        try {
+            finalDeepLink = encryptHappSubscriptionUrl(subscriptionUrl);
+        } catch (Exception e) {
+            log.warn("Crypto API timeout/error, using plain fallback. Reason: {}", e.getMessage());
+            finalDeepLink = subscriptionUrl.replaceFirst("^https?://", "happ://");
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "deeplink", finalDeepLink,
+                "plainUrl", subscriptionUrl
+        ));
     }
 
 

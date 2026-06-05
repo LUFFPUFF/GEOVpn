@@ -39,3 +39,4 @@ node_modules/
 **/node_modules/
 .eslintcache
 admin-panel/node_modules
+docs/relay.md

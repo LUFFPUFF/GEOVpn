@@ -1,4 +1,4 @@
-package com.vpn.billing.dto.response;
+package com.vpn.common.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

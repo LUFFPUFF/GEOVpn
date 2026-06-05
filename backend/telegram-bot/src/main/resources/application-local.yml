@@ -28,6 +28,8 @@ services:
     url: 53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3
   vpn-config-service:
     url: http://vpn-config-service:8083
+  billing-service:
+    url: http://vpn-billing-service:8085
 
 app:
   miniapp-url: https://geovp.ru

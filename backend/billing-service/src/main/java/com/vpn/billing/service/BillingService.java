@@ -1,8 +1,8 @@
 package com.vpn.billing.service;
 
 import com.vpn.billing.domain.entity.Transaction;
-import com.vpn.billing.dto.request.DepositRequest;
-import com.vpn.billing.dto.response.DepositResponse;
+import com.vpn.common.dto.request.DepositRequest;
+import com.vpn.common.dto.response.DepositResponse;
 import com.vpn.billing.dto.response.RevenueStatDto;
 
 import java.util.List;

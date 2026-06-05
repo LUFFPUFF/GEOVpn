@@ -18,10 +18,12 @@ public class GeoVpnBot extends TelegramLongPollingBot {
             DefaultBotOptions options,
             @Value("${telegram.bot.token}") String botToken,
             @Value("${telegram.bot.username}") String botUsername,
-            UpdateDispatcher dispatcher) {
+            UpdateDispatcher dispatcher,
+            MessageSender messageSender) {
         super(options, botToken);
         this.botUsername = botUsername;
         this.dispatcher = dispatcher;
+        messageSender.setSender(this);
     }
 
     @Override

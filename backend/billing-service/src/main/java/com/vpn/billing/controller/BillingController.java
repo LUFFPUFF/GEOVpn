@@ -1,10 +1,10 @@
 package com.vpn.billing.controller;
 
 import com.vpn.billing.domain.entity.Transaction;
-import com.vpn.billing.dto.request.DepositRequest;
-import com.vpn.billing.dto.response.DepositResponse;
 import com.vpn.billing.service.BillingService;
 import com.vpn.common.dto.ApiResponse;
+import com.vpn.common.dto.request.DepositRequest;
+import com.vpn.common.dto.response.DepositResponse;
 import com.vpn.common.security.annotations.RequireUser;
 import com.vpn.common.security.context.SecurityContextHolder;
 import jakarta.validation.Valid;

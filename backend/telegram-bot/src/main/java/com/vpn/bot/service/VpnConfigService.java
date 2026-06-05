@@ -38,7 +38,6 @@ public class VpnConfigService {
                 msg.setReplyMarkup(keyboardFactory.getMainReplyKeyboard());
                 sender.execute(msg);
             } else {
-                // ТЕПЕРЬ ЭТО РАБОТАЕТ ЧЕРЕЗ ApiResponse.getMessage()
                 String error = (res != null) ? res.getMessage() : "Ошибка сервиса";
                 sendSimpleError(chatId, "Не удалось создать конфиг: " + error);
             }

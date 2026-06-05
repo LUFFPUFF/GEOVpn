@@ -14,33 +14,41 @@ import java.util.List;
 @FeignClient(name = "user-service", url = "${services.user-service.url}")
 public interface UserServiceClient {
 
-    @GetMapping("/api/users/profile/{chatId}")
-    ApiResponse<UserResponse> getMyProfile(@PathVariable("chatId") long chatId);
+    @GetMapping("/api/v1/users/me")
+    ApiResponse<UserResponse> getMyProfile(@RequestHeader("X-User-Id") long telegramId);
 
-    @GetMapping("/api/users/by-tg-id")
-    ApiResponse<UserResponse> getUserByTelegramId(@RequestHeader("X-Internal-Secret") String secret, @RequestParam("tgId") long tgId);
+    @GetMapping("/api/v1/users/me/stats")
+    ApiResponse<UserStatsResponse> getUserStats(@RequestHeader("X-User-Id") long telegramId);
 
-    @PostMapping("/api/users/register")
+    @GetMapping("/api/v1/users/leaderboard")
+    ApiResponse<List<LeaderboardEntryDto>> getLeaderboard(@RequestHeader("X-User-Id") long telegramId);
+
+    @PostMapping("/api/v1/users/me/apply-promo")
+    ApiResponse<UserResponse> applyPromo(@RequestHeader("X-User-Id") long telegramId, @RequestParam("code") String code);
+
+    @PostMapping("/api/v1/users/me/purchase-slot")
+    ApiResponse<UserResponse> purchaseExtraSlot(@RequestHeader("X-User-Id") long telegramId);
+
+    @PutMapping("/api/v1/users/me/referral-code")
+    ApiResponse<UserResponse> updateReferralCode(@RequestHeader("X-User-Id") long telegramId, @RequestParam("code") String newCode);
+
+    @PostMapping("/api/v1/users/me/subscribe")
+    ApiResponse<UserResponse> purchaseSubscription(
+            @RequestHeader("X-User-Id") long telegramId,
+            @RequestParam("plan") String planName,
+            @RequestParam(value = "months", defaultValue = "1") int months,
+            @RequestParam(value = "promo", defaultValue = "false") boolean promo
+    );
+
+    @PostMapping("/api/v1/users/register")
     ApiResponse<UserResponse> registerUser(@RequestBody UserRegistrationRequest request);
+
+    @GetMapping("/api/v1/users/{telegramId}")
+    ApiResponse<UserResponse> getUserByTelegramId(@RequestHeader("X-Internal-Secret") String secret, @PathVariable("telegramId") long telegramId);
+
+    @PostMapping("/api/v1/users/internal/{telegramId}/membership")
+    ApiResponse<Void> updateMembership(@PathVariable("telegramId") long telegramId, @RequestParam("isMember") boolean isMember);
 
     @PostMapping("/api/users/device")
     ApiResponse<Void> registerDevice(@RequestHeader("X-Internal-Secret") String secret, @RequestParam("tgId") long tgId, @RequestBody DeviceCreateRequest request);
-
-    @PostMapping("/api/users/membership")
-    ApiResponse<Void> updateMembership(@RequestParam("chatId") long chatId, @RequestParam("isMember") boolean isMember);
-
-    @GetMapping("/api/users/leaderboard")
-    ApiResponse<List<LeaderboardEntryDto>> getLeaderboard(@RequestParam("chatId") long chatId);
-
-    @GetMapping("/api/users/stats/{chatId}")
-    ApiResponse<UserStatsResponse> getUserStats(@PathVariable("chatId") long chatId);
-
-    @PostMapping("/api/users/promo/apply")
-    ApiResponse<UserResponse> applyPromo(@RequestParam("chatId") long chatId, @RequestParam("code") String code);
-
-    @PostMapping("/api/users/extra-slot")
-    ApiResponse<UserResponse> purchaseExtraSlot(@RequestParam("chatId") long chatId);
-
-    @PostMapping("/api/users/referral-code")
-    ApiResponse<UserResponse> updateReferralCode(@RequestParam("chatId") long chatId, @RequestParam("newCode") String newCode);
 }

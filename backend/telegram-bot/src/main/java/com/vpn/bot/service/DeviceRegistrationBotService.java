@@ -6,19 +6,13 @@ import com.vpn.common.dto.request.DeviceCreateRequest;
 import com.vpn.common.dto.request.UserRegistrationRequest;
 import com.vpn.common.dto.response.UserResponse;
 import com.vpn.common.dto.ApiResponse;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.User;
 
-/**
- * Мост между Telegram-ботом и VpnConfigService.
- *
- * Инкапсулирует логику создания первого устройства при /start
- * и добавления дополнительных устройств.
- */
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -60,6 +54,10 @@ public class DeviceRegistrationBotService {
 
             if (regResponse != null && regResponse.isSuccess()) {
                 log.info("SUCCESS: User {} registered in DB.", tgUser.getId());
+
+                log.info("Proceeding to register first default device for user {}...", tgUser.getId());
+                registerDeviceOnly(tgUser.getId(), "Primary");
+
             } else {
                 log.error("FAILED: User-service returned error during registration");
             }

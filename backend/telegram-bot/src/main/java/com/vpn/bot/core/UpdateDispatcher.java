@@ -113,7 +113,6 @@ public class UpdateDispatcher {
         if (isMenuCommand) {
             userStates.remove(chatId);
         } else if (userStates.containsKey(chatId)) {
-            // Обработка ввода данных в активном состоянии
             String state = userStates.get(chatId);
             if (STATE_AWAITING_PROMO.equals(state)) {
                 userStates.remove(chatId);
@@ -127,24 +126,25 @@ public class UpdateDispatcher {
         }
 
         if (text.startsWith("/start")) {
+            userStates.remove(chatId);
             SendMessage response = startHandler.handle(update);
             response.setReplyMarkup(keyboardFactory.getMainReplyKeyboard());
             sender.execute(response);
         }
         else if (text.equals("👤 Профиль") || text.equalsIgnoreCase("профиль")) {
-            businessService.sendProfile(chatId);
+            businessService.sendProfile(chatId, null);
         }
         else if (text.equals("🔑 Конфиги") || text.equalsIgnoreCase("конфиги")) {
-            businessService.sendConfigs(chatId);
+            businessService.sendConfigs(chatId, null);
         }
         else if (text.equals("📱 Устройства") || text.equalsIgnoreCase("устройства")) {
-            businessService.sendDevices(chatId);
+            businessService.sendDevices(chatId, null);
         }
         else if (text.equals("💎 Купить") || text.equalsIgnoreCase("купить")) {
-            businessService.sendSubscriptionOptions(chatId);
+            businessService.sendSubscriptionOptions(chatId, null);
         }
         else if (text.equals("🏆 Рефералы") || text.equalsIgnoreCase("рефералы")) {
-            businessService.sendReferralStats(chatId);
+            businessService.sendReferralStats(chatId, null);
         }
         else if (text.equals("📖 Инструкции") || text.equalsIgnoreCase("инструкции")) {
             businessService.sendInstructions(chatId);
@@ -156,7 +156,7 @@ public class UpdateDispatcher {
             businessService.sendNews(chatId);
         }
         else if (text.equals("💳 Пополнить") || text.equalsIgnoreCase("пополнить")) {
-            businessService.sendTopUpOptions(chatId);
+            businessService.sendTopUpOptions(chatId, null);
         }
         else {
             businessService.sendSimpleText(chatId, "⚠️ Используйте меню ниже для навигации по сервису.", true);
@@ -166,6 +166,7 @@ public class UpdateDispatcher {
     private void handleCallback(Update update) {
         String data = update.getCallbackQuery().getData();
         String callbackId = update.getCallbackQuery().getId();
+        int messageId = update.getCallbackQuery().getMessage().getMessageId();
         long chatId = update.getCallbackQuery().getMessage().getChatId();
 
         log.debug("Received callback query from chatId={} with data='{}'", chatId, data);
@@ -187,15 +188,15 @@ public class UpdateDispatcher {
             case "profile_refresh" -> {
                 answerCallback(callbackId, "🔄 Обновлено");
                 userStates.remove(chatId);
-                businessService.sendProfile(chatId);
+                businessService.sendProfile(chatId, messageId);
             }
             case "profile_subscribe" -> {
                 answerCallback(callbackId, null);
-                businessService.sendSubscriptionOptions(chatId);
+                businessService.sendSubscriptionOptions(chatId, messageId);
             }
             case "devices_refresh" -> {
                 answerCallback(callbackId, "🔄 Обновлено");
-                businessService.sendDevices(chatId);
+                businessService.sendDevices(chatId, messageId);
             }
             case "device_buy_slot" -> {
                 answerCallback(callbackId, null);
@@ -211,19 +212,11 @@ public class UpdateDispatcher {
             }
             case "configs_refresh" -> {
                 answerCallback(callbackId, "🔄 Обновлено");
-                businessService.sendConfigs(chatId);
-            }
-            case "sub_1" -> {
-                answerCallback(callbackId, "🧾 Формируем счет...");
-                businessService.generatePaymentLink(chatId, 100);
-            }
-            case "sub_3" -> {
-                answerCallback(callbackId, "🧾 Формируем счет...");
-                businessService.generatePaymentLink(chatId, 250);
+                businessService.sendConfigs(chatId, messageId);
             }
             case "leaderboard_refresh", "show_leaderboard" -> {
                 answerCallback(callbackId, null);
-                businessService.sendLeaderboard(chatId);
+                businessService.sendLeaderboard(chatId, messageId);
             }
             case "referral_change_code" -> {
                 answerCallback(callbackId, null);
@@ -237,31 +230,31 @@ public class UpdateDispatcher {
             }
             case "topup_options", "top_up_balance" -> {
                 answerCallback(callbackId, null);
-                businessService.sendTopUpOptions(chatId);
+                businessService.sendTopUpOptions(chatId, messageId);
             }
             case "topup_100" -> {
                 answerCallback(callbackId, "🧾 Формируем счет...");
-                businessService.generatePaymentLink(chatId, 100);
+                businessService.generatePaymentLink(chatId, 100, messageId);
             }
             case "topup_250" -> {
                 answerCallback(callbackId, "🧾 Формируем счет...");
-                businessService.generatePaymentLink(chatId, 250);
+                businessService.generatePaymentLink(chatId, 250, messageId);
             }
             case "topup_500" -> {
                 answerCallback(callbackId, "🧾 Формируем счет...");
-                businessService.generatePaymentLink(chatId, 500);
+                businessService.generatePaymentLink(chatId, 500, messageId);
             }
             case "menu_configs" -> {
                 answerCallback(callbackId, null);
-                businessService.sendConfigs(chatId);
+                businessService.sendConfigs(chatId, messageId);
             }
             case "menu_devices" -> {
                 answerCallback(callbackId, null);
-                businessService.sendDevices(chatId);
+                businessService.sendDevices(chatId, messageId);
             }
             case "menu_referrals" -> {
                 answerCallback(callbackId, null);
-                businessService.sendReferralStats(chatId);
+                businessService.sendReferralStats(chatId, messageId);
             }
             case "menu_instructions" -> {
                 answerCallback(callbackId, null);
@@ -282,7 +275,7 @@ public class UpdateDispatcher {
                         String planId = parts[1];
                         boolean isPromo = Boolean.parseBoolean(parts[2]);
                         answerCallback(callbackId, "⏳ Обработка подписки...");
-                        businessService.purchaseSubscription(chatId, planId, isPromo);
+                        businessService.purchaseSubscription(chatId, planId, isPromo, messageId);
                     } else {
                         answerCallback(callbackId, "❌ Ошибка запроса");
                     }

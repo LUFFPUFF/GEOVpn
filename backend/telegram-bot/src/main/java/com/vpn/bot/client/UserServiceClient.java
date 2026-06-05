@@ -3,9 +3,7 @@ package com.vpn.bot.client;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.request.DeviceCreateRequest;
 import com.vpn.common.dto.request.UserRegistrationRequest;
-import com.vpn.common.dto.response.LeaderboardEntryDto;
-import com.vpn.common.dto.response.UserResponse;
-import com.vpn.common.dto.response.UserStatsResponse;
+import com.vpn.common.dto.response.*;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,6 +37,12 @@ public interface UserServiceClient {
             @RequestParam(value = "months", defaultValue = "1") int months,
             @RequestParam(value = "promo", defaultValue = "false") boolean promo
     );
+
+    @GetMapping("/api/v1/devices")
+    ApiResponse<List<DeviceResponse>> getMyDevices(@RequestHeader("X-User-Id") long telegramId);
+
+    @GetMapping("/api/v1/configs/limits/me")
+    ApiResponse<DeviceLimitStatus> getDeviceLimit(@RequestHeader("X-User-Id") long telegramId);
 
     @PostMapping("/api/v1/users/register")
     ApiResponse<UserResponse> registerUser(@RequestBody UserRegistrationRequest request);

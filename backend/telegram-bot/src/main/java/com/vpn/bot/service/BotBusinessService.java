@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 
@@ -28,7 +29,7 @@ public class BotBusinessService {
     private final KeyboardFactory keyboardFactory;
     private final BillingServiceClient billingServiceClient;
 
-    public void generatePaymentLink(long chatId, int amount) {
+    public void generatePaymentLink(long chatId, int amount, Integer messageId) {
         try {
             DepositRequest request = DepositRequest.builder()
                     .amount(amount)
@@ -54,24 +55,22 @@ public class BotBusinessService {
                         ))
                         .build();
 
-                SendMessage msg = new SendMessage(String.valueOf(chatId),
-                        "🧾 <b>Счет на пополнение баланса сформирован</b>\n\n" +
-                                "Сумма пополнения: <b>" + amount + " ₽</b>\n\n" +
-                                "<i>После успешной оплаты баланс обновится автоматически, и вы сможете приобрести тариф.</i>");
-                msg.setParseMode("HTML");
-                msg.setReplyMarkup(markup);
-                sender.execute(msg);
+                String text = "🧾 <b>Счет на пополнение баланса сформирован</b>\n\n" +
+                        "Сумма пополнения: <b>" + amount + " ₽</b>\n\n" +
+                        "<i>После успешной оплаты баланс обновится автоматически, и вы сможете приобрести тариф.</i>";
+
+                sendOrEdit(chatId, text, markup, messageId);
             } else {
                 String error = (res != null && res.getMessage() != null) ? res.getMessage() : "Ошибка при создании счета";
-                sendSimpleText(chatId, "❌ " + error, true);
+                sendOrEdit(chatId, "❌ " + error, keyboardFactory.getProfileKeyboard(false, 0), messageId);
             }
         } catch (Exception e) {
             log.error("Payment link generation error", e);
-            sendSimpleText(chatId, "❌ Временная ошибка сервиса оплаты. Пожалуйста, попробуйте позже.", true);
+            sendOrEdit(chatId, "❌ Временная ошибка сервиса оплаты. Пожалуйста, попробуйте позже.", null, messageId);
         }
     }
 
-    public void purchaseSubscription(long chatId, String planId, boolean isPromo) {
+    public void purchaseSubscription(long chatId, String planId, boolean isPromo, Integer messageId) {
         try {
             ApiResponse<UserResponse> profileRes = userService.getMyProfile(chatId);
             UserResponse u = (profileRes != null) ? profileRes.getData() : null;
@@ -97,10 +96,7 @@ public class BotBusinessService {
                         "Ваш баланс: <b>" + String.format("%.2f", (double) u.getBalance() / 100) + " ₽</b>\n\n" +
                         "Пожалуйста, пополните баланс на необходимую сумму:";
 
-                SendMessage msg = new SendMessage(String.valueOf(chatId), text);
-                msg.setParseMode("HTML");
-                msg.setReplyMarkup(keyboardFactory.getTopUpKeyboard());
-                sender.execute(msg);
+                sendOrEdit(chatId, text, keyboardFactory.getTopUpKeyboard(), messageId);
                 return;
             }
 
@@ -110,10 +106,10 @@ public class BotBusinessService {
                         ? "🎉 <b>Бесплатный период успешно активирован! Наслаждайтесь безопасным интернетом.</b>"
                         : "✅ <b>Тариф подписки успешно изменен/продлен!</b>";
                 sendSimpleText(chatId, successMsg, true);
-                sendProfile(chatId);
+                sendProfile(chatId, null);
             } else {
                 String error = (res != null) ? res.getMessage() : "Ошибка транзакции";
-                sendSimpleText(chatId, "❌ Не удалось применить тариф: " + error, true);
+                sendOrEdit(chatId, "❌ Не удалось применить тариф: " + error, keyboardFactory.getBuySubKeyboard(false), messageId);
             }
         } catch (Exception e) {
             log.error("Error purchasing subscription", e);
@@ -121,7 +117,7 @@ public class BotBusinessService {
         }
     }
 
-    public void sendSubscriptionOptions(long chatId) {
+    public void sendSubscriptionOptions(long chatId, Integer messageId) {
         try {
             ApiResponse<UserResponse> profileRes = userService.getMyProfile(chatId);
             UserResponse u = (profileRes != null) ? profileRes.getData() : null;
@@ -150,16 +146,13 @@ public class BotBusinessService {
                             : "💡 <i>Покупка тарифа происходит мгновенно при наличии средств на вашем балансе.</i>"
             );
 
-            SendMessage msg = new SendMessage(String.valueOf(chatId), text);
-            msg.setParseMode("HTML");
-            msg.setReplyMarkup(keyboardFactory.getBuySubKeyboard(promoAvailable));
-            sender.execute(msg);
+            sendOrEdit(chatId, text, keyboardFactory.getBuySubKeyboard(promoAvailable), messageId);
         } catch (Exception e) {
             log.error("Error building subscription options", e);
         }
     }
 
-    public void sendConfigs(long chatId) {
+    public void sendConfigs(long chatId, Integer messageId) {
         try {
             ApiResponse<UserResponse> profileRes = userService.getMyProfile(chatId);
             UserResponse u = (profileRes != null) ? profileRes.getData() : null;
@@ -169,39 +162,43 @@ public class BotBusinessService {
             List<VpnConfigResponse> list = (res != null && res.getData() != null) ? res.getData() : List.of();
 
             StringBuilder text = new StringBuilder();
-            String subscriptionUrl = null;
-
-            if (!list.isEmpty()) {
-                subscriptionUrl = list.getFirst().getSubscriptionUrl();
-            }
+            String subscriptionUrl = (!list.isEmpty()) ? list.getFirst().getSubscriptionUrl() : null;
 
             if (!hasActive) {
-                text.append("⚠️ <b>Доступ ограничен</b>\n<i>Для генерации вашей уникальной ссылки и импорта ключей в приложение необходима активная подписка.</i>");
+                text.append("⚠️ <b>Доступ ограничен</b>\n\n<i>Для генерации вашей уникальной ссылки и импорта ключей в приложение необходима активная подписка.</i>");
             } else if (subscriptionUrl == null || subscriptionUrl.isBlank()) {
-                text.append("⚙️ <b>Подключение GeoVPN</b>\n\n<i>Ваша подписка активна, но профиль еще не создан. Перейдите в Mini App, чтобы инициализировать первое устройство, или обратитесь в поддержку.</i>");
+                text.append("⚙️ <b>Подключение GeoVPN</b>\n\n<i>Ваша подписка активна. Перейдите в Mini App, чтобы инициализировать ваше устройство.</i>");
             } else {
+                String uuidStr = subscriptionUrl.substring(subscriptionUrl.lastIndexOf("/") + 1);
+                java.util.UUID vlessUuid = java.util.UUID.fromString(uuidStr);
+
+                String displayLink;
+                try {
+                    displayLink = vpnService.getEncryptedLink(vlessUuid);
+                } catch (Exception e) {
+                    log.warn("Failed to encrypt subscription link for bot UI, using plain fallback: {}", e.getMessage());
+                    displayLink = subscriptionUrl;
+                }
+
                 text.append("⚙️ <b>Ваша подписка GeoVPN</b>\n\n")
-                        .append("Ваша персональная защищенная ссылка подписки:\n\n")
-                        .append("<code>").append(subscriptionUrl).append("</code>\n\n") // Instant copy on tap
+                        .append("Ваша персональная защищенная ссылка подписки (Happ Proxy):\n\n")
+                        .append("<code>").append(displayLink).append("</code>\n\n")
                         .append("👉 <b>Нажмите на ссылку выше</b>, чтобы мгновенно скопировать её в буфер обмена.\n\n")
-                        .append("💡 <i>Используйте кнопку ниже для автоматического импорта ссылки в официальное приложение Happ Proxy.</i>");
+                        .append("💡 <i>Используйте кнопку ниже для автоматического импорта ссылки в официальный клиент Happ Proxy.</i>");
             }
 
-            SendMessage msg = new SendMessage(String.valueOf(chatId), text.toString());
-            msg.setParseMode("HTML");
-            msg.setReplyMarkup(keyboardFactory.getConfigsKeyboard(hasActive, subscriptionUrl));
-            sender.execute(msg);
+            sendOrEdit(chatId, text.toString(), keyboardFactory.getConfigsKeyboard(hasActive, subscriptionUrl), messageId);
         } catch (Exception e) {
             log.error("Configs rendering error", e);
         }
     }
 
-    public void sendProfile(long chatId) {
+    public void sendProfile(long chatId, Integer messageId) {
         try {
             ApiResponse<UserResponse> res = userService.getMyProfile(chatId);
             UserResponse u = (res != null) ? res.getData() : null;
             if (u == null) {
-                sendSimpleText(chatId, "⚠️ Не удалось загрузить данные вашего профиля. Пожалуйста, попробуйте позже.", false);
+                sendOrEdit(chatId, "⚠️ Не удалось загрузить данные профиля.", null, messageId);
                 return;
             }
 
@@ -226,21 +223,22 @@ public class BotBusinessService {
                     "📱 <i>Управляйте устройствами, ключами и тарифом через кнопки ниже.</i>"
             );
 
-            SendMessage msg = new SendMessage(String.valueOf(chatId), text);
-            msg.setParseMode("HTML");
-            msg.setReplyMarkup(keyboardFactory.getProfileKeyboard(hasActive, u.getBalance()));
-            sender.execute(msg);
+            sendOrEdit(chatId, text, keyboardFactory.getProfileKeyboard(hasActive, u.getBalance()), messageId);
         } catch (Exception e) {
             log.error("Profile rendering error", e);
         }
     }
 
-    public void sendDevices(long chatId) {
+    public void sendDevices(long chatId, Integer messageId) {
         try {
-            ApiResponse<UserResponse> res = userService.getMyProfile(chatId);
-            UserResponse u = (res != null) ? res.getData() : null;
-            int limit = (u != null && u.getDeviceLimit() != null) ? u.getDeviceLimit() : 1;
-            int used  = (u != null && u.getDevicesCount() != null) ? u.getDevicesCount() : 0;
+            ApiResponse<List<DeviceResponse>> devicesRes = userService.getMyDevices(chatId);
+            List<DeviceResponse> devicesList = (devicesRes != null && devicesRes.getData() != null) ? devicesRes.getData() : List.of();
+            int used = devicesList.size();
+
+            ApiResponse<DeviceLimitStatus> limitRes = userService.getDeviceLimit(chatId);
+            DeviceLimitStatus limitStatus = (limitRes != null) ? limitRes.getData() : null;
+            int limit = (limitStatus != null) ? limitStatus.getMaxDevices() : 1;
+
             boolean limitReached = used >= limit;
 
             int filled = Math.min(10, (int) (((double) used / limit) * 10));
@@ -259,16 +257,13 @@ public class BotBusinessService {
                     hint
             );
 
-            SendMessage msg = new SendMessage(String.valueOf(chatId), text);
-            msg.setParseMode("HTML");
-            msg.setReplyMarkup(keyboardFactory.getDevicesKeyboard(limitReached));
-            sender.execute(msg);
+            sendOrEdit(chatId, text, keyboardFactory.getDevicesKeyboard(limitReached), messageId);
         } catch (Exception e) {
             log.error("Devices rendering error", e);
         }
     }
 
-    public void sendReferralStats(long chatId) {
+    public void sendReferralStats(long chatId, Integer messageId) {
         try {
             ApiResponse<UserResponse> res = userService.getMyProfile(chatId);
             UserResponse u = (res != null) ? res.getData() : null;
@@ -303,10 +298,7 @@ public class BotBusinessService {
                     "<i>Нажмите на ссылку, чтобы скопировать, или поделитесь кнопкой ниже.</i>"
             );
 
-            SendMessage msg = new SendMessage(String.valueOf(chatId), text);
-            msg.setParseMode("HTML");
-            msg.setReplyMarkup(keyboardFactory.getReferralKeyboard(chatId));
-            sender.execute(msg);
+            sendOrEdit(chatId, text, keyboardFactory.getReferralKeyboard(chatId), messageId);
         } catch (Exception e) {
             log.error("Referral stats error", e);
             String refLink = "https://t.me/geovpbot?start=" + chatId;
@@ -318,7 +310,7 @@ public class BotBusinessService {
         }
     }
 
-    public void sendLeaderboard(long chatId) {
+    public void sendLeaderboard(long chatId, Integer messageId) {
         try {
             ApiResponse<List<LeaderboardEntryDto>> res = userService.getLeaderboard(chatId);
             List<LeaderboardEntryDto> entries = (res != null && res.getData() != null) ? res.getData() : List.of();
@@ -342,10 +334,7 @@ public class BotBusinessService {
                 text.append("\n<i>Топ обновляется ежемесячно. Победитель получает приз!</i>");
             }
 
-            SendMessage msg = new SendMessage(String.valueOf(chatId), text.toString());
-            msg.setParseMode("HTML");
-            msg.setReplyMarkup(keyboardFactory.getLeaderboardKeyboard());
-            sender.execute(msg);
+            sendOrEdit(chatId, text.toString(), keyboardFactory.getLeaderboardKeyboard(), messageId);
         } catch (Exception e) {
             log.error("Leaderboard rendering error", e);
         }
@@ -469,7 +458,7 @@ public class BotBusinessService {
         sender.execute(msg);
     }
 
-    public void sendTopUpOptions(long chatId) {
+    public void sendTopUpOptions(long chatId, Integer messageId) {
         String text = String.join("\n",
                 "💳 <b>Пополнение баланса</b>",
                 "",
@@ -477,10 +466,7 @@ public class BotBusinessService {
                 "",
                 "<i>После пополнения вы можете купить подписку или дополнительные слоты устройств.</i>"
         );
-        SendMessage msg = new SendMessage(String.valueOf(chatId), text);
-        msg.setParseMode("HTML");
-        msg.setReplyMarkup(keyboardFactory.getTopUpKeyboard());
-        sender.execute(msg);
+        sendOrEdit(chatId, text, keyboardFactory.getTopUpKeyboard(), messageId);
     }
 
     public void sendSimpleText(long chatId, String text, boolean withMenu) {
@@ -490,13 +476,24 @@ public class BotBusinessService {
         sender.execute(msg);
     }
 
-    private String flagEmoji(String code) {
-        if (code == null) return "🌐";
-        return switch (code.toUpperCase()) {
-            case "FI" -> "🇫🇮";
-            case "DE" -> "🇩🇪";
-            case "NL" -> "🇳🇱";
-            default   -> "🌐";
-        };
+    private void sendOrEdit(long chatId, String text, InlineKeyboardMarkup markup, Integer messageId) {
+        if (messageId != null) {
+            EditMessageText edit = new EditMessageText();
+            edit.setChatId(String.valueOf(chatId));
+            edit.setMessageId(messageId);
+            edit.setText(text);
+            edit.setParseMode("HTML");
+            if (markup != null) {
+                edit.setReplyMarkup(markup);
+            }
+            sender.execute(edit);
+        } else {
+            SendMessage msg = new SendMessage(String.valueOf(chatId), text);
+            msg.setParseMode("HTML");
+            if (markup != null) {
+                msg.setReplyMarkup(markup);
+            }
+            sender.execute(msg);
+        }
     }
 }

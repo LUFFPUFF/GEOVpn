@@ -7,6 +7,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @FeignClient(name = "vpn-service", url = "${services.vpn-service.url}")
 public interface VpnServiceClient {
@@ -21,4 +22,7 @@ public interface VpnServiceClient {
     ApiResponse<List<VpnConfigResponse>> getMyConfigs(
             @RequestHeader("X-User-Id") long telegramId
     );
+
+    @GetMapping("/api/v1/subscription/{vlessUuid}/encrypted-link")
+    String getEncryptedLink(@PathVariable("vlessUuid") UUID vlessUuid);
 }

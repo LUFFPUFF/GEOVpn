@@ -1,6 +1,0 @@
-{
-  "name": "GeoVPN Admin",
-  "description": "Панель управления VPN сетью на протоколах VLESS Reality с поддержкой PAYG биллинга.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

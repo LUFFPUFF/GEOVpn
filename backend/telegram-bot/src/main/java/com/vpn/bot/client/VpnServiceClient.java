@@ -1,28 +1,19 @@
 package com.vpn.bot.client;
 
-import com.vpn.bot.config.FeignConfig;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.request.ConfigCreateRequest;
 import com.vpn.common.dto.response.VpnConfigResponse;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@FeignClient(name = "vpn-config-service", url = "${services.vpn-config-service.url}", configuration = FeignConfig.class)
+@FeignClient(name = "vpn-service", url = "${services.vpn-service.url}")
 public interface VpnServiceClient {
 
-    @PostMapping("/api/v1/configs")
-    ApiResponse<VpnConfigResponse> createConfig(
-            @RequestHeader("X-User-Id") Long telegramId,
-            @RequestBody ConfigCreateRequest request
-    );
+    @PostMapping("/api/vpn/configs")
+    ApiResponse<VpnConfigResponse> createConfig(@RequestParam("chatId") long chatId, @RequestBody ConfigCreateRequest request);
 
-    @GetMapping("/api/v1/configs")
-    ApiResponse<List<VpnConfigResponse>> getMyConfigs(
-            @RequestHeader("X-User-Id") Long telegramId
-    );
+    @GetMapping("/api/vpn/configs/my")
+    ApiResponse<List<VpnConfigResponse>> getMyConfigs(@RequestParam("chatId") long chatId);
 }

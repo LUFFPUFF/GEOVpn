@@ -28,4 +28,7 @@ public class UserResponse {
     private boolean isBanned;
     private String banReason;
     private Boolean isChannelMember;
+    private Integer deviceLimit;
+    private Integer devicesCount;
+
 }

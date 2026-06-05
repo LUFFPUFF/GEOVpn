@@ -2,11 +2,15 @@ service:
   security:
     enabled: true
 
-    internal-secret: ${INTERNAL_SECRET:53a41724a2428714e21b2cbcbb19ce1ff62f4deb322037575f15f450791d54c3}
+    internal-secret: ${INTERNAL_SECRET}
 
-    admin-token: YRqDAzgXLn29n/LcBnYYu7tQzgYEEikl0X5TYHrrwyiWgo+lBtlaJSD5MGp2j3YLB9u/xZu3jgK+540nyvpESA==
+    admin-token: ${ADMIN_TOKEN}
 
-    admins: ${ADMIN_USER_IDS:858441917,970667053}
+    admins: ${ADMIN_USER_IDS}
+
+telegram:
+  bot:
+    token: ${TELEGRAM_BOT_TOKEN}
 
 logging:
   level:

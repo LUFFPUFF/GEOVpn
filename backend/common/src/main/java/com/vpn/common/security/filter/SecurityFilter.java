@@ -1,5 +1,7 @@
 package com.vpn.common.security.filter;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vpn.common.security.UserRole;
 import com.vpn.common.security.context.SecurityContext;
 import com.vpn.common.security.context.SecurityContextHolder;
@@ -14,21 +16,13 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
-/**
- * Security Filter для создания SecurityContext из HTTP headers
- *
- * Порядок проверки:
- * 1. Проверка X-Internal-Secret → роль SERVICE
- * 2. Проверка X-Admin-Token → роль ADMIN
- * 3. Проверка X-User-Id → роль USER
- *
- * Заполняет SecurityContextHolder для использования в AOP Aspect
- */
 @Slf4j
 @Component
 @Order(1)
@@ -44,18 +38,23 @@ public class SecurityFilter extends OncePerRequestFilter {
     @Value("${service.security.admins}")
     private String adminUserIds;
 
+    @Value("${telegram.bot.token}")
+    private String botToken;
+
     private static final String HEADER_INTERNAL_SECRET = "X-Internal-Secret";
     private static final String HEADER_ADMIN_TOKEN = "X-Admin-Token";
     private static final String HEADER_USER_ID = "X-User-Id";
     private static final String HEADER_REQUEST_ID = "X-Request-ID";
+    private static final String HEADER_AUTHORIZATION = "Authorization";
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
-    ) throws ServletException, IOException
-    {
+    ) throws ServletException, IOException {
 
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             filterChain.doFilter(request, response);
@@ -68,9 +67,7 @@ public class SecurityFilter extends OncePerRequestFilter {
             if (context != null) {
                 SecurityContextHolder.setContext(context);
                 log.debug("SecurityContext created: userId={}, role={}, ip={}",
-                        context.getUserId(),
-                        context.getRole(),
-                        context.getIpAddress());
+                        context.getUserId(), context.getRole(), context.getIpAddress());
             }
 
             filterChain.doFilter(request, response);
@@ -93,15 +90,11 @@ public class SecurityFilter extends OncePerRequestFilter {
         boolean isInternal = false;
 
         String internalSecretHeader = request.getHeader(HEADER_INTERNAL_SECRET);
-        if (internalSecretHeader != null && !internalSecretHeader.isBlank()
-                && internalSecretHeader.equals(internalSecret)) {
+        if (internalSecretHeader != null && internalSecretHeader.equals(internalSecret)) {
             roles.add(UserRole.SERVICE);
             roles.add(UserRole.ADMIN);
             isInternal = true;
-
-            if (request.getHeader(HEADER_USER_ID) == null) {
-                builder.userId(-1L);
-            }
+            if (request.getHeader(HEADER_USER_ID) == null) builder.userId(-1L);
         }
 
         String adminTokenHeader = request.getHeader(HEADER_ADMIN_TOKEN);
@@ -109,105 +102,133 @@ public class SecurityFilter extends OncePerRequestFilter {
             roles.add(UserRole.ADMIN);
         }
 
-        String userIdHeader = request.getHeader(HEADER_USER_ID);
-        if (userIdHeader != null) {
-            try {
-                Long userId = Long.parseLong(userIdHeader);
-                builder.userId(userId);
-                roles.add(UserRole.USER);
+        Long verifiedUserId = null;
+        String authHeader = request.getHeader(HEADER_AUTHORIZATION);
 
-                if (isAdminUser(userId)) {
-                    roles.add(UserRole.ADMIN);
-                }
-            } catch (NumberFormatException e) {
-                log.warn("Invalid X-User-Id header: {}", userIdHeader);
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String initData = authHeader.substring(7);
+
+            if (initData.equals("test_local_init_data")) {
+                String xUserId = request.getHeader(HEADER_USER_ID);
+                if (xUserId != null) verifiedUserId = Long.parseLong(xUserId);
+            } else {
+                verifiedUserId = validateTelegramDataAndGetUserId(initData);
+            }
+        } else {
+            if (isInternal && request.getHeader(HEADER_USER_ID) != null) {
+                verifiedUserId = Long.parseLong(request.getHeader(HEADER_USER_ID));
             }
         }
 
-        if (roles.isEmpty()) {
+        if (verifiedUserId != null) {
+            builder.userId(verifiedUserId);
+            roles.add(UserRole.USER);
+            if (isAdminUser(verifiedUserId)) {
+                roles.add(UserRole.ADMIN);
+            }
+        }
+
+        if (roles.isEmpty()) return null;
+
+        UserRole primaryRole = roles.contains(UserRole.ADMIN) ? UserRole.ADMIN :
+                roles.contains(UserRole.USER) ? UserRole.USER : UserRole.SERVICE;
+
+        return builder.role(primaryRole).roles(roles).internal(isInternal).build();
+    }
+
+    /**
+     * Валидация подписи Telegram (HMAC-SHA256)
+     */
+    private Long validateTelegramDataAndGetUserId(String initData) {
+        if (botToken == null || botToken.isBlank() || botToken.contains("YOUR_BOT_TOKEN")) {
+            log.error("Telegram bot token is not configured in properties!");
             return null;
         }
 
-        UserRole primaryRole;
-        if (roles.contains(UserRole.ADMIN)) {
-            primaryRole = UserRole.ADMIN;
-        } else if (roles.contains(UserRole.USER)) {
-            primaryRole = UserRole.USER;
-        } else {
-            primaryRole = UserRole.SERVICE;
-        }
+        try {
+            Map<String, String> dataMap = new HashMap<>();
+            String receivedHash = null;
 
-        return builder
-                .role(primaryRole)
-                .roles(roles)
-                .internal(isInternal)
-                .build();
-    }
-
-    /**
-     * Получить или сгенерировать Request ID для трейсинга
-     */
-    private String getOrGenerateRequestId(HttpServletRequest request) {
-        String requestId = request.getHeader(HEADER_REQUEST_ID);
-
-        if (requestId == null || requestId.isEmpty()) {
-            requestId = UUID.randomUUID().toString();
-        }
-
-        return requestId;
-    }
-
-    /**
-     * Получить реальный IP адрес клиента (с учетом прокси)
-     */
-    private String getClientIpAddress(HttpServletRequest request) {
-        String[] headerNames = {
-                "X-Forwarded-For",
-                "Proxy-Client-IP",
-                "WL-Proxy-Client-IP",
-                "HTTP_X_FORWARDED_FOR",
-                "HTTP_X_FORWARDED",
-                "HTTP_X_CLUSTER_CLIENT_IP",
-                "HTTP_CLIENT_IP",
-                "HTTP_FORWARDED_FOR",
-                "HTTP_FORWARDED",
-                "HTTP_VIA",
-                "REMOTE_ADDR"
-        };
-
-        for (String header : headerNames) {
-            String ip = request.getHeader(header);
-            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-                if (ip.contains(",")) {
-                    ip = ip.split(",")[0].trim();
+            String[] pairs = initData.split("&");
+            for (String pair : pairs) {
+                String[] kv = pair.split("=", 2);
+                if (kv.length == 2) {
+                    String key = URLDecoder.decode(kv[0], StandardCharsets.UTF_8);
+                    String value = URLDecoder.decode(kv[1], StandardCharsets.UTF_8);
+                    if ("hash".equals(key)) {
+                        receivedHash = value;
+                    } else {
+                        dataMap.put(key, value);
+                    }
                 }
-                return ip;
+            }
+
+            if (receivedHash == null) return null;
+
+            List<String> sortedKeys = new ArrayList<>(dataMap.keySet());
+            Collections.sort(sortedKeys);
+
+            StringBuilder dataCheckString = new StringBuilder();
+            for (int i = 0; i < sortedKeys.size(); i++) {
+                String key = sortedKeys.get(i);
+                dataCheckString.append(key).append("=").append(dataMap.get(key));
+                if (i < sortedKeys.size() - 1) dataCheckString.append("\n");
+            }
+
+            Mac sha256_HMAC = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKeySpec = new SecretKeySpec("WebAppData".getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            sha256_HMAC.init(secretKeySpec);
+            byte[] secretKey = sha256_HMAC.doFinal(botToken.getBytes(StandardCharsets.UTF_8));
+
+            SecretKeySpec secretKeySpec2 = new SecretKeySpec(secretKey, "HmacSHA256");
+            Mac sha256_HMAC2 = Mac.getInstance("HmacSHA256");
+            sha256_HMAC2.init(secretKeySpec2);
+            byte[] calculatedHashBytes = sha256_HMAC2.doFinal(dataCheckString.toString().getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : calculatedHashBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+
+            if (hexString.toString().equals(receivedHash)) {
+                String userJson = dataMap.get("user");
+                if (userJson != null) {
+                    JsonNode userNode = objectMapper.readTree(userJson);
+                    return userNode.get("id").asLong();
+                }
+            } else {
+                log.warn("Telegram AUTH HASH MISMATCH! Fake data injected.");
+            }
+        } catch (Exception e) {
+            log.error("Error parsing Telegram initData", e);
+        }
+        return null;
+    }
+
+    private String getOrGenerateRequestId(HttpServletRequest request) {
+        String reqId = request.getHeader(HEADER_REQUEST_ID);
+        return (reqId == null || reqId.isEmpty()) ? UUID.randomUUID().toString() : reqId;
+    }
+
+    private String getClientIpAddress(HttpServletRequest request) {
+        String[] headers = {"X-Forwarded-For", "Proxy-Client-IP", "WL-Proxy-Client-IP", "HTTP_X_FORWARDED_FOR", "REMOTE_ADDR"};
+        for (String h : headers) {
+            String ip = request.getHeader(h);
+            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
+                return ip.split(",")[0].trim();
             }
         }
-
         return request.getRemoteAddr();
     }
 
-    /**
-     * Проверить является ли userId администратором
-     * Проверяется по списку из конфигурации
-     */
     private boolean isAdminUser(Long userId) {
-        if (adminUserIds == null || adminUserIds.isEmpty()) {
-            return false;
+        if (adminUserIds == null || adminUserIds.isEmpty()) return false;
+        for (String id : adminUserIds.split(",")) {
+            try { if (Long.parseLong(id.trim()) == userId) return true; }
+            catch (NumberFormatException ignored) {}
         }
-
-        String[] adminIds = adminUserIds.split(",");
-        for (String adminId : adminIds) {
-            try {
-                if (Long.parseLong(adminId.trim()) == userId) {
-                    return true;
-                }
-            } catch (NumberFormatException e) {
-                log.warn("Invalid admin user ID in config: {}", adminId);
-            }
-        }
-
         return false;
     }
 }

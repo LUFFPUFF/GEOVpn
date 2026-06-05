@@ -1,5 +1,6 @@
 import React, { useEffect, useState, Suspense, lazy } from 'react';
 import './index.css';
+import { Loader2 } from 'lucide-react';
 
 import { useTelegram } from './hooks/useTelegram';
 import { useUserStore } from './store/userStore';
@@ -22,7 +23,7 @@ const ManageSubscription = lazy(() => import('./pages/ManageSubscription/ManageS
 
 export default function App() {
     const { expand, tg } = useTelegram();
-    const { activeTab, fetchAll, user } = useUserStore();
+    const { activeTab, fetchAll, user, loading, error } = useUserStore();
 
     const [tgReady, setTgReady] = useState(false);
     const [showWarning, setShowWarning] = useState(false);
@@ -72,6 +73,8 @@ export default function App() {
                 setTgReady(true);
             }
         };
+
+        checkUserInitialization();
 
         return () => tg.offEvent('viewportChanged', setHeight);
     }, [tg]);
@@ -148,9 +151,41 @@ export default function App() {
     };
 
     const renderAppContent = () => {
+        if (loading) {
+            return (
+                <div className="flex-1 flex flex-col items-center justify-center">
+                    <Loader2 size={36} className="animate-spin text-white/40" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mt-4 animate-pulse">
+                        Загрузка профиля...
+                    </p>
+                </div>
+            );
+        }
+
+        if (error) {
+            return (
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+                    <div className="text-4xl mb-4">⚠️</div>
+                    <h2 className="text-lg font-black text-red-500 uppercase tracking-widest mb-2">
+                        Ошибка подключения
+                    </h2>
+                    <p className="text-xs text-white/50 max-w-xs leading-relaxed uppercase tracking-wider">
+                        {error}
+                    </p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="mt-6 px-6 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest active:bg-white/10 transition-all"
+                    >
+                        Повторить попытку
+                    </button>
+                </div>
+            );
+        }
+
         if (isBanned) {
             return <BanScreen supportLink={SUPPORT_LINK} reason={user?.banReason} />;
         }
+
         return (
             <>
                 <main style={STYLES.mainContainer} className="custom-scrollbar">

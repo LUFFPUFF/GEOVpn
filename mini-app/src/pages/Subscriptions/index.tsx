@@ -32,7 +32,7 @@ export default function Subscriptions() {
 
     const activeConfig = configs.find(c => c.deviceId === selectedDeviceId) || configs[0];
 
-    const handleAutoConnect = async () => {
+    const handleAutoConnect = () => {
         if (!activeConfig?.subscriptionUrl) return;
         setIsConnecting(true);
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('heavy');
@@ -40,19 +40,15 @@ export default function Subscriptions() {
         const urlParts = activeConfig.subscriptionUrl.split('/');
         const uuid = urlParts[urlParts.length - 1];
 
-        try {
-            const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
-            const { deeplink } = response.data;
+        const redirectUrl = `https://geovp.ru/api/v1/configs/import-happ/${uuid}`;
 
-            window.location.assign(deeplink);
-
-        } catch (error) {
-            console.error('Deeplink fetch failed:', error);
-            const fallbackLink = activeConfig.subscriptionUrl.replace(/^https?:\/\//, 'happ://');
-            window.location.assign(fallbackLink);
-        } finally {
-            setTimeout(() => setIsConnecting(false), 3000);
+        if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.openLink(redirectUrl);
+        } else {
+            window.location.href = redirectUrl;
         }
+
+        setTimeout(() => setIsConnecting(false), 3000);
     };
 
     const handleAlternativeImport = (client: 'hiddify' | 'v2box') => {
@@ -73,19 +69,61 @@ export default function Subscriptions() {
 
     const handleCopyLink = async () => {
         if (!activeConfig) return;
+        setIsCopying(true);
+        window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
+
         const urlParts = activeConfig.subscriptionUrl.split('/');
         const uuid = urlParts[urlParts.length - 1];
 
-        try {
-            const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
-            await navigator.clipboard.writeText(response.data.deeplink);
-        } catch (error) {
-            await navigator.clipboard.writeText(activeConfig.subscriptionUrl);
-        }
+        if (typeof ClipboardItem !== 'undefined') {
+            try {
+                const textPromise = apiClient.get(`/subscription/${uuid}/deeplink`)
+                    .then(response => response.data.deeplink)
+                    .catch(() => activeConfig.subscriptionUrl);
 
-        setCopyStatus(true);
-        window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
-        setTimeout(() => setCopyStatus(false), 3000);
+                const item = new ClipboardItem({
+                    "text/plain": textPromise.then(text => new Blob([text], { type: "text/plain" }))
+                });
+
+                await navigator.clipboard.write([item]);
+                setCopyStatus(true);
+            } catch (error) {
+                console.error("ClipboardItem failed, using fallback copy", error);
+                fallbackCopy(activeConfig.subscriptionUrl);
+            } finally {
+                setIsCopying(false);
+                window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+                setTimeout(() => setCopyStatus(false), 3000);
+            }
+        } else {
+            try {
+                const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
+                await navigator.clipboard.writeText(response.data.deeplink);
+                setCopyStatus(true);
+            } catch (e) {
+                fallbackCopy(activeConfig.subscriptionUrl);
+            } finally {
+                setIsCopying(false);
+                window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+                setTimeout(() => setCopyStatus(false), 3000);
+            }
+        }
+    };
+
+    const fallbackCopy = (text: string) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            setCopyStatus(true);
+        } catch (err) {
+            console.error('Fallback copy failed', err);
+        }
+        document.body.removeChild(textArea);
     };
 
     const haptic = (s: 'light' | 'medium' = 'light') =>

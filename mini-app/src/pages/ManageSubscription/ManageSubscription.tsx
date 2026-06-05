@@ -68,45 +68,81 @@ export default function ManageSubscription() {
 
     if (isExpired) return null;
 
-    const handleAutoConnect = async (deviceId: number) => {
+    const handleAutoConnect = (deviceId: number) => {
         const config = configs.find(c => c.deviceId === deviceId);
         if (!config?.subscriptionUrl) return;
 
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('heavy');
+
         const urlParts = config.subscriptionUrl.split('/');
         const uuid = urlParts[urlParts.length - 1];
 
-        try {
-            const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
-            window.location.assign(response.data.deeplink);
-        } catch (error) {
-            const fallbackLink = config.subscriptionUrl.replace(/^https?:\/\//, 'happ://');
-            window.location.assign(fallbackLink);
+        const redirectUrl = `https://geovp.ru/api/v1/configs/import-happ/${uuid}`;
+
+        if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.openLink(redirectUrl);
+        } else {
+            window.location.href = redirectUrl;
         }
     };
 
     const handleCopyLink = async (subscriptionUrl: string | undefined) => {
         if (!subscriptionUrl) return;
-
         setIsCopying(true);
         window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
 
         const urlParts = subscriptionUrl.split('/');
         const uuid = urlParts[urlParts.length - 1];
 
-        try {
-            const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
-            await navigator.clipboard.writeText(response.data.deeplink);
-        } catch (error) {
-            console.error('Copy link fetch failed:', error);
-            await navigator.clipboard.writeText(subscriptionUrl);
-        } finally {
-            setIsCopying(false);
-            setCopyStatus(true);
-            window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+        if (typeof ClipboardItem !== 'undefined') {
+            try {
+                const textPromise = apiClient.get(`/subscription/${uuid}/deeplink`)
+                    .then(response => response.data.deeplink)
+                    .catch(() => subscriptionUrl);
 
-            setTimeout(() => setCopyStatus(false), 2000);
+                const item = new ClipboardItem({
+                    "text/plain": textPromise.then(text => new Blob([text], { type: "text/plain" }))
+                });
+
+                await navigator.clipboard.write([item]);
+                setCopyStatus(true);
+            } catch (error) {
+                console.error("ClipboardItem copy failed", error);
+                fallbackCopy(subscriptionUrl);
+            } finally {
+                setIsCopying(false);
+                window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+                setTimeout(() => setCopyStatus(false), 2000);
+            }
+        } else {
+            try {
+                const response = await apiClient.get(`/subscription/${uuid}/deeplink`);
+                await navigator.clipboard.writeText(response.data.deeplink);
+                setCopyStatus(true);
+            } catch (e) {
+                fallbackCopy(subscriptionUrl);
+            } finally {
+                setIsCopying(false);
+                window.Telegram?.WebApp?.HapticFeedback.notificationOccurred('success');
+                setTimeout(() => setCopyStatus(false), 2000);
+            }
         }
+    };
+
+    const fallbackCopy = (text: string) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            setCopyStatus(true);
+        } catch (err) {
+            console.error('Fallback copy failed', err);
+        }
+        document.body.removeChild(textArea);
     };
 
     const handleBuyExtraSlot = async () => {

@@ -14,7 +14,7 @@ export default function Subscriptions() {
     const [step, setStep] = useState(1);
     const [isConnecting, setIsConnecting] = useState(false);
     const [copyStatus, setCopyStatus] = useState(false);
-    const [isCopying, setIsCopying] = useState(false); // ИСПРАВЛЕНО: Объявлено состояние isCopying
+    const [isCopying, setIsCopying] = useState(false);
 
     const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
 

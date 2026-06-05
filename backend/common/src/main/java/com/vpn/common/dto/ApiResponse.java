@@ -23,6 +23,13 @@ public class ApiResponse<T> {
     private T data;
     private ErrorResponse error;
 
+    public String getMessage() {
+        if (this.error != null) {
+            return this.error.getMessage();
+        }
+        return success ? "Success" : "Unknown error";
+    }
+
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
                 .success(true)

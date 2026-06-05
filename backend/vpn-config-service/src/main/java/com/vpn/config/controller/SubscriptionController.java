@@ -58,7 +58,13 @@ public class SubscriptionController {
 
         Long userId = config.getUserId();
 
-        boolean isAllowed = deviceSessionService.checkAndRegisterDevice(userId, vlessUuid, httpRequest);
+        boolean isAllowed = true;
+        try {
+            isAllowed = deviceSessionService.checkAndRegisterDevice(userId, vlessUuid, httpRequest);
+        } catch (Exception e) {
+            log.warn("Device session registration failed due to database conflict, allowing access anyway. UUID: {}, Error: {}",
+                    vlessUuid, e.getMessage());
+        }
 
         String subscriptionContent;
         HttpHeaders headers;

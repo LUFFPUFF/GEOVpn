@@ -5,9 +5,12 @@ import com.vpn.config.repository.DeviceSessionRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -27,6 +30,14 @@ public class DeviceSessionService {
      * Это снижает нагрузку на запись в PostgreSQL при частых запросах подписки на 95-99%.
      */
     @Transactional
+    @Retryable(
+            retryFor = {
+                    org.springframework.dao.TransientDataAccessException.class,
+                    org.springframework.dao.PessimisticLockingFailureException.class
+            },
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 50)
+    )
     public boolean checkAndRegisterDevice(
             Long userId,
             UUID vlessUuid,
@@ -48,11 +59,20 @@ public class DeviceSessionService {
             boolean statusChanged = !session.getIsActive();
 
             if (ipChanged || uaChanged || uuidChanged || statusChanged) {
+
+                if (uuidChanged) {
+                    sessionRepository.findByUserIdAndVlessUuid(userId, vlessUuid).ifPresent(dup -> {
+                        log.info("Removing stale session with duplicate vlessUuid {} to prevent conflict", vlessUuid);
+                        sessionRepository.delete(dup);
+                        sessionRepository.flush();
+                    });
+                }
+
                 session.setLastIp(ip);
                 session.setUserAgent(userAgent);
                 session.setVlessUuid(vlessUuid);
                 session.setIsActive(true);
-                sessionRepository.save(session);
+
                 log.debug("Session updated in DB for fingerprint {}: IP/UA/UUID changed", fingerprint);
             } else {
                 log.debug("Session unchanged for fingerprint {}. Skipping DB write (Perf Optimization).", fingerprint);
@@ -71,10 +91,20 @@ public class DeviceSessionService {
             boolean statusChanged = !session.getIsActive();
 
             if (ipChanged || uaChanged || fpChanged || statusChanged) {
+
+                if (fpChanged) {
+                    sessionRepository.findByUserIdAndDeviceFingerprint(userId, fingerprint).ifPresent(dup -> {
+                        log.info("Removing stale session with duplicate fingerprint {} to prevent conflict", fingerprint);
+                        sessionRepository.delete(dup);
+                        sessionRepository.flush();
+                    });
+                }
+
                 session.setLastIp(ip);
                 session.setUserAgent(userAgent);
                 session.setDeviceFingerprint(fingerprint);
                 session.setIsActive(true);
+
                 sessionRepository.save(session);
                 log.debug("Session updated in DB for config {}: IP/UA/FP changed", vlessUuid);
             } else {
@@ -91,22 +121,18 @@ public class DeviceSessionService {
             return false;
         }
 
-        try {
-            DeviceSession newSession = DeviceSession.builder()
-                    .userId(userId)
-                    .deviceFingerprint(fingerprint)
-                    .vlessUuid(vlessUuid)
-                    .userAgent(userAgent)
-                    .deviceName(deviceName)
-                    .lastIp(ip)
-                    .isActive(true)
-                    .build();
+        sessionRepository.upsertSession(
+                fingerprint,
+                deviceName,
+                true,
+                ip,
+                LocalDateTime.now(),
+                userAgent,
+                userId,
+                vlessUuid
+        );
 
-            sessionRepository.save(newSession);
-            log.info("New physical device registered via config {}: ip={}", vlessUuid, ip);
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            log.warn("Race condition: duplicate device session registration ignored for user {}", userId);
-        }
+        log.info("New physical device registered via atomic UPSERT for config {}: ip={}", vlessUuid, ip);
 
         return true;
     }

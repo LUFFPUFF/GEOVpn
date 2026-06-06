@@ -3,6 +3,7 @@ package com.vpn.bot.client;
 import com.vpn.common.dto.ApiResponse;
 import com.vpn.common.dto.request.ConfigCreateRequest;
 import com.vpn.common.dto.response.VpnConfigResponse;
+import com.vpn.common.dto.response.DeviceLimitStatus;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,4 +26,9 @@ public interface VpnServiceClient {
 
     @GetMapping("/api/v1/subscription/{vlessUuid}/encrypted-link")
     String getEncryptedLink(@PathVariable("vlessUuid") UUID vlessUuid);
+
+    @GetMapping("/api/v1/configs/limits/me")
+    ApiResponse<DeviceLimitStatus> getDeviceLimit(
+            @RequestHeader("X-User-Id") long telegramId
+    );
 }

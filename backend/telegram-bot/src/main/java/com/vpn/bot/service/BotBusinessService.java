@@ -152,7 +152,7 @@ public class BotBusinessService {
         }
     }
 
-    public void sendConfigs(long chatId, Integer messageId) {
+    public void sendConfigs(long chatId, Long selectedDeviceId, Integer messageId) {
         try {
             ApiResponse<UserResponse> profileRes = userService.getMyProfile(chatId);
             UserResponse u = (profileRes != null) ? profileRes.getData() : null;
@@ -161,12 +161,39 @@ public class BotBusinessService {
             ApiResponse<List<VpnConfigResponse>> res = vpnService.getMyConfigs(chatId);
             List<VpnConfigResponse> list = (res != null && res.getData() != null) ? res.getData() : List.of();
 
-            StringBuilder text = new StringBuilder();
-            String subscriptionUrl = (!list.isEmpty()) ? list.getFirst().getSubscriptionUrl() : null;
+            ApiResponse<List<DeviceResponse>> devicesRes = userService.getMyDevices(chatId);
+            List<DeviceResponse> devicesList = (devicesRes != null && devicesRes.getData() != null) ? devicesRes.getData() : List.of();
 
-            if (!hasActive) {
+            StringBuilder text = new StringBuilder();
+
+            if (list.isEmpty() || !hasActive) {
                 text.append("⚠️ <b>Доступ ограничен</b>\n\n<i>Для генерации вашей уникальной ссылки и импорта ключей в приложение необходима активная подписка.</i>");
-            } else if (subscriptionUrl == null || subscriptionUrl.isBlank()) {
+                sendOrEdit(chatId, text.toString(), keyboardFactory.getConfigsKeyboard(hasActive, list, null, devicesList), messageId);
+                return;
+            }
+
+            Long targetDeviceId = selectedDeviceId;
+            if (targetDeviceId == null) {
+                targetDeviceId = list.get(0).getDeviceId();
+            }
+
+            Long finalTargetDeviceId = targetDeviceId;
+            VpnConfigResponse activeConfig = list.stream()
+                    .filter(c -> c.getDeviceId().equals(finalTargetDeviceId))
+                    .findFirst()
+                    .orElse(list.get(0));
+
+            String activeDeviceName = "Устройство " + activeConfig.getDeviceId();
+            for (DeviceResponse d : devicesList) {
+                if (d.getId().equals(activeConfig.getDeviceId())) {
+                    activeDeviceName = d.getDeviceName();
+                    break;
+                }
+            }
+
+            String subscriptionUrl = activeConfig.getSubscriptionUrl();
+
+            if (subscriptionUrl == null || subscriptionUrl.isBlank()) {
                 text.append("⚙️ <b>Подключение GeoVPN</b>\n\n<i>Ваша подписка активна. Перейдите в Mini App, чтобы инициализировать ваше устройство.</i>");
             } else {
                 String uuidStr = subscriptionUrl.substring(subscriptionUrl.lastIndexOf("/") + 1);
@@ -181,13 +208,14 @@ public class BotBusinessService {
                 }
 
                 text.append("⚙️ <b>Ваша подписка GeoVPN</b>\n\n")
-                        .append("Ваша персональная защищенная ссылка подписки (Happ Proxy):\n\n")
+                        .append("Активный профиль устройства: <b>").append(activeDeviceName).append("</b>\n\n")
+                        .append("Персональная ссылка подписки (Happ Proxy):\n\n")
                         .append("<code>").append(displayLink).append("</code>\n\n")
                         .append("👉 <b>Нажмите на ссылку выше</b>, чтобы мгновенно скопировать её в буфер обмена.\n\n")
-                        .append("💡 <i>Используйте кнопку ниже для автоматического импорта ссылки в официальный клиент Happ Proxy.</i>");
+                        .append("💡 <i>Используйте кнопку ниже для автоматического импорта ссылки выбранного устройства в приложение.</i>");
             }
 
-            sendOrEdit(chatId, text.toString(), keyboardFactory.getConfigsKeyboard(hasActive, subscriptionUrl), messageId);
+            sendOrEdit(chatId, text.toString(), keyboardFactory.getConfigsKeyboard(hasActive, list, activeConfig.getDeviceId(), devicesList), messageId);
         } catch (Exception e) {
             log.error("Configs rendering error", e);
         }
@@ -235,7 +263,7 @@ public class BotBusinessService {
             List<DeviceResponse> devicesList = (devicesRes != null && devicesRes.getData() != null) ? devicesRes.getData() : List.of();
             int used = devicesList.size();
 
-            ApiResponse<DeviceLimitStatus> limitRes = userService.getDeviceLimit(chatId);
+            ApiResponse<DeviceLimitStatus> limitRes = vpnService.getDeviceLimit(chatId);
             DeviceLimitStatus limitStatus = (limitRes != null) ? limitRes.getData() : null;
             int limit = (limitStatus != null) ? limitStatus.getMaxDevices() : 1;
 
@@ -295,7 +323,7 @@ public class BotBusinessService {
                     "🔗 <b>Ваша ссылка:</b>",
                     "<code>" + refLink + "</code>",
                     "",
-                    "<i>Нажмите на ссылку, чтобы скопировать, или поделитесь кнопкой ниже.</i>"
+                    "<i>Нажмите на ссылку, чтобы скопировать её.</i>"
             );
 
             sendOrEdit(chatId, text, keyboardFactory.getReferralKeyboard(chatId), messageId);

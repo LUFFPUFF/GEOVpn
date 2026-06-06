@@ -1,5 +1,8 @@
 package com.vpn.bot.ui;
 
+import com.vpn.common.dto.response.DeviceResponse;
+import com.vpn.common.dto.response.VpnConfigResponse;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
@@ -73,16 +76,32 @@ public class KeyboardFactory {
         return new InlineKeyboardMarkup(rows);
     }
 
-    public InlineKeyboardMarkup getConfigsKeyboard(boolean hasActive, String subscriptionUrl) {
+    public InlineKeyboardMarkup getConfigsKeyboard(boolean hasActive, List<VpnConfigResponse> configs, Long selectedDeviceId, List<DeviceResponse> devices) {
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
 
-        if (!hasActive || subscriptionUrl == null || subscriptionUrl.isBlank()) {
+        if (!hasActive || configs.isEmpty()) {
             rows.add(List.of(createButton("💎 Купить подписку для создания ключей", "profile_subscribe")));
         } else {
-            String uuid = subscriptionUrl.substring(subscriptionUrl.lastIndexOf("/") + 1);
-            String importUrl = "https://geovp.ru/api/v1/subscription/" + uuid + "/import-happ";
+            if (configs.size() > 1) {
+                List<InlineKeyboardButton> selectorRow = new ArrayList<>();
+                for (VpnConfigResponse c : configs) {
+                    String btnText = getText(selectedDeviceId, devices, c);
+                    selectorRow.add(createButton(btnText, "config_select:" + c.getDeviceId()));
+                }
+                rows.add(selectorRow);
+            }
 
-            rows.add(List.of(createUrlButton("⚡️ Авто-импорт в Happ Proxy", importUrl)));
+            VpnConfigResponse activeConfig = configs.stream()
+                    .filter(c -> c.getDeviceId().equals(selectedDeviceId))
+                    .findFirst()
+                    .orElse(configs.get(0));
+
+            String subscriptionUrl = activeConfig.getSubscriptionUrl();
+            if (subscriptionUrl != null && !subscriptionUrl.isBlank()) {
+                String uuid = subscriptionUrl.substring(subscriptionUrl.lastIndexOf("/") + 1);
+                String importUrl = "https://geovp.ru/api/v1/subscription/" + uuid + "/import-happ";
+                rows.add(List.of(createUrlButton("⚡️ Авто-импорт в Happ Proxy", importUrl)));
+            }
         }
 
         rows.add(List.of(
@@ -91,6 +110,21 @@ public class KeyboardFactory {
         ));
 
         return new InlineKeyboardMarkup(rows);
+    }
+
+    private static @NotNull String getText(Long selectedDeviceId, List<DeviceResponse> devices, VpnConfigResponse c) {
+        String deviceName = "Устр. " + c.getDeviceId();
+        if (devices != null) {
+            for (DeviceResponse d : devices) {
+                if (d.getId().equals(c.getDeviceId())) {
+                    deviceName = d.getDeviceName();
+                    break;
+                }
+            }
+        }
+        boolean isSelected = c.getDeviceId().equals(selectedDeviceId);
+        String btnText = isSelected ? "🟢 " + deviceName : "📱 " + deviceName;
+        return btnText;
     }
 
     public InlineKeyboardMarkup getBuySubKeyboard(boolean promoAvailable) {

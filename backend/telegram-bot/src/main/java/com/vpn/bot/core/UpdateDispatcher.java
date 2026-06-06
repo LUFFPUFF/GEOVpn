@@ -135,7 +135,7 @@ public class UpdateDispatcher {
             businessService.sendProfile(chatId, null);
         }
         else if (text.equals("🔑 Конфиги") || text.equalsIgnoreCase("конфиги")) {
-            businessService.sendConfigs(chatId, null);
+            businessService.sendConfigs(chatId, null, null);
         }
         else if (text.equals("📱 Устройства") || text.equalsIgnoreCase("устройства")) {
             businessService.sendDevices(chatId, null);
@@ -212,7 +212,7 @@ public class UpdateDispatcher {
             }
             case "configs_refresh" -> {
                 answerCallback(callbackId, "🔄 Обновлено");
-                businessService.sendConfigs(chatId, messageId);
+                businessService.sendConfigs(chatId, null, messageId);
             }
             case "leaderboard_refresh", "show_leaderboard" -> {
                 answerCallback(callbackId, null);
@@ -246,7 +246,7 @@ public class UpdateDispatcher {
             }
             case "menu_configs" -> {
                 answerCallback(callbackId, null);
-                businessService.sendConfigs(chatId, messageId);
+                businessService.sendConfigs(chatId, null, messageId);
             }
             case "menu_devices" -> {
                 answerCallback(callbackId, null);
@@ -269,6 +269,10 @@ public class UpdateDispatcher {
                     answerCallback(callbackId, null);
                     String country = data.split(":")[1];
                     vpnConfigService.createConfig(chatId, country);
+                } else if (data.startsWith("config_select:")) {
+                    answerCallback(callbackId, "🔄 Переключение...");
+                    long selectedDeviceId = Long.parseLong(data.split(":")[1]);
+                    businessService.sendConfigs(chatId, selectedDeviceId, messageId);
                 } else if (data.startsWith("buy_sub_tariff:")) {
                     String[] parts = data.split(":");
                     if (parts.length == 3) {

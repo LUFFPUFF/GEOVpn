@@ -4,6 +4,7 @@ import com.vpn.bot.client.UserServiceClient;
 import com.vpn.common.dto.enums.DeviceType;
 import com.vpn.common.dto.request.DeviceCreateRequest;
 import com.vpn.common.dto.request.UserRegistrationRequest;
+import com.vpn.common.dto.response.DeviceResponse;
 import com.vpn.common.dto.response.UserResponse;
 import com.vpn.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -76,8 +77,12 @@ public class DeviceRegistrationBotService {
                     .deviceType(type)
                     .build();
 
-            userServiceClient.registerDevice(internalSecret, tgId, request);
-            log.info("Device {} registered for user {}", type, tgId);
+            ApiResponse<DeviceResponse> res = userServiceClient.registerDevice(tgId, request);
+            if (res != null && res.isSuccess()) {
+                log.info("Device {} registered for user {}", type, tgId);
+            } else {
+                log.error("Failed to register device: response status error");
+            }
         } catch (Exception e) {
             log.error("Failed to register device: {}", e.getMessage());
         }

@@ -41,9 +41,6 @@ public interface UserServiceClient {
     @GetMapping("/api/v1/devices")
     ApiResponse<List<DeviceResponse>> getMyDevices(@RequestHeader("X-User-Id") long telegramId);
 
-    @GetMapping("/api/v1/configs/limits/me")
-    ApiResponse<DeviceLimitStatus> getDeviceLimit(@RequestHeader("X-User-Id") long telegramId);
-
     @PostMapping("/api/v1/users/register")
     ApiResponse<UserResponse> registerUser(@RequestBody UserRegistrationRequest request);
 
@@ -53,6 +50,6 @@ public interface UserServiceClient {
     @PostMapping("/api/v1/users/internal/{telegramId}/membership")
     ApiResponse<Void> updateMembership(@PathVariable("telegramId") long telegramId, @RequestParam("isMember") boolean isMember);
 
-    @PostMapping("/api/users/device")
-    ApiResponse<Void> registerDevice(@RequestHeader("X-Internal-Secret") String secret, @RequestParam("tgId") long tgId, @RequestBody DeviceCreateRequest request);
+    @PostMapping("/api/v1/devices")
+    ApiResponse<DeviceResponse> registerDevice(@RequestHeader("X-User-Id") long telegramId, @RequestBody DeviceCreateRequest request);
 }

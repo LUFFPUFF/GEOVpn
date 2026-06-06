@@ -52,4 +52,7 @@ public interface UserServiceClient {
 
     @PostMapping("/api/v1/devices")
     ApiResponse<DeviceResponse> registerDevice(@RequestHeader("X-User-Id") long telegramId, @RequestBody DeviceCreateRequest request);
+
+    @GetMapping("/api/v1/users/me/membership")
+    ApiResponse<Boolean> checkMembership(@RequestHeader("X-User-Id") long telegramId);
 }

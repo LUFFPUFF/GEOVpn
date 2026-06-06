@@ -2,7 +2,6 @@ package com.vpn.bot.service;
 
 import com.vpn.bot.client.UserServiceClient;
 import com.vpn.common.dto.ApiResponse;
-import com.vpn.common.dto.response.UserResponse;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,18 +27,14 @@ public class SubscriptionService {
 
     public boolean isSubscribed(AbsSender sender, long userId) {
         try {
-            ApiResponse<UserResponse> response = userServiceClient.getMyProfile(userId);
+            ApiResponse<Boolean> response = userServiceClient.checkMembership(userId);
             if (response != null && response.getData() != null) {
-                Boolean isMember = response.getData().getIsChannelMember();
-                if (isMember != null) {
-                    return isMember;
-                }
+                return response.getData();
             }
         } catch (Exception e) {
-            log.warn("User {} not found in DB or DB is down. Falling back to Telegram API check.", userId);
+            log.warn("Failed to check membership via database for user: {}", userId);
         }
 
-        log.info("Checking subscription via Telegram API for user {} (database fallback)", userId);
         boolean apiCheckedStatus = checkViaTelegramApi(sender, userId);
 
         try {
@@ -69,5 +64,4 @@ public class SubscriptionService {
             log.error("Failed to update membership in DB on bot event for user {}", userId, e);
         }
     }
-
 }

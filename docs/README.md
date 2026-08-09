@@ -1,896 +1,513 @@
-# Telegram VPN 
-## Telegram-first подход с автоматическим выбором региона
+<div align="center">
 
----
+# GEOVpn
 
-## 1. КОНЦЕПЦИЯ ПРОЕКТА
+**Telegram-first платформа управления подписками, устройствами и сетевым доступом на базе Xray-core**
 
-### Пользовательский Flow:
+![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.2.1-6DB33F?logo=springboot&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=111827)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.2-3178C6?logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
-```
-1. Пользователь открывает Telegram → находит @YourVPNBot
-2. Нажимает /start → автоматическая регистрация
-3. Получает реферальную ссылку (бонус 50₽ за друга)
-4. Открывает Mini App → видит баланс, устройства, серверы
-5. Нажимает "Получить конфиг" → мгновенно получает VLESS ссылку
-6. Скачивает мобильное приложение → вставляет ссылку → подключается
-7. Приложение автоматически выбирает лучший сервер из 3 регионов
-```
+</div>
 
-### Регионы и выбор сервера:
+> [!IMPORTANT]
+> GEOVpn находится в активной разработке. Основные backend-сервисы, Telegram Bot и Mini App реализованы, однако репозиторий пока нельзя считать полностью готовым к развёртыванию в новой среде без настройки инфраструктуры, секретов и внешних интеграций. Android-клиент находится на стадии PoC, iOS-клиента в репозитории нет, а выборочная маршрутизация ещё требует завершения end-to-end сценария.
 
-```
-🇫🇮 Финляндия (Helsinki):
-   - Близко к России
-   - Отличная латентность (~30ms)
-   - Хорошая скорость
+## Содержание
 
-🇳🇱 Нидерланды (Amsterdam):
-   - Лучшая инфраструктура
-   - Максимальная скорость
-   - Средняя латентность (~50ms)
+- [О проекте](#о-проекте)
+- [Текущий статус](#текущий-статус)
+- [Возможности](#возможности)
+- [Архитектура](#архитектура)
+- [Backend-модули](#backend-модули)
+- [Технологии](#технологии)
+- [Структура репозитория](#структура-репозитория)
+- [Основные сценарии](#основные-сценарии)
+- [Локальный запуск](#локальный-запуск)
+- [Конфигурация](#конфигурация)
+- [Тестирование](#тестирование)
+- [Развёртывание и мониторинг](#развёртывание-и-мониторинг)
+- [Безопасность](#безопасность)
+- [Ограничения](#ограничения)
+- [Roadmap](#roadmap)
+- [Документация](#документация)
+- [Ответственное использование](#ответственное-использование)
+- [Лицензия](#лицензия)
 
-🇱🇻 Латвия (Riga):
-   - Самая близкая
-   - Минимальная латентность (~15ms)
-   - Хорошо для gaming
+## О проекте
 
-Автовыбор на основе:
-✓ Ping (латентность)
-✓ Загрузка сервера
-✓ История блокировок
-✓ Тип использования (browsing/streaming/gaming)
-```
+GEOVpn — многомодульная платформа, в которой Telegram используется как основная точка входа для пользователя. Telegram Bot отвечает за регистрацию и быстрые действия, а Mini App предоставляет интерфейс для управления профилем, подпиской, оплатами, устройствами и конфигурациями подключения.
 
----
+Серверная часть управляет полным жизненным циклом доступа:
 
-## 2. УНИКАЛЬНАЯ ФИШКА 🚀
+- регистрирует пользователей через Telegram;
+- хранит подписки, устройства, транзакции и подключения;
+- создаёт и обновляет конфигурации для отдельных устройств;
+- синхронизирует клиентов с XUI/Xray-узлами;
+- выбирает подходящие серверы по состоянию, задержке, нагрузке и географии;
+- формирует прямые, relay- и fallback-подключения;
+- собирает технические метрики и статистику трафика;
+- выполняет массовую миграцию и восстановление конфигураций.
 
-### **Smart Mode - AI-powered интеллектуальный VPN**
+Проект построен как набор независимых Spring Boot-сервисов с PostgreSQL, Redis, API Gateway, Docker Compose и инфраструктурными сценариями для эксплуатации нескольких сетевых узлов.
 
-```yaml
-Что это:
-  Приложение автоматически определяет какие сайты заблокированы
-  и пропускает через VPN ТОЛЬКО их, остальной трафик идет напрямую.
-  
-Преимущества:
-  ✓ Максимальная скорость (большинство трафика без VPN)
-  ✓ Не расходуется лимит (только заблокированные)
-  ✓ Российские сервисы работают как обычно (банки, госуслуги)
-  ✓ Netflix, YouTube premium с российскими ценами
-  
-Как работает:
-  1. Встроенная база заблокированных доменов (обновляется автоматически)
-  2. Real-time проверка доступности
-  3. Automatic failover если что-то заблокировали
-  4. Machine Learning предсказывает что заблокируют завтра
-  
-Режимы:
-  🧠 Smart Mode    - только заблокированное через VPN
-  🌍 Full VPN      - весь трафик через VPN  
-  🎮 Gaming Mode   - низкая латентность, fast servers
-  📺 Streaming     - оптимизация для видео
-```
+> [!NOTE]
+> Файл [`docs/README.md`](docs/README.md) содержит раннюю концепцию продукта и не является актуальным источником информации о реализованных функциях. При расхождениях приоритет имеют код, миграции Flyway и этот README.
 
-### Дополнительные фишки:
+## Текущий статус
 
-```
-🔥 Instant Connect - подключение за 0.5 секунды
-   (pre-established connections pool)
+| Компонент | Статус | Что есть в репозитории |
+| --- | --- | --- |
+| Backend core | Реализован, развивается | Пользователи, устройства, подписки, конфигурации, серверы, трафик, биллинг и API Gateway |
+| Telegram Bot | Реализован | Регистрация, проверка подписки на канал, устройства, конфигурации, оплаты, профиль и leaderboard |
+| Telegram Mini App | Реализован, развивается | Профиль, тарифы, платежи, устройства, подписки, автоимпорт и управление доступом |
+| VPN configuration layer | Реализован | VLESS/Reality, relay-ссылки, Hysteria2 fallback, подписки, QR-коды и синхронизация с XUI |
+| Billing | Реализован, требует внешней настройки | Создание платежей, webhook и интеграция с Platega |
+| Server management | Реализован | Реестр узлов, health-check, метрики, выбор сервера и сбор трафика через Xray gRPC |
+| Production infrastructure | Подготовлена частично | Compose, Nginx, Certbot, Ansible, Prometheus, Grafana, health-check и rollback-скрипты |
+| Admin panel | Частично реализован | В репозитории находится редактор конфигураций, но нет полного самостоятельного frontend-приложения |
+| Android client | PoC | `VpnService`, Jetpack Compose и заготовка интеграции `libXray`; запуск Xray пока не подключён |
+| iOS client | Не реализован | Исходного кода iOS-приложения в репозитории нет |
+| Выборочная маршрутизация | Экспериментальная | Генерация routing rules существует на backend, но клиентский end-to-end сценарий не завершён |
+| Автотесты | Начальный уровень | Есть отдельные тестовые ресурсы и тест security-аспекта; системное покрытие требует расширения |
 
-🎯 Family Sharing - одна подписка на 5 устройств
-   (семейный аккаунт с раздельной статистикой)
+## Возможности
 
-💰 Pay-as-you-go - платишь только за использованный трафик
-   (100₽/10GB, 200₽/50GB, 500₽/∞)
+### Пользователи и подписки
 
-🤖 Telegram Mini App - полное управление без установки
-   (история, статистика, настройки прямо в Telegram)
+- регистрация пользователя по Telegram ID;
+- проверка подписи Telegram Mini App `initData` через HMAC-SHA256;
+- профиль, срок действия и тип подписки;
+- промокоды, реферальный код и leaderboard;
+- ограничение количества устройств и покупка дополнительных слотов;
+- проверка участия пользователя в Telegram-канале;
+- блокировка пользователя с сохранением причины.
 
-⚡ Zero-config - просто нажми кнопку
-   (никаких сложных настроек)
-```
+### Устройства и конфигурации
 
----
+- отдельная конфигурация для каждого устройства;
+- генерация VLESS/Reality-подключений;
+- прямые ссылки для всех активных серверов;
+- relay-подключения с настраиваемым приоритетом;
+- Hysteria2 как дополнительный fallback при наличии настроенного узла;
+- QR-коды и Base64-подписки;
+- deep links и страницы импорта для Happ, Hiddify и V2Box;
+- регенерация, удаление и синхронизация конфигураций;
+- массовая миграция клиентов между серверами.
 
-## 3. ТЕХНИЧЕСКАЯ АРХИТЕКТУРА
+### Управление серверами
 
-### Высокоуровневая схема:
+- создание, изменение, выключение и удаление серверов через API;
+- периодические health-check активных узлов;
+- получение метрик Xray через gRPC;
+- оценка серверов по задержке, нагрузке, географии, health score и поддерживаемому протоколу;
+- circuit breaker и retry при обращении к Server Management Service;
+- отслеживание подключений и трафика по пользователям, устройствам и серверам;
+- отключение пользователя при исчерпании доступного баланса в pay-as-you-go сценарии.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    TELEGRAM LAYER                        │
-├─────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ Telegram Bot │  │  Mini App    │  │  Webhook     │  │
-│  │   (Python)   │  │(React/Next)  │  │              │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
-└─────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────┐
-│                    BACKEND LAYER                         │
-├─────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────┐   │
-│  │        Spring Boot Application (Java)            │   │
-│  │  - REST API для Mini App                        │   │
-│  │  - User Management                               │   │
-│  │  - Config Generation (VLESS links)               │   │
-│  │  - Billing & Subscriptions                       │   │
-│  │  - Analytics & Metrics                           │   │
-│  └──────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────┐
-│                    VPN SERVERS                           │
-├─────────────────────────────────────────────────────────┤
-│  🇫🇮 Helsinki (3 servers)  🇳🇱 Amsterdam (3 servers)   │
-│  🇱🇻 Riga (3 servers)                                   │
-│                                                          │
-│  Each running:                                           │
-│  - Xray-core (VLESS + Reality)                          │
-│  - Metrics exporter                                      │
-│  - Health checker                                        │
-└─────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────┐
-│                  MOBILE APPS                             │
-├─────────────────────────────────────────────────────────┤
-│  📱 iOS (Swift)        📱 Android (Kotlin)              │
-│  - Native VPN client   - Native VPN client              │
-│  - Smart Mode          - Smart Mode                     │
-│  - Auto-selection      - Auto-selection                 │
-└─────────────────────────────────────────────────────────┘
-```
+### Эксплуатация
 
-### Детальная архитектура компонентов:
+- глобальное техническое обслуживание с пересозданием и повторной синхронизацией конфигураций;
+- обработка больших операций виртуальными потоками Java 21;
+- ограничение конкурентных запросов к каждой XUI-панели;
+- поток событий обслуживания через Server-Sent Events;
+- Redis-кэш для конфигураций и метаданных;
+- Spring Boot Actuator, Prometheus и Grafana;
+- Nginx, TLS через Certbot, health-check, smoke-test и rollback-скрипты.
 
-```
-┌───────────────────────────────────────────────────────────┐
-│ TELEGRAM BOT (Python + aiogram)                           │
-├───────────────────────────────────────────────────────────┤
-│                                                            │
-│  Commands:                                                 │
-│  /start       → Регистрация + приветствие                 │
-│  /profile     → Личный кабинет                            │
-│  /config      → Получить VLESS ссылку                     │
-│  /balance     → Баланс и история                          │
-│  /referral    → Реферальная ссылка                        │
-│  /support     → Техподдержка                              │
-│                                                            │
-│  Inline Buttons:                                           │
-│  [🔗 Получить конфиг]  [💰 Пополнить]  [📊 Статистика]   │
-│  [🎁 Пригласить друга] [⚙️ Настройки]  [❓ Помощь]       │
-│                                                            │
-│  Mini App Launch:                                          │
-│  [🚀 Открыть приложение] → Telegram Mini App              │
-│                                                            │
-└───────────────────────────────────────────────────────────┘
+## Архитектура
 
-┌───────────────────────────────────────────────────────────┐
-│ TELEGRAM MINI APP (React + Telegram Web App SDK)          │
-├───────────────────────────────────────────────────────────┤
-│                                                            │
-│  Main Screen:                                              │
-│  ┌────────────────────────────────────────────────┐       │
-│  │  👤 User: @username                            │       │
-│  │  💰 Баланс: 155₽ (хватит на ≈15 дней)        │       │
-│  │                                                │       │
-│  │  ┌──────────────┐  ┌──────────────┐           │       │
-│  │  │  Пополнить   │  │   История    │           │       │
-│  │  └──────────────┘  └──────────────┘           │       │
-│  │                                                │       │
-│  │  📱 Мои устройства (2/5)                      │       │
-│  │  ┌────────────────────────────────────────┐   │       │
-│  │  │ 🍎 iPhone 13 Pro (подключено)         │   │       │
-│  │  │ 📍 Netherlands · 45ms · 120 MB/s      │   │       │
-│  │  │ [Отключить] [Удалить]                 │   │       │
-│  │  └────────────────────────────────────────┘   │       │
-│  │                                                │       │
-│  │  ┌────────────────────────────────────────┐   │       │
-│  │  │ 🤖 Samsung Galaxy (offline)           │   │       │
-│  │  │ [Получить конфиг]                     │   │       │
-│  │  └────────────────────────────────────────┘   │       │
-│  │                                                │       │
-│  │  [+ Добавить устройство]                      │       │
-│  │                                                │       │
-│  │  🌍 Серверы:                                  │       │
-│  │  🇱🇻 Riga: ⚡ Отлично (12ms)                  │       │
-│  │  🇫🇮 Helsinki: ⚡ Хорошо (28ms)               │       │
-│  │  🇳🇱 Amsterdam: ⚡ Средне (52ms)              │       │
-│  │                                                │       │
-│  │  [🧠 Smart Mode] [🌍 Full VPN] [🎮 Gaming]   │       │
-│  └────────────────────────────────────────────────┘       │
-│                                                            │
-└───────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    User[Пользователь Telegram]
+    Bot[Telegram Bot]
+    MiniApp[Telegram Mini App]
+    Nginx[Nginx / TLS]
+    Gateway[API Gateway]
 
-┌───────────────────────────────────────────────────────────┐
-│ BACKEND API (Spring Boot + Java)                          │
-├───────────────────────────────────────────────────────────┤
-│                                                            │
-│  Core Services:                                            │
-│  ┌─────────────────────────────────────────────────┐      │
-│  │ UserService                                     │      │
-│  │ - Registration via Telegram ID                 │      │
-│  │ - Profile management                            │      │
-│  │ - Device tracking (max 5 per user)            │      │
-│  └─────────────────────────────────────────────────┘      │
-│                                                            │
-│  ┌─────────────────────────────────────────────────┐      │
-│  │ ConfigGeneratorService                          │      │
-│  │ - Generate VLESS links                          │      │
-│  │ - UUID per user                                 │      │
-│  │ - Server selection algorithm                    │      │
-│  │ - QR code generation                            │      │
-│  └─────────────────────────────────────────────────┘      │
-│                                                            │
-│  ┌─────────────────────────────────────────────────┐      │
-│  │ ServerManagementService                         │      │
-│  │ - Health monitoring (ping every 10s)           │      │
-│  │ - Load balancing                                │      │
-│  │ - Auto-selection based on:                      │      │
-│  │   * Latency (ping)                              │      │
-│  │   * Server load (connections)                   │      │
-│  │   * User location                               │      │
-│  │   * Historical performance                      │      │
-│  └─────────────────────────────────────────────────┘      │
-│                                                            │
-│  ┌─────────────────────────────────────────────────┐      │
-│  │ BillingService                                  │      │
-│  │ - Pay-as-you-go tracking                        │      │
-│  │ - Subscription management                       │      │
-│  │ - Referral bonuses                              │      │
-│  │ - Payment integration (YooMoney, Crypto)       │      │
-│  └─────────────────────────────────────────────────┘      │
-│                                                            │
-│  ┌─────────────────────────────────────────────────┐      │
-│  │ AnalyticsService                                │      │
-│  │ - Traffic usage per user                        │      │
-│  │ - Connection statistics                         │      │
-│  │ - Server performance metrics                    │      │
-│  │ - Smart Mode optimization data                  │      │
-│  └─────────────────────────────────────────────────┘      │
-│                                                            │
-└───────────────────────────────────────────────────────────┘
+    User --> Bot
+    User --> MiniApp
+    MiniApp --> Nginx --> Gateway
+    Bot --> Gateway
+
+    subgraph Backend[Spring Boot backend]
+        UserService[User Service]
+        ConfigService[VPN Config Service]
+        ServerService[Server Management Service]
+        BillingService[Billing Service]
+        DomainsService[Blocked Domains Service]
+    end
+
+    Gateway --> UserService
+    Gateway --> ConfigService
+    Gateway --> ServerService
+    Gateway --> BillingService
+    Gateway -. experimental .-> DomainsService
+
+    PostgreSQL[(PostgreSQL)]
+    Redis[(Redis)]
+
+    UserService --> PostgreSQL
+    ConfigService --> PostgreSQL
+    ServerService --> PostgreSQL
+    BillingService --> PostgreSQL
+
+    Gateway --> Redis
+    UserService --> Redis
+    ConfigService --> Redis
+
+    ConfigService --> XUI[XUI API]
+    ServerService --> XrayGrpc[Xray gRPC]
+    XUI --> Nodes[Xray nodes: direct / relay / fallback]
+    XrayGrpc --> Nodes
+
+    BillingService --> Platega[Platega API]
+    Monitoring[Prometheus / Grafana] --> Gateway
+    Monitoring --> UserService
+    Monitoring --> ConfigService
+    Monitoring --> ServerService
 ```
 
----
+### Принципы архитектуры
 
-## 4. DATABASE SCHEMA (PostgreSQL)
+- **Разделение ответственности.** Управление пользователями, конфигурациями, серверами и платежами вынесено в отдельные сервисы.
+- **Единая точка входа.** Внешние API-запросы проходят через API Gateway и Nginx.
+- **Изоляция внутренних вызовов.** Межсервисные запросы используют отдельный internal secret и role-based проверки.
+- **Отказоустойчивость.** Для критичных межсервисных вызовов применяются Resilience4j, retry и fallback.
+- **Асинхронная эксплуатация.** Массовые операции выполняются параллельно с контролем нагрузки на XUI-панели.
+- **Миграции вместо ручной схемы.** Структура PostgreSQL развивается через Flyway.
 
-```sql
--- Users table
-CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    telegram_id BIGINT UNIQUE NOT NULL,
-    username VARCHAR(255),
-    first_name VARCHAR(255),
-    balance INTEGER DEFAULT 0, -- в копейках
-    subscription_type VARCHAR(50) DEFAULT 'payg', -- payg, monthly, yearly
-    subscription_expires_at TIMESTAMP,
-    referral_code VARCHAR(20) UNIQUE,
-    referred_by BIGINT REFERENCES users(telegram_id),
-    created_at TIMESTAMP DEFAULT NOW(),
-    last_active_at TIMESTAMP DEFAULT NOW()
-);
+## Backend-модули
 
-CREATE INDEX idx_users_telegram ON users(telegram_id);
-CREATE INDEX idx_users_referral ON users(referral_code);
+| Модуль | Назначение | Порт по умолчанию в инфраструктуре |
+| --- | --- | ---: |
+| `common` | Общие DTO, ошибки, security context, аннотации доступа, Redis и Feign-конфигурация | — |
+| `api-gateway` | Маршрутизация API, CORS, проверка защищённых маршрутов и internal headers | `8080` |
+| `telegram-bot` | Telegram-команды, onboarding, кнопки, подписки, устройства и взаимодействие с backend | `8081` |
+| `user-service` | Пользователи, подписки, устройства, соединения, referrals, promo и admin API | `8082` |
+| `vpn-config-service` | Генерация и хранение конфигураций, подписки, QR, XUI, relay, Hysteria2 и maintenance | `8083` |
+| `server-management-service` | Серверы, health-check, traffic accounting, Xray gRPC и cluster health | `8084` |
+| `billing-service` | Транзакции, платежные ссылки, webhook и статистика выручки | `8085` |
+| `blocked-domains-service` | Каркас отдельного сервиса доменных правил; основная текущая логика находится в `vpn-config-service` | `8085` в текущем конфиге |
 
--- Devices table
-CREATE TABLE devices (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(telegram_id),
-    device_name VARCHAR(255) NOT NULL,
-    device_type VARCHAR(50) NOT NULL, -- ios, android
-    uuid UUID UNIQUE NOT NULL, -- для VLESS
-    is_active BOOLEAN DEFAULT true,
-    last_connected_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
-    
-    CONSTRAINT max_devices CHECK (
-        (SELECT COUNT(*) FROM devices WHERE user_id = user_id AND is_active = true) <= 5
-    )
-);
+> [!WARNING]
+> `billing-service` и `blocked-domains-service` используют пересекающееся значение порта в части текущих конфигураций. Перед совместным запуском назначьте им разные порты.
 
-CREATE INDEX idx_devices_user ON devices(user_id);
-CREATE INDEX idx_devices_uuid ON devices(uuid);
+## Технологии
 
--- Servers table
-CREATE TABLE servers (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    location VARCHAR(50) NOT NULL, -- finland, netherlands, latvia
-    country_code CHAR(2) NOT NULL, -- FI, NL, LV
-    ip_address VARCHAR(45) NOT NULL,
-    port INTEGER NOT NULL,
-    is_active BOOLEAN DEFAULT true,
-    max_connections INTEGER DEFAULT 1000,
-    current_connections INTEGER DEFAULT 0,
-    last_health_check TIMESTAMP,
-    avg_latency_ms INTEGER,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+### Backend
 
-CREATE INDEX idx_servers_location ON servers(location);
-CREATE INDEX idx_servers_active ON servers(is_active);
+- Java 21;
+- Spring Boot 3.2.1;
+- Spring Cloud 2023.0.0;
+- Spring Data JPA и Hibernate;
+- Spring Cloud Gateway и OpenFeign;
+- Resilience4j;
+- PostgreSQL 15 и Flyway;
+- Redis 7;
+- gRPC и Protocol Buffers;
+- Quartz и Spring Scheduling;
+- ZXing для QR-кодов;
+- Maven multi-module build.
 
--- Connections table (для статистики)
-CREATE TABLE connections (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(telegram_id),
-    device_id BIGINT REFERENCES devices(id),
-    server_id INTEGER REFERENCES servers(id),
-    connected_at TIMESTAMP DEFAULT NOW(),
-    disconnected_at TIMESTAMP,
-    bytes_sent BIGINT DEFAULT 0,
-    bytes_received BIGINT DEFAULT 0,
-    duration_seconds INTEGER
-);
+### Frontend
 
-CREATE INDEX idx_connections_user ON connections(user_id, connected_at DESC);
+- React 18;
+- TypeScript 5;
+- Vite 5;
+- Zustand;
+- Axios;
+- Framer Motion;
+- Tailwind CSS;
+- Telegram Web App API.
 
--- Transactions table (платежи)
-CREATE TABLE transactions (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(telegram_id),
-    amount INTEGER NOT NULL, -- в копейках
-    transaction_type VARCHAR(50) NOT NULL, -- deposit, referral_bonus, usage
-    payment_method VARCHAR(50),
-    status VARCHAR(50) DEFAULT 'pending', -- pending, completed, failed
-    description TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+### Сетевая и эксплуатационная часть
 
-CREATE INDEX idx_transactions_user ON transactions(user_id, created_at DESC);
+- Xray-core;
+- VLESS + Reality;
+- Hysteria2;
+- XUI API;
+- Docker и Docker Compose;
+- Nginx и Certbot;
+- Ansible;
+- Prometheus и Grafana;
+- shell-скрипты для deploy, health-check, smoke-test и rollback.
 
--- Blocked domains (для Smart Mode)
-CREATE TABLE blocked_domains (
-    id SERIAL PRIMARY KEY,
-    domain VARCHAR(255) UNIQUE NOT NULL,
-    is_blocked BOOLEAN DEFAULT true,
-    last_checked TIMESTAMP DEFAULT NOW(),
-    auto_detected BOOLEAN DEFAULT false
-);
+## Структура репозитория
 
-CREATE INDEX idx_blocked_domains ON blocked_domains(domain);
+```text
+GEOVpn/
+├── backend/
+│   ├── api-gateway/
+│   ├── billing-service/
+│   ├── blocked-domains-service/
+│   ├── common/
+│   ├── server-management-service/
+│   ├── telegram-bot/
+│   ├── user-service/
+│   └── vpn-config-service/
+├── mini-app/                  # Telegram Mini App: React + TypeScript
+├── admin-panel/               # Частично реализованный frontend администрирования
+├── mobile/android/            # Android PoC на Kotlin/Compose
+├── infrastructure/
+│   ├── ansible/
+│   ├── ci-cd/
+│   ├── docker/
+│   ├── monitoring/
+│   └── nginx/
+├── nginx/                     # Reverse proxy и TLS-конфигурация
+├── xray/                      # Базовая конфигурация Xray
+├── docs/                      # Технические и исторические материалы
+├── docker-compose.yml         # Основной состав контейнеров
+├── mvnw / mvnw.cmd            # Maven Wrapper
+└── README.md
 ```
 
----
+## Основные сценарии
 
-## 5. VLESS CONFIGURATION
+### 1. Регистрация пользователя
 
-### Server Configuration (Xray-core)
+1. Пользователь запускает Telegram Bot или Mini App.
+2. Backend проверяет Telegram `initData` и регистрирует пользователя.
+3. При наличии start parameter применяется реферальный сценарий.
+4. Пользователь получает профиль, сведения о подписке и доступных устройствах.
 
-```json
-{
-  "log": {
-    "loglevel": "warning"
-  },
-  "inbounds": [
-    {
-      "port": 443,
-      "protocol": "vless",
-      "settings": {
-        "clients": [],
-        "decryption": "none",
-        "fallbacks": [
-          {
-            "dest": 80
-          }
-        ]
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "realitySettings": {
-          "dest": "www.google.com:443",
-          "serverNames": [
-            "www.google.com",
-            "www.microsoft.com"
-          ],
-          "privateKey": "GENERATED_PRIVATE_KEY",
-          "shortIds": ["", "0123456789abcdef"]
-        }
-      }
-    }
-  ],
-  "outbounds": [
-    {
-      "protocol": "freedom",
-      "tag": "direct"
-    }
-  ]
-}
+### 2. Создание конфигурации
+
+1. Пользователь добавляет устройство.
+2. `vpn-config-service` проверяет подписку и доступный лимит устройств.
+3. Сервис получает список активных узлов и рассчитывает их рейтинг.
+4. Создаются UUID и набор прямых, relay- и fallback-ссылок.
+5. Клиент регистрируется на XUI/Xray-узлах.
+6. Пользователь получает subscription URL, QR-код или ссылку автоимпорта.
+
+### 3. Мониторинг и учёт трафика
+
+1. `server-management-service` периодически проверяет доступность узлов.
+2. Xray gRPC предоставляет статистику по пользователям.
+3. Сервис рассчитывает дельту трафика и сохраняет агрегированные данные.
+4. В pay-as-you-go сценарии стоимость может списываться с баланса пользователя.
+
+### 4. Миграция и техническое обслуживание
+
+1. Администратор запускает перенос клиентов или глобальное обслуживание.
+2. Операция выполняется пакетно и не останавливается из-за единичной ошибки.
+3. Конкурентность запросов ограничивается отдельно для каждой XUI-панели.
+4. Прогресс отправляется интерфейсу через SSE.
+5. Конфигурации и Redis-кэш синхронизируются повторно.
+
+## Локальный запуск
+
+### Требования
+
+- JDK 21;
+- Docker Engine и Docker Compose;
+- Node.js 20+ и npm;
+- Git;
+- свободные порты `3000`, `5432`, `6379`, `8080–8085`;
+- Telegram Bot token для реального Telegram-сценария;
+- доступ к XUI/Xray-узлам для end-to-end генерации конфигураций;
+- реквизиты Platega для проверки реальных платежей.
+
+### 1. Клонирование
+
+```bash
+git clone https://github.com/LUFFPUFF/GEOVpn.git
+cd GEOVpn
 ```
 
-### VLESS Link Generation (Java)
+### 2. PostgreSQL и Redis для локальной разработки
 
-```java
-// ConfigGeneratorService.java
-package com.vpn.service;
-
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import java.util.Base64;
-import java.util.UUID;
-
-@Service
-@RequiredArgsConstructor
-public class ConfigGeneratorService {
-    
-    private final ServerManagementService serverService;
-    
-    public String generateVlessLink(Long userId, String deviceName) {
-        // 1. Выбор лучшего сервера
-        Server bestServer = serverService.selectBestServer(userId);
-        
-        // 2. Генерация UUID для устройства
-        UUID uuid = UUID.randomUUID();
-        
-        // 3. Сохранение в БД
-        Device device = saveDevice(userId, deviceName, uuid);
-        
-        // 4. Регистрация клиента на сервере
-        registerClientOnServer(bestServer, uuid);
-        
-        // 5. Генерация VLESS ссылки
-        return buildVlessLink(uuid, bestServer);
-    }
-    
-    private String buildVlessLink(UUID uuid, Server server) {
-        // vless://UUID@IP:PORT?security=reality&sni=www.google.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp&flow=xtls-rprx-vision#ServerName
-        
-        StringBuilder link = new StringBuilder("vless://");
-        link.append(uuid.toString());
-        link.append("@");
-        link.append(server.getIpAddress());
-        link.append(":");
-        link.append(server.getPort());
-        link.append("?security=reality");
-        link.append("&sni=www.google.com");
-        link.append("&fp=chrome");
-        link.append("&pbk=").append(server.getRealityPublicKey());
-        link.append("&sid=").append(server.getRealityShortId());
-        link.append("&type=tcp");
-        link.append("&flow=xtls-rprx-vision");
-        link.append("#").append(urlEncode(server.getName()));
-        
-        return link.toString();
-    }
-    
-    /**
-     * Алгоритм выбора лучшего сервера
-     */
-    public Server selectBestServer(Long userId) {
-        List<Server> activeServers = serverRepository
-            .findByIsActiveTrue();
-        
-        // Получаем локацию пользователя (примерно)
-        String userCountry = geoIpService.getCountry(userId);
-        
-        Server bestServer = null;
-        double bestScore = 0;
-        
-        for (Server server : activeServers) {
-            double score = calculateServerScore(server, userCountry);
-            
-            if (score > bestScore) {
-                bestScore = score;
-                bestServer = server;
-            }
-        }
-        
-        return bestServer;
-    }
-    
-    private double calculateServerScore(Server server, String userCountry) {
-        double score = 100.0;
-        
-        // 1. Латентность (чем меньше, тем лучше)
-        if (server.getAvgLatencyMs() != null) {
-            score -= server.getAvgLatencyMs() * 0.5;
-        }
-        
-        // 2. Загрузка сервера (чем меньше, тем лучше)
-        double loadPercentage = (double) server.getCurrentConnections() 
-                                / server.getMaxConnections();
-        score -= loadPercentage * 30;
-        
-        // 3. География (Латвия ближе для России)
-        if ("RU".equals(userCountry)) {
-            if ("LV".equals(server.getCountryCode())) {
-                score += 20; // Латвия самая близкая
-            } else if ("FI".equals(server.getCountryCode())) {
-                score += 15; // Финляндия тоже близко
-            } else if ("NL".equals(server.getCountryCode())) {
-                score += 10; // Нидерланды дальше
-            }
-        }
-        
-        return Math.max(score, 0);
-    }
-}
+```bash
+docker compose -f backend/docker-compose-local.yml up -d
 ```
 
----
+### 3. Проверка backend
 
-## 6. TELEGRAM BOT IMPLEMENTATION
+Linux/macOS:
 
-### Python Bot (aiogram)
-
-```python
-# bot.py
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-import aiohttp
-import asyncio
-
-API_TOKEN = 'YOUR_BOT_TOKEN'
-API_BASE_URL = 'http://backend:8080/api'
-MINI_APP_URL = 'https://your-mini-app.com'
-
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher()
-
-@dp.message(Command('start'))
-async def start_command(message: types.Message):
-    """
-    Регистрация пользователя и приветствие
-    """
-    telegram_id = message.from_user.id
-    username = message.from_user.username
-    first_name = message.from_user.first_name
-    
-    # Проверка реферального кода
-    referral_code = None
-    if len(message.text.split()) > 1:
-        referral_code = message.text.split()[1]
-    
-    # Регистрация через API
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f'{API_BASE_URL}/users/register',
-            json={
-                'telegram_id': telegram_id,
-                'username': username,
-                'first_name': first_name,
-                'referral_code': referral_code
-            }
-        ) as resp:
-            user_data = await resp.json()
-    
-    # Приветственное сообщение
-    welcome_text = f"""
-👋 Привет, {first_name}!
-
-Добро пожаловать в самый быстрый VPN!
-
-💰 Ваш баланс: {user_data['balance']}₽
-🎁 Бонус за регистрацию: 50₽
-
-🚀 Что дальше?
-1. Скачайте приложение для вашего устройства
-2. Получите конфигурацию (нажмите кнопку ниже)
-3. Подключитесь одним касанием!
-
-🧠 Smart Mode - наша уникальная фишка!
-VPN включается только для заблокированных сайтов.
-Экономия трафика и максимальная скорость!
-
-⚡ 3 региона: Латвия, Финляндия, Нидерланды
-Приложение автоматически выберет лучший!
-"""
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="🚀 Открыть приложение",
-                web_app=WebAppInfo(url=MINI_APP_URL)
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="🔗 Получить конфиг",
-                callback_data="get_config"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="💰 Пополнить баланс",
-                callback_data="add_balance"
-            ),
-            InlineKeyboardButton(
-                text="📊 Статистика",
-                callback_data="stats"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="🎁 Пригласить друга (+50₽)",
-                callback_data="referral"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="📱 Скачать приложение",
-                url="https://your-app-download.com"
-            )
-        ]
-    ])
-    
-    await message.answer(welcome_text, reply_markup=keyboard)
-
-@dp.callback_query(lambda c: c.data == 'get_config')
-async def get_config_callback(callback_query: types.CallbackQuery):
-    """
-    Генерация VLESS конфигурации
-    """
-    telegram_id = callback_query.from_user.id
-    
-    # Получение конфига через API
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f'{API_BASE_URL}/config/generate',
-            json={
-                'telegram_id': telegram_id,
-                'device_name': 'Telegram Device'
-            }
-        ) as resp:
-            if resp.status == 200:
-                config_data = await resp.json()
-                vless_link = config_data['vless_link']
-                qr_code_url = config_data['qr_code_url']
-                
-                config_text = f"""
-✅ Конфигурация готова!
-
-🔗 VLESS ссылка:
-`{vless_link}`
-
-📋 Как использовать:
-1. Скачайте приложение (кнопка ниже)
-2. Откройте приложение
-3. Нажмите "Добавить конфигурацию"
-4. Вставьте ссылку выше
-5. Подключитесь!
-
-🌍 Сервер: {config_data['server_name']}
-📍 Локация: {config_data['server_location']}
-⚡ Пинг: {config_data['latency']}ms
-
-💡 Совет: включите Smart Mode для экономии трафика!
-"""
-                
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="📱 Скачать приложение",
-                            url="https://your-app-download.com"
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            text="🔄 Сменить сервер",
-                            callback_data="change_server"
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            text="📊 Мои устройства",
-                            callback_data="devices"
-                        )
-                    ]
-                ])
-                
-                # Отправка QR кода
-                await callback_query.message.answer_photo(
-                    photo=qr_code_url,
-                    caption=config_text,
-                    reply_markup=keyboard,
-                    parse_mode='Markdown'
-                )
-            else:
-                error_data = await resp.json()
-                await callback_query.message.answer(
-                    f"❌ Ошибка: {error_data['message']}"
-                )
-    
-    await callback_query.answer()
-
-@dp.callback_query(lambda c: c.data == 'referral')
-async def referral_callback(callback_query: types.CallbackQuery):
-    """
-    Реферальная программа
-    """
-    telegram_id = callback_query.from_user.id
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            f'{API_BASE_URL}/users/{telegram_id}/referral'
-        ) as resp:
-            referral_data = await resp.json()
-    
-    referral_link = f"https://t.me/{bot._me.username}?start={referral_data['code']}"
-    
-    referral_text = f"""
-🎁 Реферальная программа
-
-Приглашайте друзей и получайте бонусы!
-
-💰 Вы получите: 50₽ за каждого друга
-🎉 Ваш друг получит: 50₽ при регистрации
-
-Ваша реферальная ссылка:
-{referral_link}
-
-📊 Статистика:
-Приглашено: {referral_data['total_referrals']} человек
-Заработано: {referral_data['total_earned']}₽
-"""
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="📤 Поделиться ссылкой",
-                url=f"https://t.me/share/url?url={referral_link}"
-            )
-        ]
-    ])
-    
-    await callback_query.message.answer(
-        referral_text,
-        reply_markup=keyboard
-    )
-    await callback_query.answer()
-
-@dp.callback_query(lambda c: c.data == 'stats')
-async def stats_callback(callback_query: types.CallbackQuery):
-    """
-    Статистика использования
-    """
-    telegram_id = callback_query.from_user.id
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            f'{API_BASE_URL}/users/{telegram_id}/stats'
-        ) as resp:
-            stats_data = await resp.json()
-    
-    stats_text = f"""
-📊 Ваша статистика
-
-💰 Текущий баланс: {stats_data['balance']}₽
-📱 Устройств: {stats_data['active_devices']}/5
-
-📈 За последние 30 дней:
-├ Использовано: {stats_data['traffic_used_gb']} GB
-├ Сэкономлено (Smart Mode): {stats_data['traffic_saved_gb']} GB
-├ Сессий: {stats_data['sessions_count']}
-└ Среднее время: {stats_data['avg_session_duration']} мин
-
-🌍 Любимый сервер: {stats_data['favorite_server']}
-⚡ Средний пинг: {stats_data['avg_latency']}ms
-
-💡 Smart Mode сэкономил вам {stats_data['money_saved']}₽!
-"""
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="📈 Подробная статистика",
-                web_app=WebAppInfo(url=f"{MINI_APP_URL}/stats")
-            )
-        ]
-    ])
-    
-    await callback_query.message.answer(stats_text, reply_markup=keyboard)
-    await callback_query.answer()
-
-async def main():
-    await dp.start_polling(bot)
-
-if __name__ == '__main__':
-    asyncio.run(main())
+```bash
+./mvnw -f backend/pom.xml clean verify
 ```
 
----
+Windows:
 
-## 7. СТОИМОСТЬ И ЦЕНООБРАЗОВАНИЕ
-
-### Инфраструктура (9 серверов):
-
-```
-🇱🇻 Латвия (Riga):
-  - 3 × Hetzner CPX21 (€8.90/мес) = €26.70
-  
-🇫🇮 Финляндия (Helsinki):
-  - 3 × Hetzner CPX21 (€8.90/мес) = €26.70
-  
-🇳🇱 Нидерланды (Amsterdam):
-  - 3 × Hetzner CPX21 (€8.90/мес) = €26.70
-
-Backend (Java):
-  - 1 × Hetzner CPX31 (€12.90/мес)
-
-Database (PostgreSQL):
-  - 1 × Hetzner CPX21 (€8.90/мес)
-
-CDN (Cloudflare):
-  - Free tier
-
-ИТОГО: ~€110/месяц (~11,000₽)
+```powershell
+mvnw.cmd -f backend\pom.xml clean verify
 ```
 
-### Тарифы для пользователей:
+### 4. Telegram Mini App
 
-```
-💰 Pay-as-you-go:
-  - 100₽ = 10 GB
-  - 200₽ = 50 GB (скидка 60%)
-  - 500₽ = ∞ (1 месяц)
-
-📱 Подписки:
-  - 1 месяц: 300₽
-  - 3 месяца: 750₽ (скидка 17%)
-  - 12 месяцев: 2,500₽ (скидка 30%)
-
-🎁 Бонусы:
-  - Регистрация: +50₽
-  - Реферал: +50₽ (вам и другу)
-  - Первое пополнение >200₽: +50₽
+```bash
+cd mini-app
+npm ci
+npm run dev
 ```
 
-### Break-even Point:
+Vite запускает frontend на `http://localhost:3000` и проксирует API-запросы к локальным backend-сервисам.
 
-```
-При 100 активных пользователей:
-  - Средний чек: 300₽/мес
-  - Доход: 30,000₽/мес
-  - Расходы: 11,000₽/мес
-  - Прибыль: 19,000₽/мес
+### 5. Полный Docker Compose
 
-При 1,000 пользователей:
-  - Доход: 300,000₽/мес
-  - Расходы: ~40,000₽/мес (больше серверов)
-  - Прибыль: 260,000₽/мес
+После подготовки `.env`, внешних endpoint и секретов:
+
+```bash
+docker compose --env-file .env up --build -d
 ```
 
----
+> [!CAUTION]
+> Полный Compose пока не является гарантированным one-command deployment для новой среды. Перед запуском необходимо настроить `.env`, проверить Docker build contexts, назначить уникальные порты и либо дополнить `admin-panel`, либо исключить его из запуска.
 
-## 8. ROADMAP
+## Конфигурация
 
-### Month 1: MVP
+Проект использует environment variables. Значения секретов не должны храниться в Git.
 
-- ✓ Telegram Bot (регистрация, команды)
-- ✓ Backend API (Java Spring Boot)
-- ✓ 3 сервера (по одному в каждом регионе)
-- ✓ VLESS конфигурация
-- ✓ База данных (PostgreSQL)
-- ✓ Простая оплата (YooMoney)
+| Группа | Основные переменные |
+| --- | --- |
+| PostgreSQL | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DB_HOST`, `DB_PORT` |
+| Redis | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` |
+| Сервисы | `GATEWAY_PORT`, `USER_SERVICE_PORT`, `VPN_CONFIG_PORT`, `SERVER_MGM_PORT`, `BILLING_PORT`, `BOT_PORT` |
+| Внутренняя безопасность | `INTERNAL_SECRET`, `JWT_SECRET`, `ADMIN_TOKEN`, `ADMIN_USER_IDS` |
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_CHANNEL_ID`, `TELEGRAM_CHANNEL_URL` |
+| Платежи | `PLATEGA_MERCHANT_ID`, `PLATEGA_SECRET_KEY`, `PLATEGA_RETURN_URL` |
+| XUI/Xray | `VPN_MAIN_PANEL_URL`, `VPN_MAIN_PANEL_USER`, `VPN_MAIN_PANEL_PASS`, inbound IDs и relay-параметры |
+| Hysteria2 | `HY2_PORT`, `HY2_PASS`, `HY2_SNI` |
+| Межсервисные адреса | `USER_SERVICE_URL`, `VPN_CONFIG_SERVICE_URL`, `SERVER_MGM_SERVICE_URL`, `BILLING_SERVICE_URL` |
 
-### Month 2: Mobile Apps
+Рекомендуемый порядок подготовки окружения:
 
-- ✓ iOS app (Swift + Network Extension)
-- ✓ Android app (Kotlin + VpnService)
-- ✓ Auto server selection
-- ✓ Telegram Mini App (React)
-- ✓ Реферальная система
+1. создать локальный `.env` вне системы контроля версий;
+2. сгенерировать уникальные `JWT_SECRET` и `INTERNAL_SECRET`;
+3. указать отдельные credentials для PostgreSQL и Redis;
+4. подключить Telegram, Platega и XUI только после запуска базовых сервисов;
+5. проверить конфигурацию командой `docker compose config`;
+6. выполнить health-check сервисов до подключения пользователей.
 
-### Month 3: Smart Mode
+## Тестирование
 
-- ✓ База заблокированных доменов
-- ✓ Split-tunneling реализация
-- ✓ Auto-update blocked list
-- ✓ Machine Learning для предсказаний
-- ✓ Gaming mode optimization
+Backend:
 
-### Month 4+: Scaling
+```bash
+./mvnw -f backend/pom.xml clean verify
+```
 
-- Multi-region expansion
-- Advanced analytics
-- Family sharing
-- Business accounts
-- API для интеграций
+Mini App:
 
-Продолжить с кодом мобильных приложений или детализацией Smart Mode?
+```bash
+cd mini-app
+npm ci
+npm run build
+```
+
+Инфраструктурные проверки:
+
+```bash
+bash infrastructure/ci-cd/scripts/health-check.sh
+bash infrastructure/ci-cd/scripts/smoke-tests.sh
+```
+
+Текущее автоматизированное покрытие ограничено. Перед production-релизом необходимы дополнительные unit-, integration- и end-to-end тесты для:
+
+- генерации и миграции конфигураций;
+- платежных webhook;
+- Telegram authentication;
+- лимитов устройств и подписок;
+- отказов XUI/Xray-узлов;
+- глобального maintenance;
+- Mini App и Android-клиента.
+
+## Развёртывание и мониторинг
+
+В репозитории находятся:
+
+- `infrastructure/docker/docker-compose.prod.yml` — production-oriented Compose;
+- `infrastructure/ansible/deploy-vpn.yml` — Ansible-сценарий развёртывания узлов;
+- `infrastructure/nginx/` — reverse proxy и TLS;
+- `infrastructure/monitoring/prometheus/` — конфигурация Prometheus;
+- `infrastructure/ci-cd/scripts/` — deploy, health-check, smoke-test и rollback;
+- `backend/vpn-config-service/src/main/resources/sh/` — установка и обновление сетевых компонентов.
+
+Основные health endpoints:
+
+```text
+/actuator/health
+/api/v1/servers/infrastructure/health
+```
+
+Production-файлы содержат environment-specific параметры и должны быть адаптированы под собственные домены, inventory, серверы, TLS-сертификаты и secret storage.
+
+## Безопасность
+
+В проекте реализованы:
+
+- HMAC-SHA256 проверка Telegram Mini App `initData`;
+- security context с ролями `USER`, `ADMIN` и `SERVICE`;
+- internal secret для межсервисных запросов;
+- отдельный admin token;
+- защищённые административные endpoint;
+- журналирование блокировок и причин ограничения доступа;
+- валидация webhook платежного провайдера;
+- Nginx/TLS-контур для внешнего трафика.
+
+Перед публичным или production-развёртыванием обязательно:
+
+1. удалить секреты и инфраструктурные credentials из отслеживаемых файлов и истории Git;
+2. перевыпустить все значения, которые когда-либо попадали в публичный репозиторий;
+3. хранить секреты в CI/CD secret storage или специализированном secret manager;
+4. ограничить доступ к PostgreSQL, Redis, Actuator, Grafana и XUI по сети;
+5. настроить rate limiting на API Gateway — текущий `KeyResolver` сам по себе не включает фильтр ограничения запросов;
+6. проверить CORS, Telegram origin, webhook signature и trusted proxy headers;
+7. отключить development fallback и тестовые Telegram ID в production-сборке;
+8. провести dependency, container и secret scanning.
+
+> [!WARNING]
+> Текущий snapshot репозитория требует отдельного secret-hygiene аудита перед дальнейшей публичной эксплуатацией. Не используйте существующие примерные или environment-specific значения как production credentials.
+
+## Ограничения
+
+- Android-модуль создаёт VPN-интерфейс, но вызовы `libXray` пока оставлены как заготовка.
+- iOS-клиент отсутствует.
+- `admin-panel` не содержит полного набора файлов для самостоятельной сборки.
+- `blocked-domains-service` пока является каркасом; часть логики находится в `vpn-config-service`.
+- routing rules содержат статические списки и `TODO` для автоматического обновления.
+- готового `.env.example` в репозитории нет.
+- полного API reference/OpenAPI-документа пока нет.
+- CI/CD-скрипты присутствуют, но готовый workflow в `.github/workflows` отсутствует.
+- автоматизированное тестовое покрытие недостаточно для уверенного production-релиза.
+- часть инфраструктурных файлов привязана к конкретному окружению и требует параметризации.
+
+## Roadmap
+
+- [ ] удалить credentials и environment-specific данные из Git, добавить безопасный `.env.example`;
+- [ ] завершить и выделить полноценный admin panel;
+- [ ] подключить `libXray` в Android-клиенте и добавить lifecycle/error handling;
+- [ ] реализовать автоматическое обновление доменных правил и завершить selective routing;
+- [ ] устранить конфликты портов и унифицировать Compose-файлы;
+- [ ] расширить unit-, integration- и end-to-end тесты;
+- [ ] добавить GitHub Actions для backend, frontend, контейнеров и security scanning;
+- [ ] добавить OpenAPI/Swagger и отдельный runbook для эксплуатации;
+- [ ] подготовить versioned releases, changelog и migration guide;
+- [ ] провести нагрузочное и отказоустойчивое тестирование.
+
+## Документация
+
+- [Техническое описание проекта](docs/technical_docmentation_telegram_vpn.md)
+- [Планирование Phase 3](docs/PHASE3_BREAKDOWN.md)
+- [Материалы по мобильным приложениям и Smart Mode](docs/mobile_apps_smart_mode.md)
+- [Ansible deployment](infrastructure/ansible/deploy-vpn.yml)
+- [Production Compose](infrastructure/docker/docker-compose.prod.yml)
+
+Часть документов отражает ранние планы и может не совпадать с текущим кодом. Перед изменениями сверяйтесь с реализацией и миграциями Flyway.
+
+## Ответственное использование
+
+Оператор развёрнутого сервиса самостоятельно отвечает за соблюдение законодательства, правил хостинг-провайдеров, Telegram, платежных систем и требований к обработке персональных и платёжных данных. Используйте проект только в законных целях и в пределах разрешённой инфраструктуры.
+
+## Лицензия
+
+В репозитории не опубликован файл лицензии. Исходный код доступен для ознакомления; копирование, распространение и коммерческое использование требуют отдельного разрешения правообладателя.
+
+Для вопросов по проекту используйте профиль [LUFFPUFF](https://github.com/LUFFPUFF) или GitHub Issues.
